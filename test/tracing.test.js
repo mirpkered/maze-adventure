@@ -26,6 +26,32 @@ test('one continuous drag traverses multiple cells without cell-by-cell gestures
   assert.equal(session.end(7), true);
 });
 
+test('a player can begin at the printed entrance opening instead of the cell center', () => {
+  const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }];
+  const session = createTraceSession(mazeWithRoute(route));
+  assert.equal(session.begin(4, { x: 0, y: -0.48 }), true);
+  assert.deepEqual(session.move(4, { x: 0.6, y: 0 }).path, route.slice(0, 2));
+});
+
+test('pencil trail follows off-center pointer samples rather than snapping to cell centers', () => {
+  const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }];
+  const session = createTraceSession(mazeWithRoute(route));
+  session.begin(5, { x: 0, y: 0 });
+  session.move(5, { x: 0.25, y: 0.12 });
+  session.move(5, { x: 1.25, y: 0.12 });
+  assert.deepEqual(session.path, route.slice(0, 2));
+  assert.ok(session.stroke.some(point => Math.abs(point.y - 0.12) < 0.01));
+  assert.ok(session.stroke.some(point => point.x > 0.5 && point.x < 1));
+});
+
+test('subpixel pointer jitter does not create excessive SVG trail points', () => {
+  const session = createTraceSession(mazeWithRoute([{ x: 0, y: 0 }, { x: 1, y: 0 }]));
+  session.begin(6, { x: 0, y: 0 });
+  const result = session.move(6, { x: 0.005, y: 0.004 });
+  assert.equal(result.moved, false);
+  assert.equal(session.stroke.length, 1);
+});
+
 test('one uninterrupted gesture follows turns in its pointer path', () => {
   const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 1 }, { x: 2, y: 2 }, { x: 3, y: 2 }];
   const maze = mazeWithRoute(route), session = createTraceSession(maze);
@@ -51,12 +77,36 @@ test('wall collision stops tracing at the last reachable cell', () => {
   const result = traceSegment(maze, [{ x: 0, y: 0 }], { x: 0, y: 0 }, { x: 2, y: 0 });
   assert.deepEqual(result.path, [{ x: 0, y: 0 }, { x: 1, y: 0 }]);
   assert.equal(result.blocked, true);
+  assert.ok(Math.max(...result.stroke.map(point => point.x)) < 1.5, 'the visible stroke stays on the open side of the blocked wall');
+});
+
+test('a blocked drag can turn into a legal corridor without lifting', () => {
+  const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }];
+  const session = createTraceSession(mazeWithRoute(route, 3, 2));
+  session.begin(8, { x: 0, y: 0 });
+  session.move(8, { x: 1, y: 0 });
+  assert.equal(session.move(8, { x: 2, y: 0 }).blocked, true);
+  const turn = session.move(8, { x: 1, y: 1 });
+  assert.deepEqual(turn.path, route);
+  assert.equal(turn.blocked, false);
 });
 
 test('physically retracing the route erases it cell by cell', () => {
   const route = Array.from({ length: 4 }, (_, x) => ({ x, y: 0 })), maze = mazeWithRoute(route);
   const result = traceSegment(maze, route, route.at(-1), { x: 1, y: 0 });
   assert.deepEqual(result.path, route.slice(0, 2));
+});
+
+test('backtracking trims the visible trail progressively along the traced route', () => {
+  const route = Array.from({ length: 4 }, (_, x) => ({ x, y: 0 }));
+  const session = createTraceSession(mazeWithRoute(route));
+  session.begin(10, { x: 0, y: 0 });
+  session.move(10, { x: 3, y: 0 });
+  const fullLength = session.stroke.length;
+  session.move(10, { x: 2.2, y: 0 });
+  assert.ok(session.stroke.length < fullLength);
+  assert.ok(Math.abs(session.stroke.at(-1).x - 2.2) < 0.06);
+  assert.deepEqual(session.path, route.slice(0, 3));
 });
 
 test('lifting and resuming preserves the endpoint', () => {
@@ -82,6 +132,16 @@ test('diagonal corner cutting is rejected even when both exits are open', () => 
   const result = traceSegment(maze, [{ x: 0, y: 0 }], { x: 0, y: 0 }, { x: 1, y: 1 });
   assert.deepEqual(result.path, [{ x: 0, y: 0 }]);
   assert.equal(result.blocked, true);
+});
+
+test('keyboard alternative follows open passages and can backtrack by retracing', () => {
+  const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }];
+  const session = createTraceSession(mazeWithRoute(route));
+  assert.equal(session.step({ x: 1, y: 0 }).moved, true);
+  assert.equal(session.step({ x: 0, y: 1 }).moved, true);
+  assert.equal(session.step({ x: 0, y: -1 }).moved, true);
+  assert.deepEqual(session.path, route.slice(0, 2));
+  assert.equal(session.step({ x: 0, y: -1 }).blocked, true);
 });
 
 test('touch gesture suppression is scoped to the maze and browser zoom stays enabled', async () => {

@@ -51,6 +51,34 @@
 - The Phase 1 implementation uses pointer tracing over a cell graph. Movement accepts a nearby cell center only when there is an open neighboring edge; the route cannot jump through a wall or skip a cell.
 - The current maze is not persisted. “New maze” and “Next maze” generate a fresh puzzle.
 
+## Phase 2C — Tracing and Mirpworks UI conventions
+
+- Maze walls and the legal cell route remain authoritative for movement, collision, retracing, and completion. The visible pencil trail uses dense, accepted pointer samples inside legal corridors; it is not snapped to cell centers. Backtracking trims the trail as the pointer retraces it.
+- Pointer lift and cancellation preserve the visible and logical endpoint. Arrow keys are an alternate accessible control and move along one legal passage at a time.
+- Restart Maze resets the same layout and timer. New Maze and Next Maze generate a fresh layout. Home from active play asks before discarding the attempt. Pause stops the timer; Resume continues it.
+- The home hub follows Word Search Adventure's card hierarchy and familiar mode/settings placement while keeping the Maze Adventure paper palette, maze artwork, and pencil trail.
+- Sound Effects and Paper Surface are local device preferences. Sound is an optional completion chime. The current game has no music or ambience catalog.
+- Word Search Adventure reference source: private repository `mirpkered/WordSearchAdventure`, `main` at `da1857b6420b94ceb0405080b9604950f23b4f49` (audited October 11, 2026). The provided live Pages URL returned GitHub Pages 404 during the audit, so rendered reference layouts could not be compared live.
+
+### Reference controls and Maze Adventure mapping
+
+| Word Search Adventure control | Maze Adventure mapping | Status |
+| --- | --- | --- |
+| Free Play | Quick Play · Easy | Available; Maze Custom setup is deferred |
+| Adventure | Story levels | Coming later; campaign is outside this phase |
+| Daily Challenge | Daily maze | Coming later; no daily schedule/progression exists |
+| Customize | Cosmetics | Coming later; cosmetic inventory is not implemented |
+| Trophy Room | Regional keepsakes | Coming later; no adventure reward collection exists |
+| Achievements | Maze achievements | Coming later; no progression records exist |
+| Statistics | Maze history | Coming later; attempts are not persisted |
+| Settings | Sound toggle, paper appearance, reset, About/contact | Adapted and functional |
+| Audio settings: master/music/ambience/SFX, music modes and tracks | Optional completion sound | Sound effect adapted; music and ambience omitted because Maze Adventure has no corresponding tracks or mixer |
+| Credits and Contact Mirpworks | About and mail link | Adapted; no contact backend is added |
+| New Puzzle, Restart, setup, Main Menu | New Maze, Restart Maze, Home | Adapted with separate behavior and a discard confirmation |
+| Word list, category picker, word-search selection, daily puzzle records | None | Word-search specific and not applicable to maze play |
+
+Pause/Resume and the keyboard arrow-key alternative are maze-specific additions. Linked maze sequences, saved statistics, custom setup, and the Adventure campaign remain planned rather than implied by the hub placeholders.
+
 ## Proposals and open decisions
 
 These remain proposals rather than commitments:

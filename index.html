@@ -17,7 +17,7 @@
   <body>
     <main class="app-shell">
       <header class="topbar">
-        <a class="wordmark" href="#home" aria-label="Maze Adventure home"><span class="mark" aria-hidden="true">M</span><span>mirpworks</span></a>
+        <a class="wordmark" href="#home" id="brand-home" aria-label="Maze Adventure home"><span class="mark" aria-hidden="true">M</span><span>mirpworks</span></a>
         <span class="tagline">Let’s play a game.</span>
       </header>
 
@@ -26,11 +26,21 @@
           <p class="eyebrow">A little adventure in every maze</p>
           <h1 id="home-title">Find your<br /><em>way through.</em></h1>
           <p class="intro">Take a quiet moment, follow the winding path, and see where it leads.</p>
-          <div class="home-actions">
-            <button class="button button-primary" id="quick-play">Quick Play <span aria-hidden="true">↗</span></button>
-            <button class="button button-secondary" id="adventure" disabled>Adventure <span class="coming">Coming later</span></button>
-          </div>
-          <p class="home-note">Easy maze · no rush · just find the way</p>
+          <section class="hub-menu" aria-label="Game modes and settings">
+            <div class="hub-primary-grid">
+              <button class="hub-card primary" id="quick-play"><strong>Free Play</strong><span>Quick Play · Easy maze</span></button>
+              <button class="hub-card primary adventure" disabled aria-describedby="adventure-status"><strong>Adventure</strong><span id="adventure-status">Coming later · Story levels</span></button>
+            </div>
+            <div class="hub-secondary-grid">
+              <button class="hub-card secondary" disabled><strong>Daily Challenge</strong><span>Coming later</span></button>
+              <button class="hub-card secondary" disabled><strong>Customize</strong><span>Coming later</span></button>
+              <button class="hub-card secondary" disabled><strong>Trophy Room</strong><span>Coming later</span></button>
+              <button class="hub-card secondary" disabled><strong>Achievements</strong><span>Coming later</span></button>
+              <button class="hub-card secondary" disabled><strong>Statistics</strong><span>Coming later</span></button>
+              <button class="hub-card secondary" id="open-settings"><strong>Settings</strong><span>This device</span></button>
+            </div>
+          </section>
+          <div class="home-links"><button class="text-button" id="open-help">How to play</button><span aria-hidden="true">·</span><button class="text-button" id="open-about">About Mirpworks</button></div>
         </div>
         <div class="home-art" aria-hidden="true">
           <div class="sun"></div><div class="art-label">a path<br />to somewhere</div>
@@ -45,18 +55,41 @@
 
       <section id="play" class="screen play-screen" aria-labelledby="play-title" hidden>
         <div class="play-heading">
-          <button class="back-button" id="back-home" aria-label="Back to home">← <span>Home</span></button>
-          <div><p class="eyebrow">FREE PLAY <span class="dot">·</span> EASY</p><h1 id="play-title">A little winding way</h1></div>
+          <button class="back-button" id="back-home" aria-label="Return to home">← <span>Home</span></button>
+          <div><p class="eyebrow">FREE PLAY <span class="dot">·</span> EASY</p><h1 id="play-title" tabindex="-1">A little winding way</h1></div>
           <div class="timer-wrap"><span class="timer-label">TIME</span><output id="timer" aria-label="Elapsed time">0:00</output></div>
         </div>
-        <p class="play-hint" id="play-hint">Trace the path from the little flag to the flower.</p>
-        <div class="maze-paper" id="maze-paper"><svg id="maze" draggable="false" role="application" aria-label="Maze. Trace from the entrance to the exit." viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg></div>
-        <div class="play-footer"><span><i class="legend-start"></i> START</span><span class="footer-message">Take your time. You can lift and continue.</span><button class="text-button" id="new-maze">New maze ↻</button></div>
+        <p class="play-hint" id="play-hint">Trace from the entrance to the flower. You can lift and continue.</p>
+        <div class="maze-paper" id="maze-paper"><svg id="maze" draggable="false" tabindex="0" role="application" aria-label="Maze. Trace from the entrance to the exit. Focus the maze and use arrow keys to move one passage at a time." viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg></div>
+        <div class="play-footer"><span><i class="legend-start"></i> START</span><div class="game-actions"><button class="small-button" id="pause-game">Pause</button><button class="small-button" id="restart-maze">Restart maze</button><button class="small-button" id="new-maze">New maze</button></div></div>
+      </section>
+
+      <section id="settings" class="screen info-screen" aria-labelledby="settings-title" hidden>
+        <header class="view-header"><button class="back-button" id="settings-home">← Home</button><div><p class="eyebrow">THIS DEVICE</p><h1 id="settings-title" tabindex="-1">Settings</h1></div></header>
+        <section class="settings-panel" aria-labelledby="sound-title"><h2 id="sound-title">Sound</h2><p>Optional sound for maze completion.</p><label class="setting-row"><span><strong>Sound effects</strong><small>Play a soft chime when you finish a maze.</small></span><input id="sound-effects" type="checkbox" /></label></section>
+        <section class="settings-panel" aria-labelledby="paper-title"><h2 id="paper-title">Appearance</h2><label for="paper-theme">Paper surface</label><select id="paper-theme"><option value="warm">Warm paper</option><option value="light">Soft ivory</option></select></section>
+        <section class="settings-panel about-panel"><h2>About Maze Adventure</h2><p>A Mirpworks pencil-and-paper maze game.</p><button class="settings-link" id="open-credits"><strong>Credits</strong><span>Created by Mirpworks</span></button><a href="mailto:contact@mirpworks.com">Contact Mirpworks</a></section>
+        <button class="text-button reset-settings" id="reset-settings">Reset settings</button>
+      </section>
+
+      <section id="help" class="screen info-screen" aria-labelledby="help-title" hidden>
+        <header class="view-header"><button class="back-button" id="help-home">← Home</button><div><p class="eyebrow">A QUICK GUIDE</p><h1 id="help-title" tabindex="-1">How to play</h1></div></header>
+        <section class="settings-panel help-panel"><h2>Trace the open path</h2><ol><li>Touch or click the START entrance.</li><li>Drag through the open corridors to the flower.</li><li>Walls stop the pencil. To leave a dead end, trace back along your line.</li><li>Lift your finger whenever you need to. Touch the end of your line to continue.</li></ol><p>Keyboard option: focus the maze and use the arrow keys to move through one passage at a time. There is no countdown and no penalty for taking your time.</p></section>
+        <button class="button button-primary" id="help-play">Start a maze <span aria-hidden="true">↗</span></button>
+      </section>
+
+      <section id="about" class="screen info-screen" aria-labelledby="about-title" hidden>
+        <header class="view-header"><button class="back-button" id="about-home">← Home</button><div><p class="eyebrow">MIRPWORKS</p><h1 id="about-title" tabindex="-1">Let’s play a game.</h1></div></header>
+        <section class="settings-panel"><h2>Maze Adventure</h2><p>A quiet puzzle-book maze with a little digital magic.</p><p>Made by Mirpworks.</p><a href="mailto:contact@mirpworks.com">Questions or feedback? Contact Mirpworks</a></section>
       </section>
 
       <section id="complete" class="screen complete-screen" aria-labelledby="complete-title" hidden>
-        <div class="complete-card"><div class="complete-flower" aria-hidden="true">✿</div><p class="eyebrow">MAZE COMPLETE</p><h1 id="complete-title">You found<br /><em>your way.</em></h1><p class="complete-copy">A lovely little journey, at your own pace.</p><div class="time-result"><span>YOUR TIME</span><strong id="final-time">0:00</strong></div><button class="button button-primary" id="next-maze">Next maze <span aria-hidden="true">↗</span></button><button class="text-button home-link" id="complete-home">Back to home</button></div>
+        <div class="complete-card"><div class="complete-flower" aria-hidden="true">✿</div><p class="eyebrow">MAZE COMPLETE</p><h1 id="complete-title" tabindex="-1">You found<br /><em>your way.</em></h1><p class="complete-copy">A lovely little journey, at your own pace.</p><div class="time-result"><span>YOUR TIME</span><strong id="final-time">0:00</strong></div><button class="button button-primary" id="next-maze">Next Maze <span aria-hidden="true">↗</span></button><button class="small-button replay-button" id="replay-maze">Replay this maze</button><button class="text-button home-link" id="complete-home">Main Menu</button></div>
       </section>
+
+      <section class="overlay" id="pause-dialog" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden><div class="dialog-card"><p class="eyebrow">TAKE YOUR TIME</p><h2 id="pause-title">Maze paused</h2><p>Your path is saved right where you left it.</p><button class="button button-primary" id="resume-game">Resume maze</button><button class="small-button" id="pause-restart">Restart this maze</button><button class="small-button" id="pause-new">New maze</button><button class="text-button" id="pause-home">Return home</button><button class="dialog-close" id="close-pause" aria-label="Close pause menu">×</button></div></section>
+      <section class="overlay" id="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title" hidden><div class="dialog-card"><p class="eyebrow">LEAVE THIS MAZE?</p><h2 id="confirm-title">Your current path will be cleared.</h2><p>You can restart this maze later, but this attempt will not be saved.</p><button class="button button-primary" id="confirm-leave">Leave maze</button><button class="small-button" id="cancel-leave">Keep playing</button></div></section>
+      <section class="overlay" id="reset-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title" hidden><div class="dialog-card"><p class="eyebrow">RESET PREFERENCES</p><h2 id="reset-title">Restore default settings?</h2><p>Your sound and paper choices will return to their defaults.</p><button class="button button-primary" id="confirm-reset">Reset settings</button><button class="small-button" id="cancel-reset">Cancel</button></div></section>
       <footer class="site-footer"><span>© MIRPWORKS</span><span>MADE FOR A MOMENT OF PLAY</span></footer>
     </main>
     <script type="module" src="./src/game.js"></script>

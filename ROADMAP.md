@@ -37,6 +37,17 @@ This roadmap tracks intended phases, current state, priorities, and unresolved c
 - Define dimension ranges and how dimensions combine with the four difficulty labels.
 - Add keyboard and assistive-technology behavior where it can preserve maze readability.
 
+### Phase 2C — Fluid tracing and family UI
+
+**Status: Complete · October 11, 2026**
+
+- [x] Separate legal cell-route validation from the in-corridor SVG pencil trail; support sampled smooth pointer motion, physical retraction, lift/resume, and keyboard passage navigation.
+- [x] Match the Word Search Adventure hub/card structure, settings/about pattern, modal behavior, responsive surfaces, and Mirpworks control labels while retaining maze-specific artwork and gameplay.
+- [x] Add functional pause/resume, same-maze restart, new maze, guarded Home navigation, local sound/appearance preferences, instructions, completion replay, and Next Maze actions.
+- [x] Mark campaign/progression menus as unavailable until those systems exist; defer music/ambience controls because the maze game has no music catalog.
+- [x] Verify source against Word Search Adventure main at `da1857b6420b94ceb0405080b9604950f23b4f49`. The supplied live reference URL returned GitHub Pages 404 during the audit.
+- [ ] Validate the updated tracing and portrait/landscape layout on a physical iPhone.
+
 ## Phase 3 — Save and replay foundation
 
 **Priority: P2**

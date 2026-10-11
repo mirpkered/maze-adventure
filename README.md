@@ -8,7 +8,9 @@ Maze Adventure is a separate, mobile-first maze puzzle game inspired by the prog
 
 The Phase 1 slice includes a Home screen and an Easy Quick Play maze. Trace from START to the flower with a finger, mouse, or pointer. Walls stop movement; retrace the route to leave a dead end. Lifting your pointer preserves your route. The elapsed timer pauses when the page is hidden or the window loses focus.
 
-The Adventure entry is marked as coming later. Story chapters, linked mazes, cosmetics, custom setup, and persistent saves are not implemented yet.
+The Adventure entry and the future daily, customization, keepsake, achievement, and statistics areas are marked as coming later. Story chapters, linked mazes, custom setup, and persistent maze progress are not implemented yet.
+
+Maze tracing keeps the logical cell route authoritative for collision and completion while the SVG pencil line follows accepted pointer samples through corridors and trims during physical backtracking. The maze also supports arrow-key passage movement. Pause/resume, same-maze restart, new maze, guarded Home navigation, local sound/appearance settings, instructions, and completion replay are available.
 
 ## Install on iPhone
 
@@ -40,15 +42,17 @@ npm test
 npm run check
 ```
 
-The automated checks cover generated-maze connectivity and wall symmetry, dimension validation, illegal path input and wall collision, retracing, and reaching the exit. The browser interaction is designed for touch and pointer input; manually check an iPhone-sized viewport when changing layout or input behavior.
+The automated checks cover generated-maze connectivity and wall symmetry, dimension validation, continuous off-center tracing, turns, sparse input, wall collision, backtracking, lift/resume, pointer cancellation, keyboard passage movement, and persisted settings. The browser interaction is designed for touch and pointer input; physical iPhone tracing and portrait/landscape validation are still required.
 
 ## Project map
 
 - `src/maze.js` — seeded-capable perfect-maze generation and pure path rules
 - `src/contracts.js` — forward-looking data shapes for story, levels, saves, sequences, and cosmetics
-- `src/game.js` — Phase 1 screens, pointer tracing, and timer
+- `src/game.js` — screens, controls, timer, stroke display, and service worker registration
 - `src/styles.css` — responsive paper-inspired presentation
-- `test/maze.test.js` — rule and generator checks
+- `src/tracing.js` — legal route validation and fluid pointer stroke model
+- `src/preferences.js` — local sound and paper preferences
+- `test/maze.test.js`, `test/tracing.test.js`, `test/ui.test.js` — generator, trace, and UI contract checks
 - `ROADMAP.md` — phases, priorities, status, and open decisions
 - `GAME_DESIGN.md` — confirmed rules and unresolved proposals
 
