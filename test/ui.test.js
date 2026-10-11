@@ -42,6 +42,8 @@ test('logo hold enables persistent QA, keeps the URL path, and supports explicit
   assert.match(qaMode, /localStorage|storage/);
   assert.match(game, /isQaEnabledOnStartup\(location\.search, deviceStorage\)/);
   assert.match(game, /setQaMode\(true\)/);
+  assert.match(game, /function syncQaControls\(\)/);
+  assert.match(game, /renderMaze\(\); activeScreen\(\$\('#play'\)\); syncQaControls\(\)/);
   assert.match(game, /#disable-qa-mode'\)\.addEventListener\('click', \(\) => setQaMode\(false\)\)/);
   assert.match(game, /#copy-trace-report/);
   assert.match(game, /#reset-trace-log/);

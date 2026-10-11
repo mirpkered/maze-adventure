@@ -27,17 +27,11 @@ function setQaMode(enabled, { persist = true } = {}) {
   const stored = persist ? writeQaPreference(deviceStorage, qaEnabled) : readQaPreference(deviceStorage);
   if (qaEnabled) {
     traceRecorder ??= createTraceRecorder({ limit: 400 });
-    document.body.dataset.qa = 'true';
-    $('#trace-diagnostic-tools').hidden = false;
-    $('#trace-diagnostics').hidden = !traceSession;
     $('#qa-mode-status').textContent = stored
       ? 'QA mode is saved on this device. Use Exit QA mode to turn it off.'
       : 'QA mode is on for this session. Use Exit QA mode to turn it off.';
     window.mazeAdventureTraceDiagnostics = () => traceSession?.diagnostics ?? null;
   } else {
-    delete document.body.dataset.qa;
-    $('#trace-diagnostic-tools').hidden = true;
-    $('#trace-diagnostics').hidden = true;
     $('#trace-diagnostic-fallback').hidden = true;
     $('#trace-diagnostic-status').textContent = '';
     $('#qa-mode-status').textContent = '';
@@ -49,7 +43,15 @@ function setQaMode(enabled, { persist = true } = {}) {
     delete window.mazeAdventureTraceDiagnostics;
     traceRecorder = null;
   }
+  syncQaControls();
   updateTraceDiagnostics();
+}
+
+function syncQaControls() {
+  if (qaEnabled) document.body.dataset.qa = 'true';
+  else delete document.body.dataset.qa;
+  $('#trace-diagnostic-tools').hidden = !qaEnabled;
+  $('#trace-diagnostics').hidden = !qaEnabled || !traceSession;
 }
 
 function recordTraceEvent(eventType, event, point, accepted, reason = null, canceled = false) {
@@ -212,7 +214,7 @@ function makeMaze(reuse = false) {
   activePointerId = null; elapsed = 0; paused = false; displayTime();
   $('#final-time').textContent = '0:00';
   $('#play-hint').textContent = 'Trace from the entrance to the flower. You can lift and continue.';
-  renderMaze(); activeScreen($('#play')); updateTraceDiagnostics(); $('#play-title').focus({ preventScroll: true }); startTimer();
+  renderMaze(); activeScreen($('#play')); syncQaControls(); updateTraceDiagnostics(); $('#play-title').focus({ preventScroll: true }); startTimer();
 }
 
 function clearPointer() {
