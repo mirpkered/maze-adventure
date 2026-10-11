@@ -24,7 +24,11 @@
       <section id="home" class="screen home-screen" aria-labelledby="home-title">
         <div class="home-copy">
           <p class="eyebrow title-kicker">MIRPWORKS <span aria-hidden="true">·</span> A PAPER-AND-PENCIL ADVENTURE</p>
-          <h1 id="home-title">Maze<br /><em>Adventure</em></h1>
+          <div class="title-branding">
+            <h1 id="home-title"><img class="title-logo" src="./branding/maze-adventure-logo.svg" alt="Maze Adventure" /></h1>
+            <button class="qa-emblem-trigger" id="qa-logo-trigger" type="button" aria-label="Maze Adventure emblem" aria-describedby="qa-logo-hint"><img src="./branding/maze-adventure-emblem.svg" alt="" draggable="false" /></button>
+            <span class="visually-hidden" id="qa-logo-hint">Internal testing: hold for three seconds. Keyboard: Shift+Enter.</span>
+          </div>
           <p class="intro">Find your way through a little maze. Let’s play a game.</p>
           <nav class="hub-menu" aria-label="Main menu">
             <button class="hub-card primary" id="quick-play"><span class="menu-icon" aria-hidden="true">✎</span><strong>Free Play</strong><span>Quick Play · Easy maze <b aria-hidden="true">↗</b></span></button>
@@ -58,7 +62,8 @@
         <div class="maze-paper" id="maze-paper"><svg id="maze" draggable="false" tabindex="0" role="application" aria-label="Maze. Trace from the entrance to the exit. Focus the maze and use arrow keys to move one passage at a time." viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg></div>
         <output id="trace-diagnostics" class="trace-diagnostics" hidden aria-live="off"></output>
         <section id="trace-diagnostic-tools" class="trace-diagnostic-tools" hidden aria-label="QA tracing diagnostics">
-          <div class="diagnostic-actions"><button id="copy-trace-report" class="small-button">Copy diagnostic report</button><button id="reset-trace-log" class="small-button">Reset diagnostic log</button></div>
+          <div class="diagnostic-actions"><button id="copy-trace-report" class="small-button">Copy diagnostic report</button><button id="reset-trace-log" class="small-button">Reset diagnostic log</button><button id="disable-qa-mode" class="small-button">Exit QA mode</button></div>
+          <output id="qa-mode-status" aria-live="polite"></output>
           <output id="trace-diagnostic-status" aria-live="polite"></output>
           <textarea id="trace-diagnostic-fallback" aria-label="Diagnostic report for manual copying" readonly hidden rows="8"></textarea>
         </section>

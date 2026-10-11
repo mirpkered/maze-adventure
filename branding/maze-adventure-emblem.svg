@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title">
+  <title id="title">Maze Adventure emblem</title>
+  <circle cx="48" cy="48" r="44" fill="#263b35" stroke="#d4a642" stroke-width="4"/>
+  <circle cx="48" cy="48" r="36" fill="#f5efdf" stroke="#fff6dd" stroke-width="2"/>
+  <path d="M25 27h46v42H25z M36 27v10h14v10H36v10h14v12 M50 27v10h14v10H50v10h14v12 M64 37h7 M25 37h11 M25 47h11 M50 57h14" fill="none" stroke="#30443a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="25" cy="27" r="3" fill="#bd6243"/><circle cx="71" cy="69" r="3.5" fill="#637d65"/>
+</svg>

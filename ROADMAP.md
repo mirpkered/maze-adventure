@@ -84,6 +84,16 @@ This roadmap tracks intended phases, current state, priorities, and unresolved c
 - [ ] Capture a report from the physical iPhone scenario and use its event sequence to reproduce any remaining lockup. The deterministic replay does not reproduce the reported failure; no tracing rule change is justified by current evidence.
 - [ ] Verify copy/share behavior and wall-contact recovery with the installed PWA on a physical iPhone.
 
+### Phase 2H — Family logo and device QA access
+
+**Status: Implemented · automated/browser verification pending · physical iPhone verification pending**
+
+- [x] Inspect current Word Search Adventure title branding and QA hold source at `dcf1e39d373c6a1a2b3e3c15cd7051de2ec039cb`; its QA trigger holds the title logo for three seconds and cancels on release, pointer cancellation, blur, or movement over 12 px. The reference QA state is session-only.
+- [x] Add Maze Adventure horizontal SVG title logo and matching medallion; keep the approved application icon and maze drawing unchanged. Keep the Home menu and responsive single-screen title composition.
+- [x] Make the medallion hold enable locally persisted QA mode; preserve session-only `?qa=1`. Start a maze for the report/reset controls, then use **Exit QA mode** to clear device persistence. Shift+Enter is available to keyboard users.
+- [x] Add focused QA-mode persistence and press/hold interaction tests; bump the offline shell cache and precache the logo assets.
+- [ ] Verify title fit, hold activation, persistence across relaunch, report copy, and deactivation on a physical iPhone Home Screen app.
+
 ## Phase 3 — Save and replay foundation
 
 **Priority: P2**

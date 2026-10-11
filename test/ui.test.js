@@ -12,7 +12,8 @@ test('title screen exposes the playable mode and functional supporting controls'
   assert.match(html, /id="open-about"/);
   assert.match(html, /class="hub-card secondary home-contact" href="mailto:contact@mirpworks\.com/);
   assert.match(html, /<button class="hub-card adventure" disabled[^>]*><span class="menu-icon"[^>]*>✿<\/span><strong>Adventure<\/strong><span id="adventure-status">Coming Soon/);
-  assert.match(html, /<h1 id="home-title">Maze<br \/><em>Adventure<\/em><\/h1>/);
+  assert.match(html, /<h1 id="home-title"><img class="title-logo" src="\.\/branding\/maze-adventure-logo\.svg" alt="Maze Adventure" \/><\/h1>/);
+  assert.match(html, /id="qa-logo-trigger"[^>]*><img src="\.\/branding\/maze-adventure-emblem\.svg"/);
   assert.doesNotMatch(html, /<button[^>]*disabled[^>]*><strong>(?:Daily Challenge|Customize|Trophy Room|Achievements|Statistics)<\/strong>/);
 });
 
@@ -22,7 +23,8 @@ test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, col
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(html, /id="copy-trace-report"[^>]*>Copy diagnostic report/);
   assert.match(html, /id="reset-trace-log"[^>]*>Reset diagnostic log/);
-  assert.match(game, /new URLSearchParams\(location\.search\)\.get\('qa'\) === '1'/);
+  assert.match(game, /isQaRequested\(location\.search\)/);
+  assert.match(html, /id="disable-qa-mode"[^>]*>Exit QA mode/);
   assert.match(game, /window\.mazeAdventureTraceDiagnostics = \(\) => traceSession\?\.diagnostics/);
   for (const item of ['pointerType', 'client:', 'maze:', 'acceptedInkEndpoint', 'previousRouteCell', 'gestureState', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
   assert.match(game, /navigator\.clipboard\?\.writeText/);
@@ -30,6 +32,26 @@ test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, col
   assert.match(game, /traceRecorder\.reset\(\)/);
   assert.match(game, /limit: 400/);
   for (const item of ['raw', 'endpoint', 'cell', 'blocked', 'recovering']) assert.ok(tracing.includes(item));
+});
+
+test('logo hold enables persistent QA, keeps the URL path, and supports explicit deactivation', async () => {
+  const html = await read('index.html'), css = await read('src/styles.css'), game = await read('src/game.js'), worker = await read('service-worker.js');
+  const qaMode = await read('src/qa-mode.js');
+  assert.match(qaMode, /QA_LOGO_HOLD_MS = 3000/);
+  assert.match(qaMode, /QA_LOGO_MOVE_LIMIT = 12/);
+  assert.match(qaMode, /localStorage|storage/);
+  assert.match(game, /isQaEnabledOnStartup\(location\.search, deviceStorage\)/);
+  assert.match(game, /setQaMode\(true\)/);
+  assert.match(game, /#disable-qa-mode'\)\.addEventListener\('click', \(\) => setQaMode\(false\)\)/);
+  assert.match(game, /#copy-trace-report/);
+  assert.match(game, /#reset-trace-log/);
+  assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
+  assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
+  assert.match(css, /\.title-logo[^}]*width:\s*100%/);
+  assert.match(worker, /shell-v9/);
+  assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
+  assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);
+  assert.match(worker, /\.\/src\/qa-mode\.js/);
 });
 
 test('Contact links prefill Maze Adventure feedback email details', async () => {
