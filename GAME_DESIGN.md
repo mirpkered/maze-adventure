@@ -81,6 +81,12 @@
 
 Pause/Resume and the keyboard arrow-key alternative are maze-specific additions. Linked maze sequences, saved statistics, custom setup, and the Adventure campaign remain planned rather than implied by the hub placeholders.
 
+## Phase 2D — Touch tracing refinement
+
+- Touch samples remain validated against the legal cell route and corridor geometry. The pencil stroke is gently biased toward the passage center, while a 0.4-cell capture radius supports off-center reversal and recovery.
+- The accepted stroke stays inside a 0.42-cell inset; the legal corridor margin remains 0.46 cells. After leaving a corridor, input may rejoin only near the current route tip or its immediately previous cell and cannot jump to another branch.
+- The trace tracks the physical pointer separately from the accepted pencil endpoint so wall contact does not reset the origin. Physical iPhone validation remains necessary to tune the capture feel against different finger sizes and devices.
+
 ## Proposals and open decisions
 
 These remain proposals rather than commitments:

@@ -1,16 +1,20 @@
 import { advancePath, canMove } from './maze.js';
 
 const MAX_SAMPLE_DISTANCE = 0.055;
-const CORRIDOR_TOLERANCE = 0.62;
 const CORRIDOR_MARGIN = 0.46;
-const RETRACE_TOLERANCE = 0.14;
+const ENTRANCE_TOLERANCE = 0.62;
+// A finger can comfortably wander around inside a printed corridor. Keep
+// capture well inside the half-cell boundary so adjacent, walled passages
+// never become interchangeable.
+const TRAIL_CAPTURE_RADIUS = 0.4;
+const GUIDED_STROKE_INSET = 0.42;
 const MIN_STROKE_POINT_DISTANCE = 0.015;
 
 function nearestCell(point, maze) {
   const roundedX = Math.round(point.x), roundedY = Math.round(point.y);
   const x = roundedX === 0 ? 0 : roundedX, y = roundedY === 0 ? 0 : roundedY;
   if (x < 0 || y < 0 || x >= maze.width || y >= maze.height) return null;
-  return Math.hypot(point.x - x, point.y - y) <= CORRIDOR_TOLERANCE ? { x, y } : null;
+  return { x, y };
 }
 
 function sameCell(a, b) { return a.x === b.x && a.y === b.y; }
@@ -24,10 +28,21 @@ function projectOntoStroke(stroke, point) {
     const ratio = lengthSquared ? Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared)) : 0;
     const projected = { x: a.x + dx * ratio, y: a.y + dy * ratio };
     const distance = Math.hypot(point.x - projected.x, point.y - projected.y);
-    if (distance < best.distance) best = { distance, along: traveled + length * ratio, point: projected };
+    const along = traveled + length * ratio;
+    if (distance < best.distance - 1e-6 || (Math.abs(distance - best.distance) <= 1e-6 && along > best.along)) best = { distance, along, point: projected };
     traveled += length;
   }
   return best;
+}
+
+// Reduce off-center jitter while keeping the stroke in the same corridor as
+// the finger. This is a gentle pencil guide, not a route finder or cell snap.
+function guidePoint(point, cell, maze) {
+  const dx = point.x - cell.x, dy = point.y - cell.y;
+  const entrance = sameCell(cell, maze.start) && cell.y === 0 && dy < -CORRIDOR_MARGIN;
+  const guidedX = Math.max(-GUIDED_STROKE_INSET, Math.min(GUIDED_STROKE_INSET, dx * 0.9));
+  const guidedY = entrance ? dy : Math.max(-GUIDED_STROKE_INSET, Math.min(GUIDED_STROKE_INSET, dy * 0.9));
+  return { x: cell.x + guidedX, y: cell.y + guidedY };
 }
 
 function trimStroke(stroke, along) {
@@ -50,7 +65,7 @@ function trimStroke(stroke, along) {
 function insideCell(point, cell, maze) {
   const dx = point.x - cell.x, dy = point.y - cell.y;
   const ax = Math.abs(dx), ay = Math.abs(dy);
-  if (sameCell(cell, maze.start) && cell.y === 0 && dy < -CORRIDOR_MARGIN && ay <= CORRIDOR_TOLERANCE && ax <= CORRIDOR_MARGIN) return true;
+  if (sameCell(cell, maze.start) && cell.y === 0 && dy < -CORRIDOR_MARGIN && ay <= ENTRANCE_TOLERANCE && ax <= CORRIDOR_MARGIN) return true;
   if (ax <= CORRIDOR_MARGIN && ay <= CORRIDOR_MARGIN) return true;
   if (ax <= 0.5 && ay <= CORRIDOR_MARGIN && dx !== 0) {
     const neighbor = { x: cell.x + Math.sign(dx), y: cell.y };
@@ -98,7 +113,7 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(cent
       const currentIndex = nextPath.findIndex(cell => sameCell(cell, candidate));
       const isCurrentOrPrevious = currentIndex === nextPath.length - 1 || currentIndex === nextPath.length - 2;
       const movingTowardTrailTip = projected.along <= beforeProjection.along + 0.02;
-      if (!insideCell(point, candidate, maze) || projected.distance > RETRACE_TOLERANCE || !isCurrentOrPrevious || !movingTowardTrailTip) {
+      if (!insideCell(point, candidate, maze) || projected.distance > TRAIL_CAPTURE_RADIUS || !isCurrentOrPrevious || !movingTowardTrailTip) {
         blocked = true;
         continue;
       }
@@ -124,16 +139,17 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(cent
     // On the way back, the pen must stay close to the stroke already drawn.
     // Shorten that stroke by physical pointer progress instead of snapping a
     // whole grid edge away at once.
-    const movingBackward = projected.distance <= RETRACE_TOLERANCE
-      && projected.along <= beforeProjection.along + 1e-4;
+    const movingBackward = projected.distance <= TRAIL_CAPTURE_RADIUS
+      && projected.along < beforeProjection.along - 1e-4;
     if (movingBackward) {
       stroke = trimStroke(stroke, projected.along);
       moved = true;
       continue;
     }
 
+    const pencilPoint = guidePoint(point, candidate, maze);
     const last = stroke.at(-1);
-    if (Math.hypot(point.x - last.x, point.y - last.y) > MIN_STROKE_POINT_DISTANCE) { stroke.push(point); moved = true; }
+    if (Math.hypot(pencilPoint.x - last.x, pencilPoint.y - last.y) > MIN_STROKE_POINT_DISTANCE) { stroke.push(pencilPoint); moved = true; }
   }
 
   return { path: nextPath, stroke, moved, blocked, complete, recovering: rejoining };
@@ -163,7 +179,11 @@ export function createTraceSession(maze) {
       if (pointerId !== null) return false;
       const cell = nearestCell(point, maze), endpoint = path.at(-1);
       const entranceStart = path.length === 1 && stroke.length === 1;
-      if (!cell || !sameCell(cell, endpoint) || (!entranceStart && Math.hypot(point.x - stroke.at(-1).x, point.y - stroke.at(-1).y) > 0.3)) return false;
+      const atEntrance = entranceStart && cell && sameCell(cell, maze.start) && cell.y === 0
+        && point.y - cell.y < -CORRIDOR_MARGIN && Math.abs(point.y - cell.y) <= ENTRANCE_TOLERANCE
+        && Math.abs(point.x - cell.x) <= CORRIDOR_MARGIN;
+      if (!cell || !sameCell(cell, endpoint) || (!insideCell(point, cell, maze) && !atEntrance)
+        || (!entranceStart && Math.hypot(point.x - stroke.at(-1).x, point.y - stroke.at(-1).y) > TRAIL_CAPTURE_RADIUS)) return false;
       pointerId = id;
       lastPoint = { ...point };
       recovering = false;
@@ -171,7 +191,10 @@ export function createTraceSession(maze) {
     },
     move(id, point) {
       if (pointerId !== id || !lastPoint) return { path, stroke, moved: false, blocked: false, complete: false };
-      const result = traceSegment(maze, path, lastPoint, point, stroke, lastPoint, recovering);
+      // When the finger is outside the corridor, anchor reverse intent to the
+      // last accepted pencil tip instead of projecting the outside coordinate.
+      const acceptedAnchor = recovering ? stroke.at(-1) : lastPoint;
+      const result = traceSegment(maze, path, lastPoint, point, stroke, acceptedAnchor, recovering);
       path = result.path;
       stroke = result.stroke;
       // Track the physical pointer separately from the accepted trail endpoint.

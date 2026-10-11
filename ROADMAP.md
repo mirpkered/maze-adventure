@@ -50,6 +50,14 @@ This roadmap tracks intended phases, current state, priorities, and unresolved c
 - Record the current iPhone size preference: 20×20 is the practical normal maximum for Free Play; 25×25 remains experimental until physical-device testing. Current playable maze remains 7×7.
 - [ ] Validate the updated tracing and portrait/landscape layout on a physical iPhone.
 
+### Phase 2D — Touch precision and continuous drag
+
+**Status: Implemented · physical-device validation pending**
+
+- [x] Add corridor-guided pencil rendering, a practical off-center trail capture radius, and accepted-pointer anchoring through wall contact.
+- [x] Verify collision reversal, repeated contacts, corner retracing, off-center multi-turn tracing, wall-side limits, cancellation, and endpoint synchronization with deterministic tests.
+- [ ] Validate touch feel and recovery on a physical iPhone portrait PWA. Current automated tests cannot measure finger comfort or Safari hardware behavior.
+
 ## Phase 3 — Save and replay foundation
 
 **Priority: P2**

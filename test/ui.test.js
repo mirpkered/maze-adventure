@@ -62,3 +62,12 @@ test('responsive layout keeps touch suppression on the maze and keeps zoom enabl
   assert.match(html, /name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/);
   assert.doesNotMatch(html, /maximum-scale\s*=|user-scalable\s*=\s*no/i);
 });
+
+test('iPhone portrait keeps the maze as a responsive, scoped touch target', async () => {
+  const css = await read('src/styles.css');
+  assert.match(css, /@media \(max-width:\s*420px\)/);
+  assert.match(css, /\.maze-paper\s*\{[^}]*width:\s*min\(100%,\s*calc\(100dvh\s*-\s*205px\)\)/s);
+  assert.match(css, /\.maze-paper svg\s*\{[^}]*width:\s*100%/s);
+  assert.match(css, /\.maze-paper,#maze\s*\{[^}]*touch-action:\s*none/s);
+  assert.match(css, /safe-area-inset-(?:left|right)/);
+});
