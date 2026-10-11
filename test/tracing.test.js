@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createTraceSession, traceSegment } from '../src/tracing.js';
 import { createTraceRecorder, mazeLayoutId } from '../src/trace-diagnostics.js';
-import { canMove } from '../src/maze.js';
+import { advancePath, canMove, validateMaze } from '../src/maze.js';
 
 function mazeWithRoute(route, width = Math.max(...route.map(p => p.x)) + 1, height = Math.max(...route.map(p => p.y)) + 1) {
   const cells = Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => ({ x, y, walls: { N: true, E: true, S: true, W: true } })));
@@ -143,7 +143,7 @@ test('finger can leave the corridor at a wall and retrace backward without lifti
   assert.ok(Math.abs(session.stroke.at(-1).x - 2.4) < 0.06);
 });
 
-test('collision followed by immediate reversal retracts during the same drag', () => {
+test('collision followed by immediate reversal preserves every legal pencil mark', () => {
   const route = Array.from({ length: 4 }, (_, x) => ({ x, y: 0 }));
   const session = createTraceSession(mazeWithRoute(route, 5, 1));
   session.begin(40, { x: 0, y: 0 }); session.move(40, { x: 2.2, y: 0 });
@@ -152,7 +152,8 @@ test('collision followed by immediate reversal retracts during the same drag', (
   const reversed = session.move(40, { x: 1.4, y: 0 });
   assert.equal(reversed.moved, true);
   assert.deepEqual(session.path, route.slice(0, 2));
-  assert.ok(session.stroke.length < before);
+  assert.ok(session.stroke.length >= before);
+  assert.ok(Math.abs(session.position.x - 1.4) < 0.06);
 });
 
 test('continuous reversal at a corner retraces without lifting', () => {
@@ -383,10 +384,26 @@ test('diagnostic recorder is bounded, relative-time based, and resettable', () =
   assert.equal(report.droppedEvents, 1);
   assert.equal(report.events[0].t, 5);
   assert.equal(report.events[1].eventType, 'pointercancel');
+  assert.deepEqual(report.checkpoints.map(event => event.eventType), ['pointerdown', 'pointercancel']);
   assert.equal(report.maze.layoutId, 'maze-test');
   recorder.reset();
   assert.equal(recorder.length, 0);
   assert.equal(recorder.dropped, 0);
+  assert.equal(recorder.checkpointCount, 0);
+});
+
+test('diagnostic checkpoints retain early gesture and wall transitions beyond the event ring', () => {
+  let now = 0;
+  const recorder = createTraceRecorder({ limit: 2, now: () => now++ });
+  recorder.record({ eventType: 'pointerdown', gestureState: 'active', accepted: true });
+  recorder.record({ eventType: 'pointermove', gestureState: 'active', accepted: true });
+  recorder.record({ eventType: 'pointermove', gestureState: 'recovering', accepted: false, blocked: true, rejectedReason: 'closed-edge' });
+  for (let index = 0; index < 10; index++) recorder.record({ eventType: 'pointermove', gestureState: 'recovering', accepted: false, blocked: true, rejectedReason: 'closed-edge' });
+  const report = recorder.report({ layoutId: 'maze-test', dimensions: { width: 3, height: 3 }, route: [], ink: [], state: null });
+  assert.equal(report.droppedEvents, 11);
+  assert.deepEqual(report.checkpoints.map(event => event.eventType), ['pointerdown', 'pointermove']);
+  assert.equal(report.checkpoints[1].rejectedReason, 'closed-edge');
+  assert.equal(report.droppedCheckpoints, 0);
 });
 
 test('layout fingerprint is stable and changes with maze topology', () => {
@@ -397,22 +414,67 @@ test('layout fingerprint is stable and changes with maze topology', () => {
   assert.notEqual(mazeLayoutId(first), mazeLayoutId(second));
 });
 
-test('physically retracing the route erases it cell by cell', () => {
+test('physically retracing moves the pencil while retaining all prior ink', () => {
   const route = Array.from({ length: 4 }, (_, x) => ({ x, y: 0 })), maze = mazeWithRoute(route);
-  const result = traceSegment(maze, route, route.at(-1), { x: 1, y: 0 });
+  const forward = traceSegment(maze, route, route[0], route.at(-1));
+  const result = traceSegment(maze, forward.path, route.at(-1), { x: 1, y: 0 }, forward.stroke, route.at(-1), false, forward.strokeCells, forward.position, forward.strokeBreaks);
   assert.deepEqual(result.path, route.slice(0, 2));
+  assert.ok(result.stroke.length > forward.stroke.length);
+  assert.ok(Math.abs(result.position.x - 1) < 0.06);
 });
 
-test('backtracking trims the visible trail progressively along the traced route', () => {
+test('backtracking draws a permanent second mark instead of trimming the visible trail', () => {
   const route = Array.from({ length: 4 }, (_, x) => ({ x, y: 0 }));
   const session = createTraceSession(mazeWithRoute(route));
   session.begin(10, { x: 0, y: 0 });
   session.move(10, { x: 3, y: 0 });
   const fullLength = session.stroke.length;
   session.move(10, { x: 2.2, y: 0 });
-  assert.ok(session.stroke.length < fullLength);
-  assert.ok(Math.abs(session.stroke.at(-1).x - 2.2) < 0.06);
+  assert.ok(session.stroke.length > fullLength);
+  assert.ok(Math.abs(session.position.x - 2.2) < 0.06);
   assert.deepEqual(session.path, route.slice(0, 3));
+});
+
+test('dead-end ink survives retracing, lift, resume, and repeat traversal', () => {
+  const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 1 }];
+  const session = createTraceSession(mazeWithRoute(route, 3, 2));
+  session.begin(101, route[0]);
+  session.move(101, route[1]); session.move(101, route[2]); session.move(101, route[3]);
+  const deadEndInk = session.stroke.map(point => ({ ...point }));
+  session.move(101, { x: 2, y: 0 });
+  assert.deepEqual(session.stroke.slice(0, deadEndInk.length), deadEndInk, 'turning around leaves the explored dead end on the page');
+  assert.deepEqual(session.path, route.slice(0, 3));
+  const tip = { ...session.position };
+  session.end(101);
+  assert.equal(session.begin(102, tip), true);
+  session.move(102, { x: 2, y: 1 });
+  assert.deepEqual(session.path, route, 'pencil resumes from its independent position and can revisit the marked branch');
+  assert.ok(session.stroke.length > deadEndInk.length);
+  assert.equal(session.diagnostics.strokeCells.length, session.stroke.length);
+});
+
+test('permanent marks cannot authorize a jump across a closed wall', () => {
+  const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }];
+  const maze = mazeWithRoute(route, 3, 2), session = createTraceSession(maze);
+  session.begin(103, route[0]); session.move(103, route[1]); session.move(103, route[2]);
+  const marks = session.stroke.map(point => ({ ...point }));
+  const result = session.move(103, { x: 2, y: 1 });
+  assert.equal(result.blocked, true);
+  assert.deepEqual(session.path, route);
+  assert.ok(session.stroke.length >= marks.length);
+  assert.deepEqual(session.stroke.slice(0, marks.length), marks);
+});
+
+test('restart creates a fresh attempt with no prior ink and completion retains exploration marks', () => {
+  const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }], maze = mazeWithRoute(route, 2, 2);
+  const session = createTraceSession(maze);
+  session.begin(104, route[0]);
+  const result = session.move(104, route.at(-1));
+  assert.equal(result.complete, true);
+  const completedInk = session.stroke.map(point => ({ ...point }));
+  assert.deepEqual(session.stroke, completedInk);
+  const restarted = createTraceSession(maze);
+  assert.deepEqual(restarted.stroke, [maze.start]);
 });
 
 test('lifting and resuming preserves the endpoint', () => {
@@ -430,6 +492,72 @@ test('pointer cancellation ends the gesture and preserves the route', () => {
   assert.equal(session.active, false);
   assert.deepEqual(session.path, route.slice(0, 3));
   assert.equal(session.begin(4, { x: 2, y: 0 }), true);
+});
+
+test('actual iPhone QA report excerpt replays the wall stop and corridor rejoin decisions', async () => {
+  const fixture = JSON.parse(await readFile(new URL('./fixtures/iphone-trace-qa-7x7.json', import.meta.url), 'utf8'));
+  const directions = ['N', 'E', 'S', 'W'];
+  const maze = {
+    width: fixture.dimensions.width, height: fixture.dimensions.height,
+    start: fixture.start, end: fixture.end,
+    cells: fixture.wallRows.map((row, y) => row.map((bits, x) => ({
+      x, y, walls: Object.fromEntries(directions.map((direction, index) => [direction, bits[index] === '1'])),
+    }))),
+  };
+  assert.notEqual(mazeLayoutId(maze), fixture.layoutId,
+    'the supplied wall bits and the report fingerprint disagree; preserve the discrepancy instead of silently normalizing it');
+  assert.equal(fixture.capture.droppedEvents, 1109);
+  assert.equal(fixture.capture.eventLimit, 400);
+
+  const mismatchA = { x: 2, y: 4 }, mismatchB = { x: 3, y: 4 };
+  assert.equal(maze.cells[4][2].walls.E, false);
+  assert.equal(maze.cells[4][3].walls.W, true);
+  const asymmetricEdges = [];
+  for (let y = 0; y < maze.height; y++) for (let x = 0; x < maze.width; x++) {
+    if (x + 1 < maze.width && maze.cells[y][x].walls.E !== maze.cells[y][x + 1].walls.W) asymmetricEdges.push({ x, y, direction: 'E' });
+    if (y + 1 < maze.height && maze.cells[y][x].walls.S !== maze.cells[y + 1][x].walls.N) asymmetricEdges.push({ x, y, direction: 'S' });
+  }
+  assert.deepEqual(asymmetricEdges, [{ x: 2, y: 4, direction: 'E' }], 'the source excerpt has exactly one one-sided edge');
+  assert.equal(canMove(maze, mismatchA, mismatchB), false);
+  assert.equal(canMove(maze, mismatchB, mismatchA), false);
+  assert.equal(validateMaze(maze), false, 'the captured definition contains a one-sided wall');
+
+  const [lastLegal, collision, outsideRejoin] = fixture.capture.events;
+  assert.equal(collision.rejectedReason, 'closed-or-nonadjacent-edge');
+  assert.equal(outsideRejoin.rejectedReason, 'rejoin-not-route-tail');
+  const routeAtCheckpoint = [...fixture.reportedFinalState.route, { x: 3, y: 3 }];
+  const currentCell = { x: 3, y: 3 };
+  const initialInk = [lastLegal.acceptedInkEndpoint];
+  const initialInkCells = [currentCell];
+  const collisionReplay = traceSegment(maze, routeAtCheckpoint, lastLegal.maze, collision.maze,
+    initialInk, lastLegal.maze, false, initialInkCells, lastLegal.acceptedInkEndpoint);
+  assert.equal(collisionReplay.blocked, true);
+  assert.deepEqual(collisionReplay.path, routeAtCheckpoint, 'the recorded diagonal wall contact does not advance the route');
+  assert.deepEqual(collisionReplay.position, lastLegal.acceptedInkEndpoint);
+
+  const rejoinReplay = traceSegment(maze, collisionReplay.path, collision.maze, outsideRejoin.maze,
+    collisionReplay.stroke, collision.maze, true, collisionReplay.strokeCells, collisionReplay.position, collisionReplay.strokeBreaks);
+  assert.equal(rejoinReplay.blocked, true, 'the recorded sample remains outside the connected route');
+  assert.deepEqual(rejoinReplay.path, routeAtCheckpoint);
+  assert.deepEqual(rejoinReplay.stroke, collisionReplay.stroke, 'blocked movement adds no ink');
+
+  const nextEvent = fixture.capture.events.find(event => event.t === 15221);
+  assert.equal(nextEvent.cell.x, 2);
+  assert.equal(nextEvent.cell.y, 4);
+  assert.equal(nextEvent.previousRouteCell.x, 3);
+  assert.equal(nextEvent.previousRouteCell.y, 4);
+  // This event is retained as observed telemetry, but its pre-event state was
+  // among the 1,109 dropped events; the report cannot prove how it was reached.
+});
+
+test('a one-sided wall cannot be crossed while retracing the previous route edge', () => {
+  const maze = mazeWithRoute([{ x: 0, y: 0 }, { x: 1, y: 0 }], 2, 1);
+  maze.cells[0][0].walls.E = false;
+  maze.cells[0][1].walls.W = true;
+  const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }];
+  assert.equal(canMove(maze, route[0], route[1]), false);
+  assert.equal(advancePath(maze, route, route[0]).moved, false,
+    'a predecessor pop must still validate the physical edge in both wall definitions');
 });
 
 test('diagonal corner cutting is rejected even when both exits are open', () => {

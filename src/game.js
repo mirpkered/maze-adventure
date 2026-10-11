@@ -141,8 +141,9 @@ function renderTrace() {
   if (!traceSession) return;
   const points = traceSession.stroke.map(svgPoint);
   const trail = $('#trail');
-  trail.setAttribute('d', points.map((point, index) => `${index ? 'L' : 'M'}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' '));
-  const endpoint = points.at(-1);
+  const breaks = new Set(traceSession.strokeBreaks);
+  trail.setAttribute('d', points.map((point, index) => `${index === 0 || breaks.has(index) ? 'M' : 'L'}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' '));
+  const endpoint = svgPoint(traceSession.position);
   $('#player').setAttribute('cx', endpoint.x);
   $('#player').setAttribute('cy', endpoint.y);
   svg.dataset.visited = String(new Set(traceSession.path.map(point => `${point.x},${point.y}`)).size);

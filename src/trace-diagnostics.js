@@ -1,11 +1,15 @@
 const DEFAULT_EVENT_LIMIT = 400;
+const CHECKPOINT_LIMIT = 64;
 
 /** A bounded, privacy-conscious recorder for QA pointer replays. */
 export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => performance.now() } = {}) {
   if (!Number.isInteger(limit) || limit < 1) throw new RangeError('Diagnostic event limit must be a positive integer.');
   let startedAt = now();
   let events = [];
+  let checkpoints = [];
   let dropped = 0;
+  let droppedCheckpoints = 0;
+  let previous = null;
   const point = value => value && Number.isFinite(value.x) && Number.isFinite(value.y)
     ? { x: Math.round(value.x * 1000) / 1000, y: Math.round(value.y * 1000) / 1000 }
     : null;
@@ -14,7 +18,7 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
     : null;
   return {
     record(event) {
-      events.push({
+      const entry = {
         t: Math.max(0, Math.round(now() - startedAt)),
         eventType: String(event.eventType ?? 'unknown').slice(0, 32),
         pointerType: String(event.pointerType ?? 'unknown').slice(0, 16),
@@ -30,10 +34,20 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
         pointerCaptured: Boolean(event.pointerCaptured),
         pointerCanceled: Boolean(event.pointerCanceled),
         layoutId: typeof event.layoutId === 'string' ? event.layoutId.slice(0, 64) : null,
-      });
+      };
+      events.push(entry);
       if (events.length > limit) { events.shift(); dropped++; }
+      const lifecycle = ['pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture'].includes(entry.eventType);
+      const blockedTransition = entry.blocked && (!previous?.blocked || previous?.rejectedReason !== entry.rejectedReason);
+      const recovered = entry.accepted && previous?.blocked;
+      const gestureTransition = entry.gestureState !== previous?.gestureState;
+      if (lifecycle || blockedTransition || recovered || gestureTransition) {
+        checkpoints.push(entry);
+        if (checkpoints.length > CHECKPOINT_LIMIT) { checkpoints.shift(); droppedCheckpoints++; }
+      }
+      previous = entry;
     },
-    reset() { events = []; dropped = 0; startedAt = now(); },
+    reset() { events = []; checkpoints = []; dropped = 0; droppedCheckpoints = 0; previous = null; startedAt = now(); },
     report({ layoutId, dimensions, mazeDefinition, route, ink, state, inkCellAssociation }) {
       return {
         format: 'maze-adventure-trace-qa-v1',
@@ -41,12 +55,17 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
         maze: { layoutId, dimensions, definition: mazeDefinition },
         current: { route, ink, inkCellAssociation, state },
         events: [...events],
+        checkpoints: [...checkpoints],
         droppedEvents: dropped,
         eventLimit: limit,
+        droppedCheckpoints,
+        checkpointLimit: CHECKPOINT_LIMIT,
       };
     },
     get length() { return events.length; },
     get dropped() { return dropped; },
+    get checkpointCount() { return checkpoints.length; },
+    get droppedCheckpoints() { return droppedCheckpoints; },
   };
 }
 

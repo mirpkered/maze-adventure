@@ -1,0 +1,37 @@
+{
+  "format": "maze-adventure-trace-qa-v1-replay-excerpt",
+  "sourceFormat": "maze-adventure-trace-qa-v1",
+  "layoutId": "maze-7x7-f6f19bbd",
+  "dimensions": { "width": 7, "height": 7 },
+  "start": { "x": 0, "y": 0 },
+  "end": { "x": 6, "y": 6 },
+  "wallRows": [
+    ["1011", "1100", "1001", "1100", "1001", "1000", "1110"],
+    ["1101", "0011", "0110", "0101", "0111", "0011", "1100"],
+    ["0001", "1000", "1100", "0101", "1001", "1010", "0100"],
+    ["0111", "0101", "0111", "0101", "0101", "1001", "0110"],
+    ["1001", "0110", "1001", "0111", "0101", "0011", "1100"],
+    ["0101", "1001", "0110", "1001", "0110", "1101", "0101"],
+    ["0011", "0010", "1010", "0110", "1001", "0010", "0110"]
+  ],
+  "capture": {
+    "droppedEvents": 1109,
+    "eventLimit": 400,
+    "events": [
+      { "t": 15919, "eventType": "pointermove", "pointerType": "touch", "maze": { "x": 2.583, "y": 3.447 }, "cell": { "x": 3, "y": 3 }, "acceptedInkEndpoint": { "x": 2.583, "y": 3.42 }, "previousRouteCell": { "x": 3, "y": 2 }, "gestureState": "active", "accepted": true, "rejectedReason": null, "blocked": false, "pointerCaptured": true, "pointerCanceled": false },
+      { "t": 15920, "eventType": "pointermove", "pointerType": "touch", "maze": { "x": 2.373, "y": 3.605 }, "cell": { "x": 3, "y": 3 }, "acceptedInkEndpoint": { "x": 2.583, "y": 3.42 }, "previousRouteCell": { "x": 3, "y": 2 }, "gestureState": "recovering", "accepted": false, "rejectedReason": "closed-or-nonadjacent-edge", "blocked": true, "pointerCaptured": true, "pointerCanceled": false },
+      { "t": 15936, "eventType": "pointermove", "pointerType": "touch", "maze": { "x": 2.17, "y": 3.777 }, "cell": { "x": 3, "y": 3 }, "acceptedInkEndpoint": { "x": 2.583, "y": 3.42 }, "previousRouteCell": { "x": 3, "y": 2 }, "gestureState": "recovering", "accepted": false, "rejectedReason": "rejoin-not-route-tail", "blocked": true, "pointerCaptured": true, "pointerCanceled": false },
+      { "t": 15936, "eventType": "pointermove", "pointerType": "touch", "maze": { "x": 1.982, "y": 3.958 }, "cell": { "x": 3, "y": 3 }, "acceptedInkEndpoint": { "x": 2.583, "y": 3.42 }, "previousRouteCell": { "x": 3, "y": 2 }, "gestureState": "recovering", "accepted": false, "rejectedReason": "rejoin-not-route-tail", "blocked": true, "pointerCaptured": true, "pointerCanceled": false },
+      { "t": 15221, "eventType": "pointermove", "pointerType": "touch", "maze": { "x": 2.44, "y": 3.883 }, "cell": { "x": 2, "y": 4 }, "acceptedInkEndpoint": { "x": 2.42, "y": 3.883 }, "previousRouteCell": { "x": 3, "y": 4 }, "gestureState": "active", "accepted": true, "rejectedReason": null, "blocked": false, "pointerCaptured": true, "pointerCanceled": false },
+      { "t": 23082, "eventType": "pointerdown", "pointerType": "touch", "maze": { "x": 3.154, "y": 2.147 }, "cell": { "x": 3, "y": 2 }, "acceptedInkEndpoint": { "x": 3.42, "y": 2.268 }, "previousRouteCell": { "x": 3, "y": 1 }, "gestureState": "active", "accepted": true, "rejectedReason": null, "blocked": false, "pointerCaptured": true, "pointerCanceled": false }
+    ]
+  },
+  "reportedFinalState": {
+    "route": [{ "x": 0, "y": 0 }, { "x": 1, "y": 0 }, { "x": 1, "y": 1 }, { "x": 2, "y": 1 }, { "x": 2, "y": 0 }, { "x": 3, "y": 0 }, { "x": 3, "y": 1 }, { "x": 3, "y": 2 }],
+    "endpoint": { "x": 3.42, "y": 2.154970383723925 },
+    "cell": { "x": 3, "y": 2 },
+    "previousCell": { "x": 3, "y": 1 },
+    "strokeLength": 146,
+    "note": "This is the report's final snapshot, not a pre-event checkpoint. The 1,109 dropped earlier events prevent reliable reconstruction of the initial gesture state or full ink/association arrays."
+  }
+}

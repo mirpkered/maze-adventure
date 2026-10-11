@@ -33,7 +33,11 @@ export function createMaze(width = 7, height = 7, random = Math.random) {
 export function canMove(maze, from, to) {
   if (!inBounds(maze, from) || !inBounds(maze, to)) return false;
   const direction = DIRECTIONS.find(d => from.x + d.dx === to.x && from.y + d.dy === to.y);
-  return Boolean(direction && !maze.cells[from.y][from.x].walls[direction.name]);
+  if (!direction) return false;
+  // Treat an edge as open only when both cells agree. This keeps malformed
+  // imported/replayed layouts from becoming one-way passages.
+  return !maze.cells[from.y][from.x].walls[direction.name]
+    && !maze.cells[to.y][to.x].walls[direction.opposite];
 }
 
 export function inBounds(maze, point) {
@@ -79,7 +83,10 @@ export function validatePath(maze, path) {
 export function advancePath(maze, path, next) {
   if (!validatePath(maze, path)) return { path, moved: false, complete: false };
   const current = path.at(-1);
-  if (path.length > 1 && next.x === path.at(-2).x && next.y === path.at(-2).y) return { path: path.slice(0, -1), moved: true, complete: false };
+  if (path.length > 1 && next.x === path.at(-2).x && next.y === path.at(-2).y) {
+    if (!canMove(maze, current, next)) return { path, moved: false, complete: false };
+    return { path: path.slice(0, -1), moved: true, complete: false };
+  }
   if (!canMove(maze, current, next) || path.some(p => p.x === next.x && p.y === next.y)) return { path, moved: false, complete: false };
   const updated = [...path, { x: next.x, y: next.y }];
   return { path: updated, moved: true, complete: next.x === maze.end.x && next.y === maze.end.y };
