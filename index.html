@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5efdf" />
+    <meta name="description" content="A little maze adventure from Mirpworks." />
+    <title>Maze Adventure — Mirpworks</title>
+    <link rel="stylesheet" href="src/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="wordmark" href="#home" aria-label="Maze Adventure home"><span class="mark" aria-hidden="true">M</span><span>mirpworks</span></a>
+        <span class="tagline">Let’s play a game.</span>
+      </header>
+
+      <section id="home" class="screen home-screen" aria-labelledby="home-title">
+        <div class="home-copy">
+          <p class="eyebrow">A little adventure in every maze</p>
+          <h1 id="home-title">Find your<br /><em>way through.</em></h1>
+          <p class="intro">Take a quiet moment, follow the winding path, and see where it leads.</p>
+          <div class="home-actions">
+            <button class="button button-primary" id="quick-play">Quick Play <span aria-hidden="true">↗</span></button>
+            <button class="button button-secondary" id="adventure" disabled>Adventure <span class="coming">Coming later</span></button>
+          </div>
+          <p class="home-note">Easy maze · no rush · just find the way</p>
+        </div>
+        <div class="home-art" aria-hidden="true">
+          <div class="sun"></div><div class="art-label">a path<br />to somewhere</div>
+          <svg viewBox="0 0 320 320" class="art-maze" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M35 48h250v225H35z M72 48v38h48v38H72v38h48v38H72v37 M120 48v38h48v38h-48v38h48v38h-48v37 M168 48v38h48v38h-48v38h48v38h-48v37 M216 48v38h48v38h-48v38h48v38h-48v37 M264 86h21 M35 86h37 M35 124h37 M120 162h48 M35 200h37 M216 200h48 M168 238h48" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="35" cy="48" r="6" fill="#c36542"/><circle cx="285" cy="273" r="7" fill="#66816b"/>
+            <path d="M43 48h20v38h48v38h48v38h48v38h48v38h22" stroke="#c36542" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 8"/>
+          </svg>
+          <span class="art-caption">MAZE NO. 01 <span>·</span> THE FIRST TURN</span>
+        </div>
+      </section>
+
+      <section id="play" class="screen play-screen" aria-labelledby="play-title" hidden>
+        <div class="play-heading">
+          <button class="back-button" id="back-home" aria-label="Back to home">← <span>Home</span></button>
+          <div><p class="eyebrow">FREE PLAY <span class="dot">·</span> EASY</p><h1 id="play-title">A little winding way</h1></div>
+          <div class="timer-wrap"><span class="timer-label">TIME</span><output id="timer" aria-label="Elapsed time">0:00</output></div>
+        </div>
+        <p class="play-hint" id="play-hint">Trace the path from the little flag to the flower.</p>
+        <div class="maze-paper" id="maze-paper"><svg id="maze" role="application" aria-label="Maze. Trace from the entrance to the exit." viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg></div>
+        <div class="play-footer"><span><i class="legend-start"></i> START</span><span class="footer-message">Take your time. You can lift and continue.</span><button class="text-button" id="new-maze">New maze ↻</button></div>
+      </section>
+
+      <section id="complete" class="screen complete-screen" aria-labelledby="complete-title" hidden>
+        <div class="complete-card"><div class="complete-flower" aria-hidden="true">✿</div><p class="eyebrow">MAZE COMPLETE</p><h1 id="complete-title">You found<br /><em>your way.</em></h1><p class="complete-copy">A lovely little journey, at your own pace.</p><div class="time-result"><span>YOUR TIME</span><strong id="final-time">0:00</strong></div><button class="button button-primary" id="next-maze">Next maze <span aria-hidden="true">↗</span></button><button class="text-button home-link" id="complete-home">Back to home</button></div>
+      </section>
+      <footer class="site-footer"><span>© MIRPWORKS</span><span>MADE FOR A MOMENT OF PLAY</span></footer>
+    </main>
+    <script type="module" src="src/game.js"></script>
+  </body>
+</html>
