@@ -60,7 +60,8 @@ test('service worker is app-scoped, refreshes from network, and removes obsolete
   assert.match(worker, /name\.startsWith\(CACHE_PREFIX\) && name !== CACHE_NAME/);
   assert.match(worker, /await self\.skipWaiting\(\)/);
   assert.match(worker, /await self\.clients\.claim\(\)/);
-  assert.match(worker, /shell-v7/);
+  assert.match(worker, /shell-v8/);
+  assert.match(worker, /src\/trace-diagnostics\.js/);
   assert.match(worker, /\.\/src\/coordinates\.js/);
   for (const icon of ['maze-adventure-icon-180.png', 'maze-adventure-icon-192.png', 'maze-adventure-icon-512.png']) {
     assert.ok(worker.includes(icon), `Service worker should cache ${icon}`);

@@ -96,6 +96,13 @@ Pause/Resume and the keyboard arrow-key alternative are maze-specific additions.
 - The Home screen is a single-screen title composition using the existing Maze Adventure maze illustration, paper/gold surfaces, a prominent Free Play action, a disabled Adventure “Coming Soon” action, and functional Settings, How to Play, About/Credits, and Contact actions. Small landscape viewports have a compact two-column title treatment. Very short screens may scroll rather than clip content. Zoom remains available.
 - Deterministic regression tests cover wall recovery beside an older parallel passage, both-direction continuation after collision, route/ink endpoint synchronization, and existing corner, diagonal, lift/resume, and pointer cancellation cases. Automated and browser viewport checks do not establish physical-device reliability; iPhone Safari and installed-PWA testing is still required.
 
+## Phase 2G — Real-device diagnostics
+
+- The reported iPhone lockup is not reproduced by the deterministic tracing tests or by source inspection alone. The earlier fix addresses a demonstrated historical-stroke projection defect, but it does not establish the cause of this new report. Phase 2G therefore does not change route acceptance, capture radii, or tracing transitions without a replay showing the failing state.
+- In `?qa=1` gameplay, the recorder keeps at most 400 recent pointer events with relative milliseconds, event and pointer type, client/maze coordinates, route cell and predecessor, accepted ink endpoint, gesture state, accepted/blocked reason, pointer-capture/cancellation flags, and stable maze-layout ID. The report includes the maze wall definition, route cells, ink samples, and their cell association so the exact layout can be reconstructed. It records no pointer IDs, identity, account, URL, or profile details.
+- To capture a device issue: open the app URL with `?qa=1`, start a maze, tap **Reset diagnostic log**, reproduce the problem, then tap **Copy diagnostic report** below the maze and paste the result into a support message. If clipboard access is unavailable in the iOS browser or standalone app, the report remains selected in a text box for the system Copy action. The maze fingerprint and route state allow a deterministic layout to be reconstructed; pointer events can then be replayed against the tracing session.
+- A 7×7 serpentine replay with several turns and five near-wall contacts confirms that the modeled route remains forward/reverse traversable and that ink samples retain route-cell associations. It does not reproduce the reported physical-device lockup, so physical iPhone testing and review of an actual diagnostic report remain required.
+
 ### Phase 2F title actions
 
 | Home action | Behavior |

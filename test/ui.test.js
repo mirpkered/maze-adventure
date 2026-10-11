@@ -19,8 +19,16 @@ test('title screen exposes the playable mode and functional supporting controls'
 test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, collision, and gesture state', async () => {
   const html = await read('index.html'), game = await read('src/game.js'), tracing = await read('src/tracing.js');
   assert.match(html, /id="trace-diagnostics"[^>]*hidden/);
+  assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
+  assert.match(html, /id="copy-trace-report"[^>]*>Copy diagnostic report/);
+  assert.match(html, /id="reset-trace-log"[^>]*>Reset diagnostic log/);
   assert.match(game, /new URLSearchParams\(location\.search\)\.get\('qa'\) === '1'/);
   assert.match(game, /window\.mazeAdventureTraceDiagnostics = \(\) => traceSession\?\.diagnostics/);
+  for (const item of ['pointerType', 'client:', 'maze:', 'acceptedInkEndpoint', 'previousRouteCell', 'gestureState', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
+  assert.match(game, /navigator\.clipboard\?\.writeText/);
+  assert.match(game, /document\.execCommand\('copy'\)/);
+  assert.match(game, /traceRecorder\.reset\(\)/);
+  assert.match(game, /limit: 400/);
   for (const item of ['raw', 'endpoint', 'cell', 'blocked', 'recovering']) assert.ok(tracing.includes(item));
 });
 

@@ -57,6 +57,11 @@
         <p class="play-hint" id="play-hint">Trace from the entrance to the flower. You can lift and continue.</p>
         <div class="maze-paper" id="maze-paper"><svg id="maze" draggable="false" tabindex="0" role="application" aria-label="Maze. Trace from the entrance to the exit. Focus the maze and use arrow keys to move one passage at a time." viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg></div>
         <output id="trace-diagnostics" class="trace-diagnostics" hidden aria-live="off"></output>
+        <section id="trace-diagnostic-tools" class="trace-diagnostic-tools" hidden aria-label="QA tracing diagnostics">
+          <div class="diagnostic-actions"><button id="copy-trace-report" class="small-button">Copy diagnostic report</button><button id="reset-trace-log" class="small-button">Reset diagnostic log</button></div>
+          <output id="trace-diagnostic-status" aria-live="polite"></output>
+          <textarea id="trace-diagnostic-fallback" aria-label="Diagnostic report for manual copying" readonly hidden rows="8"></textarea>
+        </section>
         <div class="play-footer"><span><i class="legend-start"></i> START</span><div class="game-actions"><button class="small-button" id="pause-game">Pause</button><button class="small-button" id="restart-maze">Restart maze</button><button class="small-button" id="new-maze">New maze</button></div></div>
       </section>
 

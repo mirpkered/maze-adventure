@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createTraceSession, traceSegment } from '../src/tracing.js';
+import { createTraceRecorder, mazeLayoutId } from '../src/trace-diagnostics.js';
+import { canMove } from '../src/maze.js';
 
 function mazeWithRoute(route, width = Math.max(...route.map(p => p.x)) + 1, height = Math.max(...route.map(p => p.y)) + 1) {
   const cells = Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => ({ x, y, walls: { N: true, E: true, S: true, W: true } })));
@@ -14,6 +16,17 @@ function mazeWithRoute(route, width = Math.max(...route.map(p => p.x)) + 1, heig
     else throw new Error('Test route must use adjacent cells.');
   }
   return { width, height, cells, start: { ...route[0] }, end: { ...route.at(-1) } };
+}
+
+function replayRecordedPointerEvents(maze, events) {
+  const session = createTraceSession(maze), pointerId = 1, moveResults = [];
+  for (const event of events) {
+    if (event.eventType === 'pointerdown') session.begin(pointerId, event.maze);
+    else if (event.eventType === 'pointermove') moveResults.push(session.move(pointerId, event.maze));
+    else if (event.eventType === 'pointerup') session.end(pointerId);
+    else if (event.eventType === 'pointercancel') session.cancel(pointerId);
+  }
+  return { session, moveResults };
 }
 
 test('one continuous drag traverses multiple cells without cell-by-cell gestures', () => {
@@ -87,6 +100,7 @@ test('wall collision stops tracing at the last reachable cell', () => {
   const result = traceSegment(maze, [{ x: 0, y: 0 }], { x: 0, y: 0 }, { x: 2, y: 0 });
   assert.deepEqual(result.path, [{ x: 0, y: 0 }, { x: 1, y: 0 }]);
   assert.equal(result.blocked, true);
+  assert.equal(result.reason, 'closed-or-nonadjacent-edge');
   assert.ok(Math.max(...result.stroke.map(point => point.x)) < 1.5, 'the visible stroke stays on the open side of the blocked wall');
 });
 
@@ -314,6 +328,73 @@ test('a blocked drag can turn into a legal corridor without lifting', () => {
   const turn = session.move(8, { x: 1, y: 1 });
   assert.deepEqual(turn.path, route);
   assert.equal(turn.blocked, false);
+});
+
+test('long multi-turn gesture with repeated wall contacts keeps forward and reverse transitions available', () => {
+  const route = [
+    ...Array.from({ length: 7 }, (_, x) => ({ x, y: 0 })),
+    ...Array.from({ length: 7 }, (_, index) => ({ x: 6 - index, y: 1 })),
+    ...Array.from({ length: 7 }, (_, index) => ({ x: index, y: 2 })),
+    ...Array.from({ length: 7 }, (_, index) => ({ x: 6 - index, y: 3 })),
+  ];
+  const maze = mazeWithRoute(route, 7, 5), recorded = [{ eventType: 'pointerdown', pointerType: 'touch', maze: { x: 0, y: 0 } }];
+  const collisionIndices = new Set([3, 8, 14, 19, 22]);
+  for (let index = 1; index <= 22; index++) {
+    const destination = route[index];
+    recorded.push({ eventType: 'pointermove', pointerType: 'touch', maze: destination });
+    if (!collisionIndices.has(index)) continue;
+    const current = route[index];
+    const blockedOffsets = [
+      { x: 0, y: -0.49 }, { x: 0.49, y: 0 }, { x: 0, y: 0.49 }, { x: -0.49, y: 0 },
+    ].filter(offset => !canMove(maze, current, { x: current.x + Math.sign(offset.x), y: current.y + Math.sign(offset.y) }));
+    recorded.push({ eventType: 'pointermove', pointerType: 'touch', maze: { x: current.x + blockedOffsets[0].x, y: current.y + blockedOffsets[0].y } });
+    recorded.push({ eventType: 'pointermove', pointerType: 'touch', maze: current });
+  }
+  const endpointIndex = 22;
+  recorded.push({ eventType: 'pointermove', pointerType: 'touch', maze: route[endpointIndex + 1] });
+  recorded.push({ eventType: 'pointermove', pointerType: 'touch', maze: route[endpointIndex] });
+  recorded.push({ eventType: 'pointermove', pointerType: 'touch', maze: route[endpointIndex - 1] });
+  recorded.push({ eventType: 'pointerup', pointerType: 'touch', maze: route[endpointIndex - 1] });
+
+  let eventTime = 0;
+  const recorder = createTraceRecorder({ now: () => eventTime++ });
+  for (const event of recorded) recorder.record(event);
+  const replayReport = recorder.report({ layoutId: mazeLayoutId(maze), dimensions: { width: maze.width, height: maze.height }, route: [], ink: [], state: null });
+  const { session, moveResults } = replayRecordedPointerEvents(maze, replayReport.events);
+  assert.equal(moveResults.filter(result => result.blocked).length, collisionIndices.size, 'the replay records every repeated wall contact');
+  const [forward, reverse, secondReverse] = moveResults.slice(-3);
+  assert.ok(forward.moved, 'legal forward movement still works after the long gesture');
+  assert.deepEqual(forward.path, route.slice(0, endpointIndex + 2));
+  assert.ok(reverse.moved, 'immediate reverse movement still works after the long gesture');
+  assert.deepEqual(reverse.path, route.slice(0, endpointIndex + 1));
+  assert.ok(secondReverse.moved, 'a second reverse transition is still legal');
+  assert.deepEqual(secondReverse.path, route.slice(0, endpointIndex));
+  assert.equal(session.diagnostics.strokeCells.length, session.stroke.length, 'each visible sample retains its logical-cell association');
+});
+
+test('diagnostic recorder is bounded, relative-time based, and resettable', () => {
+  let now = 100;
+  const recorder = createTraceRecorder({ limit: 2, now: () => now });
+  recorder.record({ eventType: 'pointerdown', accepted: true });
+  now += 5; recorder.record({ eventType: 'pointermove', accepted: false, rejectedReason: 'closed-edge' });
+  now += 5; recorder.record({ eventType: 'pointercancel', pointerCanceled: true });
+  const report = recorder.report({ layoutId: 'maze-test', dimensions: { width: 3, height: 3 }, route: [], ink: [], state: null });
+  assert.equal(report.events.length, 2);
+  assert.equal(report.droppedEvents, 1);
+  assert.equal(report.events[0].t, 5);
+  assert.equal(report.events[1].eventType, 'pointercancel');
+  assert.equal(report.maze.layoutId, 'maze-test');
+  recorder.reset();
+  assert.equal(recorder.length, 0);
+  assert.equal(recorder.dropped, 0);
+});
+
+test('layout fingerprint is stable and changes with maze topology', () => {
+  const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }];
+  const first = mazeWithRoute(route, 2, 2), second = mazeWithRoute(route, 2, 2);
+  assert.equal(mazeLayoutId(first), mazeLayoutId(second));
+  second.cells[0][0].walls.S = false; second.cells[1][0].walls.N = false;
+  assert.notEqual(mazeLayoutId(first), mazeLayoutId(second));
 });
 
 test('physically retracing the route erases it cell by cell', () => {

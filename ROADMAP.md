@@ -73,6 +73,17 @@ This roadmap tracks intended phases, current state, priorities, and unresolved c
 - [ ] Validate wall contact, same-gesture reversal, touch capture, and portrait/landscape title fit on a physical iPhone with the installed PWA.
 - [ ] Review QA traces from the physical-device scenario that previously locked up before closing this reliability phase.
 
+### Phase 2G — Real-device tracing failure investigation
+
+**Status: QA instrumentation and deterministic replay added · physical failure mechanism unresolved**
+
+- [x] Record pointer events in a bounded 400-event ring with relative timing, pointer type, client and maze coordinates, logical cell, accepted ink endpoint, previous route cell, gesture state, accept/reject reason, capture/cancel state, and a stable maze-layout fingerprint.
+- [x] Add QA-only **Copy diagnostic report** and **Reset diagnostic log** controls for `?qa=1`, including a selectable manual-copy fallback for iOS clipboard restrictions. Normal play has no diagnostic controls.
+- [x] Add deterministic long-gesture replay coverage with multiple turns, five wall contacts, endpoint association checks, and forward/reverse continuation after the last contact. Add recorder bound/reset and layout-fingerprint tests.
+- [x] Bump the service-worker shell cache and include the diagnostic module.
+- [ ] Capture a report from the physical iPhone scenario and use its event sequence to reproduce any remaining lockup. The deterministic replay does not reproduce the reported failure; no tracing rule change is justified by current evidence.
+- [ ] Verify copy/share behavior and wall-contact recovery with the installed PWA on a physical iPhone.
+
 ## Phase 3 — Save and replay foundation
 
 **Priority: P2**

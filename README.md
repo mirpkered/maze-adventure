@@ -12,7 +12,7 @@ Adventure is visibly marked Coming Soon. Story chapters, linked mazes, daily cha
 
 Maze tracing keeps the legal route authoritative for collision and completion while the SVG pencil line follows accepted pointer samples. Recovery is limited to the current and immediately previous route cells, so nearby old ink across a wall cannot become a rejoin target. The maze also supports arrow-key passage movement. Pause/resume, same-maze restart, new maze, guarded Home navigation, local sound/appearance settings, instructions, and completion replay are available.
 
-The title screen is designed to fit a typical iPhone portrait display without scrolling and uses a compact landscape layout. Very short viewports can scroll to prevent clipping. For tracing diagnostics during QA, open the app with `?qa=1`; the page shows pointer coordinates, accepted pencil endpoint, logical cell, blocked state, and gesture state. The browser console also exposes `window.mazeAdventureTraceDiagnostics()` for the active session. The overlay is hidden during normal play.
+The title screen is designed to fit a typical iPhone portrait display without scrolling and uses a compact landscape layout. Very short viewports can scroll to prevent clipping. For QA on a device, open the app with `?qa=1`, start a maze, and use **Reset diagnostic log** immediately before reproducing an issue. Continue tracing until the lockup occurs, then tap **Copy diagnostic report** below the maze and paste it into your support message. If iOS does not grant clipboard access, the report appears selected in a text box; use the system Copy action and paste it manually. The report is limited to the most recent 400 pointer events and includes relative event time, pointer type, client and maze coordinates, logical and ink endpoints, rejection reason, gesture/capture/cancellation state, and a maze-layout fingerprint plus the wall definition needed to rebuild that layout. It does not record pointer IDs, names, accounts, URLs, or other profile information. The browser console also exposes `window.mazeAdventureTraceDiagnostics()` for the current trace. QA controls are hidden during normal play.
 
 ## Install on iPhone
 
@@ -44,7 +44,7 @@ npm test
 npm run check
 ```
 
-The automated checks cover generated-maze connectivity and wall symmetry, dimension validation, continuous off-center tracing, turns, sparse input, wall collision and recovery beside parallel passages, both-direction continuation, backtracking, lift/resume, pointer cancellation, keyboard passage movement, and persisted settings. Browser viewport review confirmed no document scroll at 390×844 portrait and 844×390 landscape. Physical iPhone tracing, Safari pointer-capture behavior, and installed-PWA validation are still required.
+The automated checks cover generated-maze connectivity and wall symmetry, dimension validation, continuous off-center tracing, turns, sparse input, wall collision and recovery beside parallel passages, a long multi-turn replay with repeated wall contacts and forward/reverse continuation, route-to-ink association, bounded diagnostics, backtracking, lift/resume, pointer cancellation, keyboard passage movement, and persisted settings. These deterministic simulations do not reproduce the reported real-device lockup and do not prove it is fixed. Physical iPhone tracing, diagnostic-report capture, Safari pointer-capture behavior, and installed-PWA validation are still required.
 
 ## Project map
 
@@ -52,7 +52,8 @@ The automated checks cover generated-maze connectivity and wall symmetry, dimens
 - `src/contracts.js` — forward-looking data shapes for story, levels, saves, sequences, and cosmetics
 - `src/game.js` — screens, controls, timer, stroke display, and service worker registration
 - `src/styles.css` — responsive paper-inspired presentation
-- `src/tracing.js` — legal route validation and fluid pointer stroke model
+- `src/tracing.js` — legal route validation, fluid pointer stroke model, and route-to-ink diagnostics
+- `src/trace-diagnostics.js` — bounded QA event recorder and reproducible maze-layout fingerprint
 - `src/preferences.js` — local sound and paper preferences
 - `test/maze.test.js`, `test/tracing.test.js`, `test/ui.test.js` — generator, trace, and UI contract checks
 - `ROADMAP.md` — phases, priorities, status, and open decisions

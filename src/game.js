@@ -2,6 +2,7 @@ import { createMaze } from './maze.js';
 import { createTraceSession } from './tracing.js';
 import { DEFAULT_PREFERENCES, readPreferences, writePreferences } from './preferences.js';
 import { clientToViewBoxPoint, mazeToSvgPoint, svgToMazePoint, transformPoint } from './coordinates.js';
+import { createTraceRecorder, mazeLayoutId } from './trace-diagnostics.js';
 
 const $ = selector => document.querySelector(selector);
 const screens = ['home', 'play', 'complete', 'settings', 'help', 'about'].map(id => $(`#${id}`));
@@ -13,7 +14,49 @@ let isolatedPage = [], bodyOverflow = '';
 let preferences = readPreferences();
 const qaEnabled = new URLSearchParams(location.search).get('qa') === '1';
 let lastRawPointer = null, lastClientPointer = null;
+const traceRecorder = qaEnabled ? createTraceRecorder({ limit: 400 }) : null;
+let currentLayoutId = null;
 if (qaEnabled) document.body.dataset.qa = 'true';
+
+function recordTraceEvent(eventType, event, point, accepted, reason = null, canceled = false) {
+  if (!traceRecorder || !traceSession) return;
+  const state = traceSession.diagnostics;
+  let captured = false;
+  try { captured = event?.pointerId !== undefined && Boolean(svg.hasPointerCapture?.(event.pointerId)); } catch { /* Capture state is unavailable in some embedded WebViews. */ }
+  traceRecorder.record({
+    eventType,
+    pointerType: event?.pointerType ?? 'unknown',
+    client: event && Number.isFinite(event.clientX) ? { x: Math.round(event.clientX * 10) / 10, y: Math.round(event.clientY * 10) / 10 } : null,
+    maze: point ? { x: Math.round(point.x * 1000) / 1000, y: Math.round(point.y * 1000) / 1000 } : null,
+    cell: { ...state.cell },
+    acceptedInkEndpoint: { ...state.endpoint },
+    previousRouteCell: state.previousCell ? { ...state.previousCell } : null,
+    gestureState: state.active ? (state.recovering ? 'recovering' : 'active') : 'idle',
+    accepted: Boolean(accepted),
+    rejectedReason: reason ?? state.reason ?? (accepted ? null : 'no-route-or-stroke-change'),
+    blocked: state.blocked,
+    pointerCaptured: captured,
+    pointerCanceled: canceled,
+    layoutId: currentLayoutId,
+  });
+  updateTraceDiagnostics(point);
+}
+
+function diagnosticReport() {
+  const state = traceSession?.diagnostics;
+  return JSON.stringify(traceRecorder.report({
+    layoutId: currentLayoutId,
+    dimensions: maze ? { width: maze.width, height: maze.height } : null,
+    mazeDefinition: maze ? {
+      start: { ...maze.start }, end: { ...maze.end },
+      cells: maze.cells.map(row => row.map(cell => ({ x: cell.x, y: cell.y, walls: { ...cell.walls } }))),
+    } : null,
+    route: traceSession?.path.map(cell => ({ ...cell })) ?? [],
+    ink: traceSession?.stroke.map(point => ({ x: Math.round(point.x * 1000) / 1000, y: Math.round(point.y * 1000) / 1000 })) ?? [],
+    state: state ? { ...state } : null,
+    inkCellAssociation: state?.strokeCells ?? [],
+  }), null, 2);
+}
 
 function updateTraceDiagnostics(raw = lastRawPointer) {
   if (!qaEnabled || !traceSession) return;
@@ -22,7 +65,7 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   output.hidden = false;
   const state = traceSession.diagnostics;
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
-  output.textContent = `QA trace · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · accepted ${point(state.endpoint)} · cell ${state.cell.x},${state.cell.y} · ${state.blocked ? 'BLOCKED' : 'clear'} · gesture ${state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · route ${state.pathLength} · ink ${state.strokeLength}`;
+  output.textContent = `QA trace · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · accepted ${point(state.endpoint)} · cell ${state.cell.x},${state.cell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'}` : 'clear'} · gesture ${state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -130,6 +173,7 @@ function playCompletionSound() {
 
 function makeMaze(reuse = false) {
   if (!reuse || !maze) maze = createMaze(7, 7);
+  currentLayoutId = mazeLayoutId(maze);
   traceSession = createTraceSession(maze);
   activePointerId = null; elapsed = 0; paused = false; displayTime();
   $('#final-time').textContent = '0:00';
@@ -140,6 +184,9 @@ function makeMaze(reuse = false) {
 function clearPointer() {
   if (activePointerId === null) return;
   const id = activePointerId;
+  recordTraceEvent('gesture-canceled-by-app', {
+    pointerId: id, pointerType: 'unknown', clientX: lastClientPointer?.x, clientY: lastClientPointer?.y,
+  }, lastRawPointer, false, 'application-interruption', true);
   traceSession?.cancel(id); activePointerId = null;
   try { if (svg.hasPointerCapture?.(id)) svg.releasePointerCapture(id); } catch { /* Capture may already be gone. */ }
   renderTrace();
@@ -147,6 +194,9 @@ function clearPointer() {
 }
 function finishPointer(event, cancel = false) {
   if (activePointerId !== event.pointerId) return;
+  lastClientPointer = { x: event.clientX, y: event.clientY };
+  lastRawPointer = pointInMaze(event);
+  recordTraceEvent(event.type ?? (cancel ? 'pointercancel' : 'pointerup'), event, lastRawPointer, true, null, cancel);
   if (cancel) traceSession.cancel(event.pointerId);
   else traceSession.end(event.pointerId);
   activePointerId = null;
@@ -198,14 +248,19 @@ function returnToHome() { showHome(); }
 
 svg.addEventListener('pointerdown', event => {
   event.preventDefault();
-  if ($('#play').hidden || paused || activeOverlay || !event.isPrimary || activePointerId !== null) return;
+  if ($('#play').hidden || !traceSession) return;
   lastClientPointer = { x: event.clientX, y: event.clientY };
   lastRawPointer = pointInMaze(event);
-  if (traceSession.begin(event.pointerId, lastRawPointer)) {
+  if (paused || activeOverlay) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'game-not-interactive'); return; }
+  if (!event.isPrimary) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'non-primary-pointer'); return; }
+  if (activePointerId !== null) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'another-pointer-owns-gesture'); return; }
+  const began = traceSession.begin(event.pointerId, lastRawPointer);
+  if (began) {
     activePointerId = event.pointerId;
     try { svg.setPointerCapture(event.pointerId); } catch { /* Older embedded WebViews may lack pointer capture. */ }
     updateTraceDiagnostics(lastRawPointer);
   }
+  recordTraceEvent('pointerdown', event, lastRawPointer, began, began ? null : traceSession.diagnostics.reason);
 });
 window.addEventListener('pointermove', event => {
   if (activePointerId !== event.pointerId || $('#play').hidden || paused) return;
@@ -219,7 +274,7 @@ window.addEventListener('pointermove', event => {
     lastRawPointer = pointInMaze(sample);
     const result = traceSession.move(event.pointerId, lastRawPointer);
     moved ||= result.moved;
-    updateTraceDiagnostics(lastRawPointer);
+    recordTraceEvent('pointermove', sample, lastRawPointer, result.moved, result.reason ?? (!result.moved ? 'no-route-or-stroke-change' : null));
     if (result.complete) { complete = true; break; }
   }
   if (moved) renderTrace();
@@ -276,6 +331,38 @@ $('#paper-theme').addEventListener('change', event => savePreferences({ paperThe
 $('#reset-settings').addEventListener('click', () => openOverlay($('#reset-dialog')));
 $('#cancel-reset').addEventListener('click', () => closeOverlay());
 $('#confirm-reset').addEventListener('click', () => { preferences = writePreferences({ ...DEFAULT_PREFERENCES }); updateSettingsControls(); closeOverlay(); });
+
+if (qaEnabled) {
+  $('#trace-diagnostic-tools').hidden = false;
+  $('#copy-trace-report').addEventListener('click', async () => {
+    const report = diagnosticReport();
+    const fallback = $('#trace-diagnostic-fallback');
+    const status = $('#trace-diagnostic-status');
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+      await navigator.clipboard.writeText(report);
+      fallback.hidden = true;
+      status.textContent = 'Diagnostic report copied. Paste it into your support message.';
+    } catch {
+      fallback.value = report;
+      fallback.hidden = false;
+      fallback.focus({ preventScroll: true });
+      fallback.select();
+      fallback.setSelectionRange(0, fallback.value.length);
+      let copied = false;
+      try { copied = document.execCommand('copy'); } catch { /* Manual selection remains available below. */ }
+      status.textContent = copied
+        ? 'Diagnostic report copied. Paste it into your support message.'
+        : 'Clipboard access is unavailable. The report is selected below; use Copy, then paste it into your support message.';
+    }
+  });
+  $('#reset-trace-log').addEventListener('click', () => {
+    traceRecorder.reset();
+    $('#trace-diagnostic-fallback').hidden = true;
+    $('#trace-diagnostic-status').textContent = 'Diagnostic event log cleared.';
+    updateTraceDiagnostics();
+  });
+}
 
 document.addEventListener('keydown', event => {
   if (!activeOverlay) return;

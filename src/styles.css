@@ -234,6 +234,10 @@ body[data-screen="home"] .site-footer { height: 30px; flex-basis: 30px; }
 .home-contact:hover strong { color: var(--rust); }
 .trace-diagnostics { margin: 4px auto; width: min(100%, 670px); padding: 6px 9px; border: 1px dashed #a34d36; background: #fff7e9; color: #533c31; font: 10px/1.45 ui-monospace, monospace; overflow-wrap: anywhere; }
 body[data-qa="true"] #play .trace-diagnostics:not([hidden]) { display: block; }
+body[data-qa="true"] #play .trace-diagnostic-tools:not([hidden]) { display: grid; gap: 6px; width: min(100%, 670px); margin: 6px auto; padding: 8px; border: 1px dashed #a34d36; border-radius: 8px; background: #fff7e9; }
+.diagnostic-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#trace-diagnostic-status { color: #533c31; font-size: 12px; }
+#trace-diagnostic-fallback { box-sizing: border-box; width: 100%; min-height: 120px; padding: 8px; font: 11px/1.4 ui-monospace, monospace; }
 button:focus-visible, a:focus-visible { outline-offset: 4px; }
 @media (max-width: 760px) {
   body[data-screen="home"] .topbar { height: 48px; flex-basis: 48px; }
