@@ -21,6 +21,7 @@
 - Custom mode is intended to let players choose dimensions and difficulty independently.
 - Free Play primarily uses procedural mazes. Generated mazes must be validated as solvable.
 - Core difficulties are not locked behind progression.
+- Current size preference for future iPhone Free Play: 20×20 is the practical normal maximum; 25×25 remains experimental until tested on device. The current playable slice remains 7×7.
 
 ### Adventure
 
@@ -55,6 +56,7 @@
 
 - Maze walls and the legal cell route remain authoritative for movement, collision, retracing, and completion. The visible pencil trail uses dense, accepted pointer samples inside legal corridors; it is not snapped to cell centers. Backtracking trims the trail as the pointer retraces it.
 - Pointer lift and cancellation preserve the visible and logical endpoint. Arrow keys are an alternate accessible control and move along one legal passage at a time.
+- After wall contact, the input session retains the physical pointer coordinate separately from the legal trail endpoint. Recovery can rejoin only near the existing trail tip or its immediately previous route cell; collision samples cannot extend the route or pencil line. The trace is still validated in small samples against corridor geometry and the cell graph.
 - Restart Maze resets the same layout and timer. New Maze and Next Maze generate a fresh layout. Home from active play asks before discarding the attempt. Pause stops the timer; Resume continues it.
 - The home hub follows Word Search Adventure's card hierarchy and familiar mode/settings placement while keeping the Maze Adventure paper palette, maze artwork, and pencil trail.
 - Sound Effects and Paper Surface are local device preferences. Sound is an optional completion chime. The current game has no music or ambience catalog.

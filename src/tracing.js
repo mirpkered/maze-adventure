@@ -68,7 +68,7 @@ function insideCell(point, cell, maze) {
  * in-corridor samples for the pencil stroke. The graph path remains the source
  * of truth; visual samples never authorize a move themselves.
  */
-export function traceSegment(maze, path, from, to, currentStroke = path.map(center), previousPoint = from) {
+export function traceSegment(maze, path, from, to, currentStroke = path.map(center), previousPoint = from, recovering = false) {
   let nextPath = path;
   let stroke = currentStroke.map(center);
   let moved = false, blocked = false, complete = false;
@@ -76,35 +76,56 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(cent
   const samples = Math.max(1, Math.ceil(distance / MAX_SAMPLE_DISTANCE));
   const beforeProjection = projectOntoStroke(stroke, previousPoint);
 
+  let rejoining = recovering;
   for (let index = 1; index <= samples; index++) {
     const point = {
       x: from.x + (to.x - from.x) * index / samples,
       y: from.y + (to.y - from.y) * index / samples,
     };
     const candidate = nearestCell(point, maze);
-    if (!candidate) { blocked = true; break; }
+    if (!candidate) {
+      blocked = true;
+      // Keep tracking the real pointer while it is outside the legal corridor.
+      // On return, it may only rejoin the existing trail near its current tip.
+      if (rejoining) continue;
+      rejoining = true;
+      break;
+    }
 
     const current = nextPath.at(-1);
+    const projected = projectOntoStroke(stroke, point);
+    if (rejoining) {
+      const currentIndex = nextPath.findIndex(cell => sameCell(cell, candidate));
+      const isCurrentOrPrevious = currentIndex === nextPath.length - 1 || currentIndex === nextPath.length - 2;
+      const movingTowardTrailTip = projected.along <= beforeProjection.along + 0.02;
+      if (!insideCell(point, candidate, maze) || projected.distance > RETRACE_TOLERANCE || !isCurrentOrPrevious || !movingTowardTrailTip) {
+        blocked = true;
+        continue;
+      }
+      rejoining = false;
+    }
+
     if (!sameCell(candidate, current)) {
       const advance = advancePath(maze, nextPath, candidate);
-      if (!advance.moved) { blocked = true; break; }
+      if (!advance.moved) { blocked = true; rejoining = true; if (recovering) continue; break; }
       const dx = candidate.x - current.x;
       const crossAxisOffset = dx !== 0 ? Math.abs(point.y - candidate.y) : Math.abs(point.x - candidate.x);
-      if (crossAxisOffset > CORRIDOR_MARGIN || !canMove(maze, current, candidate)) { blocked = true; break; }
+      if (crossAxisOffset > CORRIDOR_MARGIN || !canMove(maze, current, candidate)) { blocked = true; rejoining = true; if (recovering) continue; break; }
       nextPath = advance.path;
       moved = true;
       complete ||= advance.complete;
     } else if (!insideCell(point, current, maze)) {
       blocked = true;
+      if (recovering) { rejoining = true; continue; }
+      rejoining = true;
       break;
     }
 
     // On the way back, the pen must stay close to the stroke already drawn.
     // Shorten that stroke by physical pointer progress instead of snapping a
     // whole grid edge away at once.
-    const projected = projectOntoStroke(stroke, point);
     const movingBackward = projected.distance <= RETRACE_TOLERANCE
-      && projected.along < beforeProjection.along - 1e-4;
+      && projected.along <= beforeProjection.along + 1e-4;
     if (movingBackward) {
       stroke = trimStroke(stroke, projected.along);
       moved = true;
@@ -115,7 +136,7 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(cent
     if (Math.hypot(point.x - last.x, point.y - last.y) > MIN_STROKE_POINT_DISTANCE) { stroke.push(point); moved = true; }
   }
 
-  return { path: nextPath, stroke, moved, blocked, complete };
+  return { path: nextPath, stroke, moved, blocked, complete, recovering: rejoining };
 }
 
 /** Pointer lift or cancellation preserves both the logical route and its pencil trail. */
@@ -124,10 +145,12 @@ export function createTraceSession(maze) {
   let stroke = [{ ...maze.start }];
   let pointerId = null;
   let lastPoint = null;
+  let recovering = false;
   const end = id => {
     if (pointerId !== id) return false;
     pointerId = null;
     lastPoint = null;
+    recovering = false;
     return true;
   };
 
@@ -143,14 +166,19 @@ export function createTraceSession(maze) {
       if (!cell || !sameCell(cell, endpoint) || (!entranceStart && Math.hypot(point.x - stroke.at(-1).x, point.y - stroke.at(-1).y) > 0.3)) return false;
       pointerId = id;
       lastPoint = { ...point };
+      recovering = false;
       return true;
     },
     move(id, point) {
       if (pointerId !== id || !lastPoint) return { path, stroke, moved: false, blocked: false, complete: false };
-      const result = traceSegment(maze, path, lastPoint, point, stroke, lastPoint);
+      const result = traceSegment(maze, path, lastPoint, point, stroke, lastPoint, recovering);
       path = result.path;
       stroke = result.stroke;
-      lastPoint = { ...(result.blocked ? stroke.at(-1) : point) };
+      // Track the physical pointer separately from the accepted trail endpoint.
+      // This lets a finger that wandered into a wall return to the existing
+      // route without repeatedly restarting movement from a snapped position.
+      lastPoint = { ...point };
+      recovering = result.recovering;
       return result;
     },
     step(direction) {
@@ -160,6 +188,7 @@ export function createTraceSession(maze) {
       if (!advance.moved) return { path, stroke, moved: false, blocked: true, complete: false };
       const backtracking = advance.path.length < path.length;
       path = advance.path;
+      recovering = false;
       if (backtracking) {
         const projection = projectOntoStroke(stroke, candidate);
         stroke = trimStroke(stroke, projection.along);

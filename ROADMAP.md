@@ -46,6 +46,8 @@ This roadmap tracks intended phases, current state, priorities, and unresolved c
 - [x] Add functional pause/resume, same-maze restart, new maze, guarded Home navigation, local sound/appearance preferences, instructions, completion replay, and Next Maze actions.
 - [x] Mark campaign/progression menus as unavailable until those systems exist; defer music/ambience controls because the maze game has no music catalog.
 - [x] Verify source against Word Search Adventure main at `da1857b6420b94ceb0405080b9604950f23b4f49`. The supplied live reference URL returned GitHub Pages 404 during the audit.
+- [x] Retain the physical pointer position through wall collisions and constrain recovery to the existing route, with deterministic collision, repeated-contact, lift/resume, corner retrace, and endpoint-sync tests.
+- Record the current iPhone size preference: 20×20 is the practical normal maximum for Free Play; 25×25 remains experimental until physical-device testing. Current playable maze remains 7×7.
 - [ ] Validate the updated tracing and portrait/landscape layout on a physical iPhone.
 
 ## Phase 3 — Save and replay foundation
