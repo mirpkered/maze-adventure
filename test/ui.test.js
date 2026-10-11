@@ -4,20 +4,30 @@ import { readFile } from 'node:fs/promises';
 
 const read = file => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
 
-test('home hub exposes playable and settings actions while future systems are clearly disabled', async () => {
+test('title screen exposes the playable mode and functional supporting controls', async () => {
   const html = await read('index.html');
   assert.match(html, /id="quick-play"/);
   assert.match(html, /id="open-settings"/);
   assert.match(html, /id="open-help"/);
-  for (const feature of ['Adventure', 'Daily Challenge', 'Customize', 'Trophy Room', 'Achievements', 'Statistics']) {
-    assert.match(html, new RegExp(`<button[^>]*disabled[^>]*><strong>${feature}</strong>`));
-  }
+  assert.match(html, /id="open-about"/);
+  assert.match(html, /class="hub-card secondary home-contact" href="mailto:contact@mirpworks\.com/);
+  assert.match(html, /<button class="hub-card adventure" disabled[^>]*><span class="menu-icon"[^>]*>✿<\/span><strong>Adventure<\/strong><span id="adventure-status">Coming Soon/);
+  assert.match(html, /<h1 id="home-title">Maze<br \/><em>Adventure<\/em><\/h1>/);
+  assert.doesNotMatch(html, /<button[^>]*disabled[^>]*><strong>(?:Daily Challenge|Customize|Trophy Room|Achievements|Statistics)<\/strong>/);
+});
+
+test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, collision, and gesture state', async () => {
+  const html = await read('index.html'), game = await read('src/game.js'), tracing = await read('src/tracing.js');
+  assert.match(html, /id="trace-diagnostics"[^>]*hidden/);
+  assert.match(game, /new URLSearchParams\(location\.search\)\.get\('qa'\) === '1'/);
+  assert.match(game, /window\.mazeAdventureTraceDiagnostics = \(\) => traceSession\?\.diagnostics/);
+  for (const item of ['raw', 'endpoint', 'cell', 'blocked', 'recovering']) assert.ok(tracing.includes(item));
 });
 
 test('Contact links prefill Maze Adventure feedback email details', async () => {
   const html = await read('index.html');
   const contactLinks = [...html.matchAll(/<a\b[^>]*href="([^"]*mailto:[^"]*)"[^>]*>(.*?)<\/a>/g)];
-  assert.equal(contactLinks.length, 2, 'Both existing Contact actions should remain available');
+  assert.equal(contactLinks.length, 3, 'Home, Settings, and About retain the Contact action');
 
   for (const [, encodedHref] of contactLinks) {
     const href = encodedHref.replaceAll('&amp;', '&');
@@ -61,6 +71,9 @@ test('responsive layout keeps touch suppression on the maze and keeps zoom enabl
   assert.doesNotMatch(css, /(?:^|[},])\s*(?:html|body|\*)\s*\{[^}]*touch-action:\s*none/s);
   assert.match(html, /name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/);
   assert.doesNotMatch(html, /maximum-scale\s*=|user-scalable\s*=\s*no/i);
+  assert.match(css, /body\[data-screen="home"\]\s*\{\s*height:\s*100dvh;\s*overflow:\s*hidden/);
+  assert.match(css, /@media \(max-height:\s*570px\)[\s\S]*?overflow-y:\s*auto/);
+  assert.match(css, /\.home-art\.title-art/);
 });
 
 test('iPhone portrait keeps the maze as a responsive, scoped touch target', async () => {

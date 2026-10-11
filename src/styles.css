@@ -194,3 +194,116 @@ body[data-screen="play"] .topbar, body[data-screen="play"] .site-footer { displa
   .game-actions { display: grid; grid-template-columns: 1fr; width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+
+/* Title screen: one-screen composition, with the original maze artwork as a landscape hero. */
+body[data-screen="home"] { height: 100dvh; overflow: hidden; }
+body[data-screen="home"] .app-shell { height: 100dvh; min-height: 0; }
+body[data-screen="home"] .topbar { height: 54px; flex-basis: 54px; }
+body[data-screen="home"] .site-footer { height: 30px; flex-basis: 30px; }
+.home-screen { min-height: 0; flex: 1 1 auto; grid-template-columns: minmax(0, 1fr) minmax(300px, .92fr); gap: clamp(24px, 5vw, 64px); padding: clamp(18px, 4vh, 40px) 0; overflow-y: auto; overscroll-behavior: contain; }
+.home-copy { width: 100%; max-width: 520px; justify-self: end; }
+.title-kicker { margin-bottom: 12px; }
+.title-kicker span { padding: 0 4px; color: var(--rust); }
+.home-copy h1 { font-size: clamp(50px, 6vw, 78px); line-height: .92; }
+.intro { margin: 14px 0 18px; font-size: 14px; }
+.hub-menu { max-width: 500px; display: grid; gap: 9px; }
+.hub-primary-grid { display: contents; }
+.hub-card { position: relative; min-height: 50px; padding: 9px 14px; border-radius: 9px; box-shadow: 0 2px 0 rgba(84,72,45,.12), 0 5px 14px rgba(78,70,50,.07); text-decoration: none; transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease, background .14s ease; }
+.hub-card strong { font-size: 13px; }
+.hub-card span { font-size: 10px; }
+.hub-card.primary { display: grid; grid-template-columns: 38px 1fr; grid-template-rows: auto auto; align-items: center; min-height: 70px; padding: 10px 16px; border: 1px solid #a84f35; border-radius: 10px; background: linear-gradient(180deg, #c97352, #b95d40); box-shadow: 0 3px 0 #964832, 0 8px 18px rgba(125,66,43,.2); color: #fffdf7; text-align: left; }
+.hub-card.primary .menu-icon { grid-row: 1 / 3; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.46); border-radius: 50%; font-size: 17px; }
+.hub-card.primary strong { font-size: 16px; }
+.hub-card.primary span { margin-top: 2px; color: rgba(255,253,247,.85); }
+.hub-card.primary span b { float: right; padding-right: 2px; font-size: 15px; font-weight: 400; }
+.hub-card.adventure { display: grid; grid-template-columns: 38px 1fr; grid-template-rows: auto auto; align-items: center; min-height: 58px; padding: 8px 16px; border: 1px solid #c9c6ad; border-radius: 10px; background: linear-gradient(180deg, #f8f4e8, #ebe6d6); color: #626556; text-align: left; }
+.hub-card.adventure .menu-icon { grid-row: 1 / 3; color: var(--green); font-size: 21px; }
+.hub-card.adventure span { color: #77786d; }
+.hub-card:disabled { cursor: not-allowed; opacity: .78; }
+.hub-card:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 4px 0 rgba(84,72,45,.13), 0 9px 18px rgba(78,70,50,.11); }
+.hub-card:not(:disabled):active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(84,72,45,.12); }
+.hub-secondary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 1px; }
+.hub-card.secondary { min-height: 48px; border-color: #ded6c3; background: rgba(255,253,245,.85); }
+.home-art.title-art { height: 100%; min-height: 330px; border: 1px solid rgba(139,120,79,.14); border-radius: 18px; background: linear-gradient(145deg, #eee7d4, #e3d9c0); box-shadow: 0 12px 34px rgba(78,70,50,.1), inset 0 1px rgba(255,255,255,.5); }
+.home-art.title-art::after { inset: 13px; border-radius: 12px; }
+.home-art.title-art .sun { top: 10%; right: 13%; }
+.home-art.title-art .art-label { top: 12%; left: 11%; }
+.home-art.title-art .art-caption { bottom: 7%; }
+.home-art.title-art .art-maze { width: min(78%, 390px); }
+.home-contact { display: block; color: inherit; }
+.home-contact:hover strong { color: var(--rust); }
+.trace-diagnostics { margin: 4px auto; width: min(100%, 670px); padding: 6px 9px; border: 1px dashed #a34d36; background: #fff7e9; color: #533c31; font: 10px/1.45 ui-monospace, monospace; overflow-wrap: anywhere; }
+body[data-qa="true"] #play .trace-diagnostics:not([hidden]) { display: block; }
+button:focus-visible, a:focus-visible { outline-offset: 4px; }
+@media (max-width: 760px) {
+  body[data-screen="home"] .topbar { height: 48px; flex-basis: 48px; }
+  body[data-screen="home"] .site-footer { height: 27px; flex-basis: 27px; }
+  .home-screen { display: flex; flex-direction: column; align-items: stretch; justify-content: space-between; gap: 9px; padding: 12px 0 10px; }
+  .home-copy { max-width: none; justify-self: auto; }
+  .title-kicker { margin-bottom: 7px; font-size: 9px; }
+  .home-copy h1 { font-size: clamp(38px, 10vw, 58px); line-height: .9; }
+  .intro { margin: 9px 0 11px; font-size: 12px; line-height: 1.4; }
+  .hub-menu { max-width: none; gap: 7px; }
+  .hub-card.primary { min-height: 58px; }
+  .hub-card.adventure { min-height: 49px; }
+  .hub-secondary-grid { gap: 6px; }
+  .hub-card.secondary { min-height: 44px; padding: 6px 10px; }
+  .hub-card.secondary span { margin-top: 1px; }
+  .home-art.title-art { flex: 1 1 100px; width: 100%; min-height: 96px; max-height: clamp(155px, 24dvh, 220px); border-radius: 13px; }
+  .home-art.title-art::after { inset: 7px; border-radius: 8px; }
+  .home-art.title-art .art-maze { width: auto; height: min(91%, 145px); }
+  .home-art.title-art .art-label { top: 14%; left: 7%; font-size: 11px; }
+  .home-art.title-art .art-caption { bottom: 8px; font-size: 7px; }
+  .home-art.title-art .sun { top: 11px; right: 11px; width: 20px; height: 20px; }
+}
+@media (max-width: 420px) {
+  body[data-screen="home"] .app-shell { padding-right: max(12px, calc(env(safe-area-inset-right) + 12px)); padding-left: max(12px, calc(env(safe-area-inset-left) + 12px)); }
+  .tagline { font-size: 12px; }
+  .hub-card strong { font-size: 12px; }
+  .hub-card span { font-size: 9px; }
+}
+@media (max-height: 700px) and (max-width: 760px) {
+  .home-screen { gap: 5px; padding-top: 7px; padding-bottom: 5px; }
+  .home-copy h1 { font-size: clamp(34px, 8.4vw, 46px); }
+  .intro { margin: 6px 0 7px; }
+  .hub-menu { gap: 5px; }
+  .hub-card.primary { min-height: 52px; }
+  .hub-card.adventure { min-height: 44px; }
+  .hub-card.secondary { min-height: 44px; }
+  .home-art.title-art { min-height: 76px; max-height: 100px; }
+}
+@media (max-height: 570px) {
+  body[data-screen="home"] { height: auto; min-height: 100dvh; overflow-y: auto; }
+  body[data-screen="home"] .app-shell { height: auto; min-height: 100dvh; }
+  body[data-screen="home"] .home-screen { overflow-y: visible; }
+}
+@media (orientation: landscape) and (max-height: 570px) {
+  body[data-screen="home"] { height: 100dvh; overflow: hidden; }
+  body[data-screen="home"] .app-shell { height: 100dvh; min-height: 0; }
+  body[data-screen="home"] .topbar { height: 40px; flex-basis: 40px; }
+  body[data-screen="home"] .site-footer { height: 24px; flex-basis: 24px; }
+  .home-screen { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .88fr); align-items: center; gap: 16px; padding: 6px 0; }
+  body[data-screen="home"] .home-screen { overflow-y: auto; }
+  .home-copy { max-width: none; }
+  .title-kicker { margin-bottom: 5px; font-size: 8px; }
+  .home-copy h1 { font-size: clamp(31px, 8vh, 46px); line-height: .88; }
+  .intro { margin: 6px 0 8px; font-size: 10px; line-height: 1.3; }
+  .hub-menu { gap: 4px; }
+  .hub-card.primary { min-height: 46px; padding: 5px 10px; grid-template-columns: 30px 1fr; }
+  .hub-card.primary .menu-icon { width: 23px; height: 23px; font-size: 13px; }
+  .hub-card.primary strong { font-size: 12px; }
+  .hub-card.primary span { font-size: 8px; }
+  .hub-card.adventure { min-height: 44px; padding: 4px 10px; grid-template-columns: 30px 1fr; }
+  .hub-card.adventure .menu-icon { font-size: 17px; }
+  .hub-card.adventure strong { font-size: 11px; }
+  .hub-card.adventure span { font-size: 8px; }
+  .hub-secondary-grid { gap: 4px; }
+  .hub-card.secondary { min-height: 44px; padding: 4px 8px; }
+  .hub-card.secondary strong { font-size: 10px; }
+  .hub-card.secondary span { font-size: 8px; }
+  .home-art.title-art { width: 100%; height: 100%; min-height: 0; max-height: 100%; border-radius: 12px; }
+  .home-art.title-art .art-maze { width: auto; height: min(86%, 300px); }
+  .home-art.title-art .art-label { font-size: 10px; }
+  .home-art.title-art .art-caption { font-size: 7px; bottom: 5%; }
+}
+@media (prefers-reduced-motion: reduce) { .hub-card { transition: none; } }

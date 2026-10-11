@@ -60,6 +60,19 @@ This roadmap tracks intended phases, current state, priorities, and unresolved c
 - [ ] Validate touch feel and recovery on a physical iPhone portrait PWA. Current automated tests cannot measure finger comfort or Safari hardware behavior.
 - Offset Pencil remains a possible future accessibility/input option for discussion; it is not approved or implemented.
 
+### Phase 2F — Tracing reliability and title screen
+
+**Status: Implemented · automated checks and browser viewport review complete · physical iPhone validation pending**
+
+- [x] Remove global historical-stroke projection from recovery decisions; retain route-cell identity on each visual sample and constrain projection to the current legal route tail.
+- [x] Permit recovery inside the current or immediately previous legal corridor without requiring a precise match to old ink; reject unrelated cells and illegal edges, and trim backtracking against the matching route tail only.
+- [x] Add a deterministic parallel-corridor regression reproducing cross-wall projection risk, plus collision continuation, forward/reverse, endpoint synchronization, and route legality coverage.
+- [x] Add opt-in QA tracing state via `?qa=1` and `window.mazeAdventureTraceDiagnostics()`.
+- [x] Replace the scrolling Home hub with a compact title screen and functional Free Play, Settings, How to Play, About/Credits, and Contact actions; mark Adventure as disabled Coming Soon.
+- [x] Verify no document scrolling at 390×844 portrait and 844×390 landscape in a desktop browser viewport; the test does not substitute for physical iPhone Safari/PWA testing.
+- [ ] Validate wall contact, same-gesture reversal, touch capture, and portrait/landscape title fit on a physical iPhone with the installed PWA.
+- [ ] Review QA traces from the physical-device scenario that previously locked up before closing this reliability phase.
+
 ## Phase 3 — Save and replay foundation
 
 **Priority: P2**

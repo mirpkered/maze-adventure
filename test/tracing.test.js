@@ -232,6 +232,78 @@ test('repeated recovery updates keep the logical and visual endpoints synchroniz
   assert.ok(session.stroke.every(point => point.x >= -0.46 && point.y >= -0.46));
 });
 
+test('wall recovery cannot project onto an older parallel corridor across a wall', () => {
+  // This reproduces the unrecoverable state: the route doubles back through a
+  // parallel corridor, the old and current ink can be less than one finger
+  // width apart, and the finger leaves toward the separating wall.
+  const route = [
+    { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 },
+    { x: 2, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 1 },
+  ];
+  const session = createTraceSession(mazeWithRoute(route, 3, 3));
+  session.begin(71, { x: 0, y: 0 });
+  session.move(71, { x: 2, y: 0.42 });
+  session.move(71, { x: 2, y: 1.42 });
+  session.move(71, { x: 0, y: 1.42 });
+  assert.deepEqual(session.path, route);
+
+  session.move(71, { x: 0, y: 0.49 }); // touch the wall shared with the earlier row
+  const restored = session.move(71, { x: 0, y: 0.54 });
+  assert.equal(restored.blocked, false);
+  assert.deepEqual(session.path, route);
+  assert.equal(Math.round(session.stroke.at(-1).y), session.path.at(-1).y,
+    'the visible endpoint remains in the logical endpoint cell');
+
+  const reverse = session.move(71, { x: 1.7, y: 1.42 });
+  assert.equal(reverse.moved, true);
+  assert.deepEqual(session.path, route.slice(0, 4), 'the legal predecessor remains reachable without lifting');
+  assert.equal(Math.round(session.stroke.at(-1).x), session.path.at(-1).x);
+  assert.equal(Math.round(session.stroke.at(-1).y), session.path.at(-1).y);
+});
+
+test('wall-side recovery preserves the route tip when old ink is closer across a wall', () => {
+  const route = [
+    { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 },
+    { x: 2, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 1 },
+  ];
+  const maze = mazeWithRoute(route, 3, 3), path = route.slice(0, 5);
+  // The current route ink sits on the far side of cell 1,1. The earlier
+  // parallel segment sits .16 cells from the wall-side re-entry point.
+  const stroke = [
+    { x: 0, y: 0 }, { x: 0, y: 0.42 }, { x: 1, y: 0.42 }, { x: 2, y: 0.42 },
+    { x: 2, y: 0.58 }, { x: 2, y: 1.42 }, { x: 1.5, y: 1.42 }, { x: 1, y: 1.42 },
+  ];
+  const strokeCells = [route[0], route[0], route[1], route[2], route[3], route[3], route[4], route[4]];
+  const result = traceSegment(maze, path, { x: 1, y: 0.49 }, { x: 1, y: 0.54 }, stroke, stroke.at(-1), true, strokeCells);
+  assert.deepEqual(result.path, path);
+  assert.equal(result.recovering, false);
+  assert.deepEqual({ x: Math.round(result.stroke.at(-1).x), y: Math.round(result.stroke.at(-1).y) }, path.at(-1),
+    'the accepted ink endpoint cannot jump to the older corridor');
+
+  const forward = traceSegment(maze, result.path, { x: 1, y: 0.54 }, { x: 0.4, y: 1.42 }, result.stroke, { x: 1, y: 0.54 }, false, result.strokeCells);
+  assert.deepEqual(forward.path, route, 'the legal forward edge stays available');
+  const reverse = traceSegment(maze, forward.path, { x: 0.4, y: 1.42 }, { x: 1.2, y: 1.42 }, forward.stroke, { x: 0.4, y: 1.42 }, false, forward.strokeCells);
+  assert.deepEqual(reverse.path, path, 'the same route can be retraced without a reset');
+});
+
+test('after a blocked sample both route directions remain available in the same gesture', () => {
+  const route = Array.from({ length: 4 }, (_, x) => ({ x, y: 0 }));
+  const session = createTraceSession(mazeWithRoute(route, 5, 2));
+  session.begin(72, { x: 0, y: 0 });
+  session.move(72, { x: 2, y: 0 });
+  assert.equal(session.move(72, { x: 2, y: 0.7 }).blocked, true);
+  const recovered = session.move(72, { x: 2, y: 0.42 });
+  assert.equal(recovered.recovering, false, 'the pointer re-enters the legal corridor without a lift');
+  assert.deepEqual(session.path, route.slice(0, 3));
+  assert.equal(session.move(72, { x: 1.2, y: 0 }).moved, true);
+  assert.deepEqual(session.path, route.slice(0, 2));
+  assert.equal(session.move(72, { x: 2.4, y: 0 }).moved, true);
+  assert.deepEqual(session.path, route.slice(0, 3));
+  assert.equal(session.move(72, { x: 2.4, y: 0.7 }).blocked, true, 'repeated wall contact is safely rejected');
+  assert.equal(session.move(72, { x: 1.1, y: 0 }).moved, true, 'reverse remains available after repeated contact');
+  assert.deepEqual(session.path, route.slice(0, 2));
+});
+
 test('a blocked drag can turn into a legal corridor without lifting', () => {
   const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }];
   const session = createTraceSession(mazeWithRoute(route, 3, 2));

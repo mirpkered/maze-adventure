@@ -11,6 +11,19 @@ let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, time
 let paused = false, activeOverlay = null, returnFocus = null, resumeAfterOverlay = false;
 let isolatedPage = [], bodyOverflow = '';
 let preferences = readPreferences();
+const qaEnabled = new URLSearchParams(location.search).get('qa') === '1';
+let lastRawPointer = null, lastClientPointer = null;
+if (qaEnabled) document.body.dataset.qa = 'true';
+
+function updateTraceDiagnostics(raw = lastRawPointer) {
+  if (!qaEnabled || !traceSession) return;
+  const output = $('#trace-diagnostics');
+  if (!output) return;
+  output.hidden = false;
+  const state = traceSession.diagnostics;
+  const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
+  output.textContent = `QA trace · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · accepted ${point(state.endpoint)} · cell ${state.cell.x},${state.cell.y} · ${state.blocked ? 'BLOCKED' : 'clear'} · gesture ${state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · route ${state.pathLength} · ink ${state.strokeLength}`;
+}
 
 function formatTime(milliseconds) {
   const seconds = Math.floor(milliseconds / 1000);
@@ -121,7 +134,7 @@ function makeMaze(reuse = false) {
   activePointerId = null; elapsed = 0; paused = false; displayTime();
   $('#final-time').textContent = '0:00';
   $('#play-hint').textContent = 'Trace from the entrance to the flower. You can lift and continue.';
-  renderMaze(); activeScreen($('#play')); $('#play-title').focus({ preventScroll: true }); startTimer();
+  renderMaze(); activeScreen($('#play')); updateTraceDiagnostics(); $('#play-title').focus({ preventScroll: true }); startTimer();
 }
 
 function clearPointer() {
@@ -130,6 +143,7 @@ function clearPointer() {
   traceSession?.cancel(id); activePointerId = null;
   try { if (svg.hasPointerCapture?.(id)) svg.releasePointerCapture(id); } catch { /* Capture may already be gone. */ }
   renderTrace();
+  updateTraceDiagnostics();
 }
 function finishPointer(event, cancel = false) {
   if (activePointerId !== event.pointerId) return;
@@ -137,6 +151,7 @@ function finishPointer(event, cancel = false) {
   else traceSession.end(event.pointerId);
   activePointerId = null;
   try { if (svg.hasPointerCapture?.(event.pointerId)) svg.releasePointerCapture(event.pointerId); } catch { /* Capture may already be released by the browser. */ }
+  updateTraceDiagnostics();
 }
 function completeMaze() {
   pauseTimer(); $('#final-time').textContent = formatTime(elapsed);
@@ -184,9 +199,12 @@ function returnToHome() { showHome(); }
 svg.addEventListener('pointerdown', event => {
   event.preventDefault();
   if ($('#play').hidden || paused || activeOverlay || !event.isPrimary || activePointerId !== null) return;
-  if (traceSession.begin(event.pointerId, pointInMaze(event))) {
+  lastClientPointer = { x: event.clientX, y: event.clientY };
+  lastRawPointer = pointInMaze(event);
+  if (traceSession.begin(event.pointerId, lastRawPointer)) {
     activePointerId = event.pointerId;
     try { svg.setPointerCapture(event.pointerId); } catch { /* Older embedded WebViews may lack pointer capture. */ }
+    updateTraceDiagnostics(lastRawPointer);
   }
 });
 window.addEventListener('pointermove', event => {
@@ -197,8 +215,11 @@ window.addEventListener('pointermove', event => {
   const samples = coalesced?.length ? coalesced : [event];
   let moved = false, complete = false;
   for (const sample of samples) {
-    const result = traceSession.move(event.pointerId, pointInMaze(sample));
+    lastClientPointer = { x: sample.clientX, y: sample.clientY };
+    lastRawPointer = pointInMaze(sample);
+    const result = traceSession.move(event.pointerId, lastRawPointer);
     moved ||= result.moved;
+    updateTraceDiagnostics(lastRawPointer);
     if (result.complete) { complete = true; break; }
   }
   if (moved) renderTrace();
@@ -274,6 +295,9 @@ document.addEventListener('keydown', event => {
 });
 
 updateSettingsControls();
+activeScreen($('#home'));
+updateTraceDiagnostics();
+if (qaEnabled) window.mazeAdventureTraceDiagnostics = () => traceSession?.diagnostics ?? null;
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   const workerUrl = new URL('../service-worker.js', import.meta.url);
   const appScope = new URL('../', import.meta.url).pathname;

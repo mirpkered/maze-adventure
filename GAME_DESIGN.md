@@ -88,6 +88,25 @@ Pause/Resume and the keyboard arrow-key alternative are maze-specific additions.
 - The trace tracks the physical pointer separately from the accepted pencil endpoint so wall contact does not reset the origin. Physical iPhone validation remains necessary to tune the capture feel against different finger sizes and devices.
 - Pointer client coordinates map through the inverse SVG screen transform (in CSS pixels; device-pixel ratio is not applied a second time). A meet-aspect-ratio fallback is used where the screen transform is unavailable. Resize/orientation changes safely end the current gesture; the next touch resumes at the accepted endpoint.
 
+## Phase 2F — Tracing reliability and title screen
+
+- The route cell stack is authoritative for legality and completion. Every accepted visual sample is tagged with the route cell that admitted it, so recovery projection can inspect only the current route cell and its immediate predecessor. It cannot select a geometrically nearby sample from an older, wall-separated passage.
+- Root cause addressed: blocked-movement recovery previously projected against the entire historical freeform stroke. A touch returning near a tight, parallel corridor could select old ink across a wall. The code could then shorten the visible trail independently of the route stack; after lifting, the legal endpoint and ink endpoint could disagree and the begin/rejoin checks could refuse further input. Recovery now follows route-tail membership and validated corridor cells. Leaving and re-entering the current/previous legal route corridor does not require matching the old ink offset exactly. A backward cell transition trims only the matching route tail.
+- QA tracing readout is enabled by adding `?qa=1` to the app URL (for example, `http://localhost:4173/?qa=1`). It displays screen-pixel and mapped maze coordinates, accepted ink endpoint, logical cell, collision flag, gesture/recovery state, and route/ink lengths. In the browser console, `window.mazeAdventureTraceDiagnostics()` returns the current state. The panel and global helper are absent from ordinary sessions.
+- The Home screen is a single-screen title composition using the existing Maze Adventure maze illustration, paper/gold surfaces, a prominent Free Play action, a disabled Adventure “Coming Soon” action, and functional Settings, How to Play, About/Credits, and Contact actions. Small landscape viewports have a compact two-column title treatment. Very short screens may scroll rather than clip content. Zoom remains available.
+- Deterministic regression tests cover wall recovery beside an older parallel passage, both-direction continuation after collision, route/ink endpoint synchronization, and existing corner, diagonal, lift/resume, and pointer cancellation cases. Automated and browser viewport checks do not establish physical-device reliability; iPhone Safari and installed-PWA testing is still required.
+
+### Phase 2F title actions
+
+| Home action | Behavior |
+| --- | --- |
+| Free Play | Starts a new Easy Quick Play maze. |
+| Adventure | Disabled and labeled Coming Soon; story levels are not implemented. |
+| Settings | Opens local sound and paper settings. |
+| How to Play | Opens instructions and a playable-maze entry. |
+| About / Credits | Opens studio/game information and credits. |
+| Contact | Opens the device email client with the established Maze Adventure feedback subject and body. |
+
 ## Proposals and open decisions
 
 These remain proposals rather than commitments:

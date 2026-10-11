@@ -8,9 +8,11 @@ Maze Adventure is a separate, mobile-first maze puzzle game inspired by the prog
 
 The Phase 1 slice includes a Home screen and an Easy Quick Play maze. Trace from START to the flower with a finger, mouse, or pointer. Walls stop movement; retrace the route to leave a dead end. Lifting your pointer preserves your route. The elapsed timer pauses when the page is hidden or the window loses focus.
 
-The Adventure entry and the future daily, customization, keepsake, achievement, and statistics areas are marked as coming later. Story chapters, linked mazes, custom setup, and persistent maze progress are not implemented yet.
+Adventure is visibly marked Coming Soon. Story chapters, linked mazes, daily challenges, custom setup, cosmetics, and persistent maze progress are not implemented yet.
 
-Maze tracing keeps the logical cell route authoritative for collision and completion while the SVG pencil line follows accepted pointer samples through corridors and trims during physical backtracking. The maze also supports arrow-key passage movement. Pause/resume, same-maze restart, new maze, guarded Home navigation, local sound/appearance settings, instructions, and completion replay are available.
+Maze tracing keeps the legal route authoritative for collision and completion while the SVG pencil line follows accepted pointer samples. Recovery is limited to the current and immediately previous route cells, so nearby old ink across a wall cannot become a rejoin target. The maze also supports arrow-key passage movement. Pause/resume, same-maze restart, new maze, guarded Home navigation, local sound/appearance settings, instructions, and completion replay are available.
+
+The title screen is designed to fit a typical iPhone portrait display without scrolling and uses a compact landscape layout. Very short viewports can scroll to prevent clipping. For tracing diagnostics during QA, open the app with `?qa=1`; the page shows pointer coordinates, accepted pencil endpoint, logical cell, blocked state, and gesture state. The browser console also exposes `window.mazeAdventureTraceDiagnostics()` for the active session. The overlay is hidden during normal play.
 
 ## Install on iPhone
 
@@ -42,7 +44,7 @@ npm test
 npm run check
 ```
 
-The automated checks cover generated-maze connectivity and wall symmetry, dimension validation, continuous off-center tracing, turns, sparse input, wall collision, backtracking, lift/resume, pointer cancellation, keyboard passage movement, and persisted settings. The browser interaction is designed for touch and pointer input; physical iPhone tracing and portrait/landscape validation are still required.
+The automated checks cover generated-maze connectivity and wall symmetry, dimension validation, continuous off-center tracing, turns, sparse input, wall collision and recovery beside parallel passages, both-direction continuation, backtracking, lift/resume, pointer cancellation, keyboard passage movement, and persisted settings. Browser viewport review confirmed no document scroll at 390×844 portrait and 844×390 landscape. Physical iPhone tracing, Safari pointer-capture behavior, and installed-PWA validation are still required.
 
 ## Project map
 
