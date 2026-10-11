@@ -33,15 +33,15 @@ test('a player can begin at the printed entrance opening instead of the cell cen
   assert.deepEqual(session.move(4, { x: 0.6, y: 0 }).path, route.slice(0, 2));
 });
 
-test('pencil trail gently guides off-center pointer samples inside the corridor', () => {
+test('pencil trail matches off-center pointer samples until a wall-safety clamp is needed', () => {
   const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }];
   const session = createTraceSession(mazeWithRoute(route));
   session.begin(5, { x: 0, y: 0 });
   session.move(5, { x: 0.25, y: 0.12 });
   session.move(5, { x: 1.25, y: 0.12 });
   assert.deepEqual(session.path, route.slice(0, 2));
-  assert.ok(session.stroke.some(point => Math.abs(point.y - 0.108) < 0.015));
-  assert.ok(session.stroke.some(point => point.y < 0.12 && point.y > 0.09));
+  assert.ok(session.stroke.some(point => Math.abs(point.y - 0.12) < 0.001));
+  assert.ok(session.stroke.some(point => point.y === 0.12));
   assert.ok(session.stroke.some(point => point.x > 0.5 && point.x < 1));
 });
 
@@ -70,6 +70,15 @@ test('fast movement between pointer samples checks and visits every intermediate
   const maze = mazeWithRoute(route), result = traceSegment(maze, [route[0]], route[0], route.at(-1));
   assert.deepEqual(result.path, route);
   assert.equal(result.blocked, false);
+});
+
+test('slow pointer movement remains continuous and follows every legal cell', () => {
+  const route = Array.from({ length: 4 }, (_, x) => ({ x, y: 0 }));
+  const session = createTraceSession(mazeWithRoute(route, 5, 1));
+  session.begin(44, { x: 0, y: 0 });
+  for (let x = 0.025; x <= 3; x += 0.025) session.move(44, { x, y: 0.08 });
+  assert.deepEqual(session.path, route);
+  assert.ok(Math.abs(session.stroke.at(-1).x - 3) < 0.02);
 });
 
 test('wall collision stops tracing at the last reachable cell', () => {
@@ -165,6 +174,16 @@ test('capture tolerates a slightly off-center finger but stops before a wall-sid
   assert.equal(result.blocked, true);
   assert.deepEqual(session.path, route);
   assert.deepEqual(session.stroke.at(-1), lastLegal);
+});
+
+test('touch tolerance cannot cross into an adjacent corridor separated by a wall', () => {
+  const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }];
+  const session = createTraceSession(mazeWithRoute(route, 3, 2));
+  session.begin(45, { x: 0, y: 0 }); session.move(45, { x: 1, y: 0 });
+  const result = session.move(45, { x: 1, y: 0.7 });
+  assert.equal(result.blocked, true);
+  assert.deepEqual(session.path, route.slice(0, 2));
+  assert.ok(session.stroke.every(point => point.y <= 0.42), 'the stroke stays within the open cell, short of its closed south wall');
 });
 
 test('wall collision can be recovered after lifting and resuming at the legal tip', () => {

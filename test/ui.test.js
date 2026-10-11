@@ -71,3 +71,11 @@ test('iPhone portrait keeps the maze as a responsive, scoped touch target', asyn
   assert.match(css, /\.maze-paper,#maze\s*\{[^}]*touch-action:\s*none/s);
   assert.match(css, /safe-area-inset-(?:left|right)/);
 });
+
+test('touch input uses the SVG screen transform, coalesced samples, and safe rotation cancellation', async () => {
+  const game = await read('src/game.js');
+  assert.match(game, /svg\.getScreenCTM\(\)\?\.inverse\(\)/);
+  assert.match(game, /event\.getCoalescedEvents\?\./);
+  assert.match(game, /window\.addEventListener\('resize', clearPointer\)/);
+  assert.match(game, /svgToMazePoint\(pointAt\(event\), PAD, CELL\)/);
+});

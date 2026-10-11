@@ -7,7 +7,7 @@ const ENTRANCE_TOLERANCE = 0.62;
 // capture well inside the half-cell boundary so adjacent, walled passages
 // never become interchangeable.
 const TRAIL_CAPTURE_RADIUS = 0.4;
-const GUIDED_STROKE_INSET = 0.42;
+const STROKE_WALL_SAFE_OFFSET = 0.42;
 const MIN_STROKE_POINT_DISTANCE = 0.015;
 
 function nearestCell(point, maze) {
@@ -35,14 +35,14 @@ function projectOntoStroke(stroke, point) {
   return best;
 }
 
-// Reduce off-center jitter while keeping the stroke in the same corridor as
-// the finger. This is a gentle pencil guide, not a route finder or cell snap.
-function guidePoint(point, cell, maze) {
+// Keep the pencil as close to the finger as possible. Clamp only the thin
+// safety margin needed to keep the rendered stroke inside the wall boundary.
+function constrainStrokePoint(point, cell, maze) {
   const dx = point.x - cell.x, dy = point.y - cell.y;
   const entrance = sameCell(cell, maze.start) && cell.y === 0 && dy < -CORRIDOR_MARGIN;
-  const guidedX = Math.max(-GUIDED_STROKE_INSET, Math.min(GUIDED_STROKE_INSET, dx * 0.9));
-  const guidedY = entrance ? dy : Math.max(-GUIDED_STROKE_INSET, Math.min(GUIDED_STROKE_INSET, dy * 0.9));
-  return { x: cell.x + guidedX, y: cell.y + guidedY };
+  const safeX = Math.max(-STROKE_WALL_SAFE_OFFSET, Math.min(STROKE_WALL_SAFE_OFFSET, dx));
+  const safeY = entrance ? dy : Math.max(-STROKE_WALL_SAFE_OFFSET, Math.min(STROKE_WALL_SAFE_OFFSET, dy));
+  return { x: cell.x + safeX, y: cell.y + safeY };
 }
 
 function trimStroke(stroke, along) {
@@ -147,7 +147,7 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(cent
       continue;
     }
 
-    const pencilPoint = guidePoint(point, candidate, maze);
+    const pencilPoint = constrainStrokePoint(point, candidate, maze);
     const last = stroke.at(-1);
     if (Math.hypot(pencilPoint.x - last.x, pencilPoint.y - last.y) > MIN_STROKE_POINT_DISTANCE) { stroke.push(pencilPoint); moved = true; }
   }

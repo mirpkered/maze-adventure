@@ -1,6 +1,7 @@
 import { createMaze } from './maze.js';
 import { createTraceSession } from './tracing.js';
 import { DEFAULT_PREFERENCES, readPreferences, writePreferences } from './preferences.js';
+import { clientToViewBoxPoint, mazeToSvgPoint, svgToMazePoint, transformPoint } from './coordinates.js';
 
 const $ = selector => document.querySelector(selector);
 const screens = ['home', 'play', 'complete', 'settings', 'help', 'about'].map(id => $(`#${id}`));
@@ -34,14 +35,15 @@ function pauseTimer() {
 }
 
 function pointAt(event) {
-  const box = svg.getBoundingClientRect();
-  return { x: (event.clientX - box.left) / box.width * SIZE, y: (event.clientY - box.top) / box.height * SIZE };
+  const client = { x: event.clientX, y: event.clientY };
+  try {
+    const screenToSvg = svg.getScreenCTM()?.inverse();
+    if (screenToSvg) return transformPoint(client, screenToSvg);
+  } catch { /* Fall back for older or incomplete embedded SVG implementations. */ }
+  return clientToViewBoxPoint(client, svg.getBoundingClientRect(), { x: 0, y: 0, width: SIZE, height: SIZE });
 }
-function pointInMaze(event) {
-  const point = pointAt(event);
-  return { x: (point.x - PAD) / CELL - .5, y: (point.y - PAD) / CELL - .5 };
-}
-function svgPoint(point) { return { x: PAD + (point.x + .5) * CELL, y: PAD + (point.y + .5) * CELL }; }
+function pointInMaze(event) { return svgToMazePoint(pointAt(event), PAD, CELL); }
+function svgPoint(point) { return mazeToSvgPoint(point, PAD, CELL); }
 
 function renderTrace() {
   if (!traceSession) return;
@@ -190,12 +192,23 @@ svg.addEventListener('pointerdown', event => {
 window.addEventListener('pointermove', event => {
   if (activePointerId !== event.pointerId || $('#play').hidden || paused) return;
   event.preventDefault();
-  const result = traceSession.move(event.pointerId, pointInMaze(event));
-  if (result.moved) renderTrace();
-  if (result.complete) {
+  let coalesced;
+  try { coalesced = event.getCoalescedEvents?.(); } catch { /* Older WebViews may expose but not implement this method. */ }
+  const samples = coalesced?.length ? coalesced : [event];
+  let moved = false, complete = false;
+  for (const sample of samples) {
+    const result = traceSession.move(event.pointerId, pointInMaze(sample));
+    moved ||= result.moved;
+    if (result.complete) { complete = true; break; }
+  }
+  if (moved) renderTrace();
+  if (complete) {
     finishPointer(event); completeMaze();
   }
 });
+// A rotation can change the SVG's screen transform between pointer samples.
+// End that gesture safely; the next touch resumes from the accepted endpoint.
+window.addEventListener('resize', clearPointer);
 svg.addEventListener('keydown', event => {
   const direction = { ArrowUp: { x: 0, y: -1 }, ArrowRight: { x: 1, y: 0 }, ArrowDown: { x: 0, y: 1 }, ArrowLeft: { x: -1, y: 0 } }[event.key];
   if (!direction || $('#play').hidden || paused || activeOverlay) return;

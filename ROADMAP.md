@@ -54,9 +54,11 @@ This roadmap tracks intended phases, current state, priorities, and unresolved c
 
 **Status: Implemented · physical-device validation pending**
 
-- [x] Add corridor-guided pencil rendering, a practical off-center trail capture radius, and accepted-pointer anchoring through wall contact.
-- [x] Verify collision reversal, repeated contacts, corner retracing, off-center multi-turn tracing, wall-side limits, cancellation, and endpoint synchronization with deterministic tests.
+- [x] Use the SVG screen transform for client-to-viewBox mapping, with an aspect-ratio-aware fallback; use browser-coalesced pointer samples where available.
+- [x] Keep the visible stroke aligned to accepted touch samples, clamping only at the legal wall-safety inset; retain the 0.4-cell capture radius for off-center retracing.
+- [x] Verify scaled coordinate mapping, viewport/orientation changes, collision reversal, repeated contacts, corner retracing, off-center turns, corridor isolation, cancellation, and endpoint synchronization with deterministic tests.
 - [ ] Validate touch feel and recovery on a physical iPhone portrait PWA. Current automated tests cannot measure finger comfort or Safari hardware behavior.
+- Offset Pencil remains a possible future accessibility/input option for discussion; it is not approved or implemented.
 
 ## Phase 3 — Save and replay foundation
 
@@ -102,5 +104,6 @@ This roadmap tracks intended phases, current state, priorities, and unresolved c
 - Adventure count, region organization, final level count, and replay model.
 - Exact size ranges and objective difficulty criteria.
 - Touch forgiveness and alternate controls after device testing.
+- Whether an Offset Pencil accessibility/input option would help players who find direct finger contact obscures the stroke.
 - Persistence and privacy expectations.
 - Hosting ownership, custom domain, and release process.
