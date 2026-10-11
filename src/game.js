@@ -1,9 +1,10 @@
-import { advancePath, createMaze } from './maze.js';
+import { createMaze } from './maze.js';
+import { createTraceSession } from './tracing.js';
 
 const $ = (selector) => document.querySelector(selector);
 const home = $('#home'), play = $('#play'), complete = $('#complete'), svg = $('#maze');
 const SIZE = 400, PAD = 24, CELL = (SIZE - PAD * 2) / 7;
-let maze, path, pointerDown = false, lastPointerPoint = null, elapsed = 0, startedAt = 0, timerId;
+let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, timerId;
 
 function formatTime(seconds) { return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; }
 function activeScreen(screen) { home.hidden = screen !== home; play.hidden = screen !== play; complete.hidden = screen !== complete; }
@@ -15,10 +16,10 @@ function render() {
   const ns = 'http://www.w3.org/2000/svg';
   const line = (x1, y1, x2, y2, className = 'wall') => { const el = document.createElementNS(ns, 'line'); Object.entries({ x1, y1, x2, y2 }).forEach(([k, v]) => el.setAttribute(k, v)); el.setAttribute('class', className); svg.append(el); };
   const center = p => ({ x: PAD + (p.x + .5) * CELL, y: PAD + (p.y + .5) * CELL });
-  const points = path.map(center);
+  const points = traceSession.path.map(center);
   if (points.length > 1) { const trail = document.createElementNS(ns, 'polyline'); trail.setAttribute('points', points.map(p => `${p.x},${p.y}`).join(' ')); trail.setAttribute('class', 'trail'); svg.append(trail); }
-  const visited = new Set(path.map(p => `${p.x},${p.y}`));
-  for (const p of path) { const c = center(p), dot = document.createElementNS(ns, 'circle'); dot.setAttribute('cx', c.x); dot.setAttribute('cy', c.y); dot.setAttribute('r', 3.5); dot.setAttribute('class', 'trail-dot'); svg.append(dot); }
+  const visited = new Set(traceSession.path.map(p => `${p.x},${p.y}`));
+  for (const p of traceSession.path) { const c = center(p), dot = document.createElementNS(ns, 'circle'); dot.setAttribute('cx', c.x); dot.setAttribute('cy', c.y); dot.setAttribute('r', 3.5); dot.setAttribute('class', 'trail-dot'); svg.append(dot); }
   for (let y = 0; y < maze.height; y++) for (let x = 0; x < maze.width; x++) {
     const cell = maze.cells[y][x], x0 = PAD + x * CELL, y0 = PAD + y * CELL, x1 = x0 + CELL, y1 = y0 + CELL;
     if (cell.walls.N && !(x === maze.start.x && y === maze.start.y)) line(x0, y0, x1, y0);
@@ -36,7 +37,7 @@ function render() {
 
 function newMaze() {
   maze = createMaze(7, 7);
-  path = [{ ...maze.start }]; elapsed = 0; $('#timer').value = '0:00';
+  traceSession = createTraceSession(maze); activePointerId = null; elapsed = 0; $('#timer').value = '0:00';
   $('#play-hint').textContent = 'Trace the path from the little flag to the flower.';
   activeScreen(play); render(); startTimer();
 }
@@ -45,39 +46,40 @@ function pointAt(event) {
   const box = svg.getBoundingClientRect();
   return { x: (event.clientX - box.left) / box.width * SIZE, y: (event.clientY - box.top) / box.height * SIZE };
 }
-function nearestCell(point) {
-  const x = Math.round((point.x - PAD) / CELL - .5), y = Math.round((point.y - PAD) / CELL - .5);
-  const centerX = PAD + (x + .5) * CELL, centerY = PAD + (y + .5) * CELL;
-  if (Math.hypot(centerX - point.x, centerY - point.y) > CELL * .62) return null;
-  return { x, y };
+function pointInMaze(event) {
+  const point = pointAt(event);
+  return { x: (point.x - PAD) / CELL - .5, y: (point.y - PAD) / CELL - .5 };
 }
-function onPointerMove(event) {
-  if (!pointerDown || play.hidden) return;
-  const point = pointAt(event), previous = lastPointerPoint || point;
-  const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
-  const samples = Math.max(1, Math.ceil(distance / (CELL * .2)));
-  for (let i = 1; i <= samples; i++) {
-    const candidate = nearestCell({ x: previous.x + (point.x - previous.x) * i / samples, y: previous.y + (point.y - previous.y) * i / samples });
-    if (!candidate) continue;
-    const result = advancePath(maze, path, candidate);
-    if (!result.moved) continue;
-    path = result.path; render();
-    if (result.complete) {
-      pointerDown = false; lastPointerPoint = null; pauseTimer(); $('#final-time').textContent = formatTime(elapsed); activeScreen(complete); return;
-    }
-  }
-  lastPointerPoint = point;
+function finishPointer(event, cancel = false) {
+  if (activePointerId !== event.pointerId) return;
+  if (cancel) traceSession.cancel(event.pointerId);
+  else traceSession.end(event.pointerId);
+  activePointerId = null;
+  try { if (svg.hasPointerCapture?.(event.pointerId)) svg.releasePointerCapture(event.pointerId); } catch { /* Capture may already have been released by the browser. */ }
 }
 svg.addEventListener('pointerdown', event => {
-  if (play.hidden) return;
-  const candidate = nearestCell(pointAt(event));
-  const last = path.at(-1);
-  if (candidate && candidate.x === last.x && candidate.y === last.y) {
-    pointerDown = true; lastPointerPoint = pointAt(event); svg.setPointerCapture(event.pointerId); onPointerMove(event); event.preventDefault();
+  // Touching the board belongs to the maze even if the gesture starts away
+  // from the current endpoint. Page scrolling remains available elsewhere.
+  event.preventDefault();
+  if (play.hidden || !event.isPrimary || activePointerId !== null) return;
+  const point = pointInMaze(event);
+  if (traceSession.begin(event.pointerId, point)) {
+    activePointerId = event.pointerId;
+    try { svg.setPointerCapture(event.pointerId); } catch { /* Some embedded WebViews lack pointer capture. */ }
   }
 });
-svg.addEventListener('pointermove', onPointerMove);
-for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) svg.addEventListener(eventName, () => { pointerDown = false; lastPointerPoint = null; });
+window.addEventListener('pointermove', event => {
+  if (activePointerId !== event.pointerId || play.hidden) return;
+  event.preventDefault();
+  const result = traceSession.move(event.pointerId, pointInMaze(event));
+  if (result.moved) render();
+  if (result.complete) {
+    finishPointer(event); pauseTimer(); $('#final-time').textContent = formatTime(elapsed); activeScreen(complete);
+  }
+});
+window.addEventListener('pointerup', event => finishPointer(event));
+window.addEventListener('pointercancel', event => finishPointer(event, true));
+window.addEventListener('lostpointercapture', event => finishPointer(event, true));
 document.addEventListener('visibilitychange', () => document.hidden ? pauseTimer() : startTimer());
 window.addEventListener('blur', pauseTimer); window.addEventListener('focus', startTimer);
 $('#quick-play').addEventListener('click', newMaze);

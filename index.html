@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f5efdf" />
     <meta name="description" content="A little maze adventure from Mirpworks." />
     <title>Maze Adventure — Mirpworks</title>
@@ -44,7 +44,7 @@
           <div class="timer-wrap"><span class="timer-label">TIME</span><output id="timer" aria-label="Elapsed time">0:00</output></div>
         </div>
         <p class="play-hint" id="play-hint">Trace the path from the little flag to the flower.</p>
-        <div class="maze-paper" id="maze-paper"><svg id="maze" role="application" aria-label="Maze. Trace from the entrance to the exit." viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg></div>
+        <div class="maze-paper" id="maze-paper"><svg id="maze" draggable="false" role="application" aria-label="Maze. Trace from the entrance to the exit." viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg></div>
         <div class="play-footer"><span><i class="legend-start"></i> START</span><span class="footer-message">Take your time. You can lift and continue.</span><button class="text-button" id="new-maze">New maze ↻</button></div>
       </section>
 
