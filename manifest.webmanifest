@@ -11,16 +11,16 @@
   "background_color": "#f5efdf",
   "icons": [
     {
-      "src": "./icons/maze-192.png",
+      "src": "./icons/maze-adventure-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./icons/maze-512.png",
+      "src": "./icons/maze-adventure-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

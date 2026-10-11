@@ -14,9 +14,11 @@ The Adventure entry is marked as coming later. Story chapters, linked mazes, cos
 
 Open the published site in Safari, use **Share → Add to Home Screen**, and launch the new icon. The app opens in standalone display mode with a dedicated Home Screen icon and iOS safe-area padding. The normal browser site remains usable without installation.
 
-The service worker caches the app shell for offline startup and uses network-first refreshes while online. Installed apps check for the worker update on launch; a newly activated version is shown after a reload or next launch. When changing the shell cache strategy, increment the `shell-v1` cache name in `service-worker.js`. Offline use keeps the most recently fetched files available.
+The service worker caches the app shell for offline startup and uses network-first refreshes while online. Installed apps check for the worker update on launch; a newly activated version is shown after a reload or next launch. App icons use versioned filenames and are included in the shell cache. When changing the shell assets, increment the cache name in `service-worker.js`. Offline use keeps the most recently fetched files available.
 
-The manifest and service worker use paths relative to the app directory so the same files work locally and under the GitHub Pages `/maze-adventure/` path. Regenerate the PNG icon sizes with `npm run icons` after changing `scripts/generate-icons.mjs`.
+The official artwork source is `icons/maze-adventure-approved-source.png`; the published Apple and manifest icons are high-quality resized copies. iOS may keep an already installed Home Screen icon. To refresh it, remove the old Maze Adventure icon from the Home Screen, open the site in Safari, and use **Share → Add to Home Screen** again.
+
+The manifest and service worker use paths relative to the app directory so the same files work locally and under the GitHub Pages `/maze-adventure/` path.
 
 ## Requirements
 

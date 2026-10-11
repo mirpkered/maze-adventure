@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'mirpworks-maze-adventure-';
-const CACHE_NAME = `${CACHE_PREFIX}shell-v1`;
+const CACHE_NAME = `${CACHE_PREFIX}shell-v2`;
 const APP_BASE = new URL('./', self.registration.scope);
 const SHELL_FILES = [
   './',
@@ -10,9 +10,9 @@ const SHELL_FILES = [
   './src/maze.js',
   './src/tracing.js',
   './src/pwa.js',
-  './icons/maze-192.png',
-  './icons/maze-512.png',
-  './icons/apple-touch-icon.png',
+  './icons/maze-adventure-icon-180.png',
+  './icons/maze-adventure-icon-192.png',
+  './icons/maze-adventure-icon-512.png',
 ].map(path => new URL(path, APP_BASE).href);
 
 self.addEventListener('install', event => {

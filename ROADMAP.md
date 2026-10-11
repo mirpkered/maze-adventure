@@ -18,6 +18,14 @@ This roadmap tracks intended phases, current state, priorities, and unresolved c
 - [x] Add automated generator and input-rule checks.
 - [ ] Verify GitHub Pages publication after workflow deployment.
 
+## Phase 1.1 — Official application icon
+
+**Priority: P1 · Status: Complete**
+
+- [x] Integrate the approved Maze Adventure artwork as resized 180, 192, and 512 pixel PNG icons.
+- [x] Update Apple and PWA manifest references, avoid unsafe maskable cropping, and version the app shell cache.
+- [x] Document iPhone Home Screen icon refresh steps and verify the published assets.
+
 ## Phase 2 — Play usability and Free Play controls
 
 **Priority: P1 · Recommended next**

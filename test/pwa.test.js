@@ -18,10 +18,11 @@ test('manifest uses the deployed application directory as its standalone start a
 
 test('manifest and Apple Home Screen icons exist as correctly sized PNGs', async () => {
   const manifest = JSON.parse(await readFile(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
-  const expected = new Map([['./icons/maze-192.png', 192], ['./icons/maze-512.png', 512]]);
+  const expected = new Map([['./icons/maze-adventure-icon-192.png', 192], ['./icons/maze-adventure-icon-512.png', 512]]);
   assert.equal(manifest.icons.length, expected.size);
   for (const icon of manifest.icons) {
     assert.equal(icon.type, 'image/png');
+    assert.equal(icon.purpose, 'any');
     const expectedSize = expected.get(icon.src);
     assert.ok(expectedSize, `Unexpected manifest icon ${icon.src}`);
     const data = await read(icon.src.slice(2));
@@ -29,7 +30,7 @@ test('manifest and Apple Home Screen icons exist as correctly sized PNGs', async
     assert.equal(data.readUInt32BE(16), expectedSize);
     assert.equal(data.readUInt32BE(20), expectedSize);
   }
-  const appleIcon = await read('icons/apple-touch-icon.png');
+  const appleIcon = await read('icons/maze-adventure-icon-180.png');
   assert.equal(appleIcon.readUInt32BE(16), 180);
   assert.equal(appleIcon.readUInt32BE(20), 180);
 });
@@ -37,7 +38,7 @@ test('manifest and Apple Home Screen icons exist as correctly sized PNGs', async
 test('document links to manifest and Apple metadata without disabling browser zoom', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /rel="manifest" href="\.\/manifest\.webmanifest"/);
-  assert.match(html, /rel="apple-touch-icon" sizes="180x180" href="\.\/icons\/apple-touch-icon\.png"/);
+  assert.match(html, /rel="apple-touch-icon" sizes="180x180" href="\.\/icons\/maze-adventure-icon-180\.png"/);
   assert.match(html, /name="apple-mobile-web-app-capable" content="yes"/);
   assert.match(html, /name="apple-mobile-web-app-title" content="Maze Adventure"/);
   assert.match(html, /viewport-fit=cover/);
@@ -59,4 +60,8 @@ test('service worker is app-scoped, refreshes from network, and removes obsolete
   assert.match(worker, /name\.startsWith\(CACHE_PREFIX\) && name !== CACHE_NAME/);
   assert.match(worker, /await self\.skipWaiting\(\)/);
   assert.match(worker, /await self\.clients\.claim\(\)/);
+  assert.match(worker, /shell-v2/);
+  for (const icon of ['maze-adventure-icon-180.png', 'maze-adventure-icon-192.png', 'maze-adventure-icon-512.png']) {
+    assert.ok(worker.includes(icon), `Service worker should cache ${icon}`);
+  }
 });
