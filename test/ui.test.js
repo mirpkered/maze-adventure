@@ -14,6 +14,21 @@ test('home hub exposes playable and settings actions while future systems are cl
   }
 });
 
+test('Contact links prefill Maze Adventure feedback email details', async () => {
+  const html = await read('index.html');
+  const contactLinks = [...html.matchAll(/<a\b[^>]*href="([^"]*mailto:[^"]*)"[^>]*>(.*?)<\/a>/g)];
+  assert.equal(contactLinks.length, 2, 'Both existing Contact actions should remain available');
+
+  for (const [, encodedHref] of contactLinks) {
+    const href = encodedHref.replaceAll('&amp;', '&');
+    const [recipient, query = ''] = href.slice('mailto:'.length).split('?');
+    const parameters = new URLSearchParams(query);
+    assert.equal(recipient, 'contact@mirpworks.com');
+    assert.equal(parameters.get('subject'), 'Maze Adventure — Feedback');
+    assert.equal(parameters.get('body'), 'Sent from: Maze Adventure\n\n[Your message here]');
+  }
+});
+
 test('gameplay actions keep restart, new maze, pause, and guarded Home behavior distinct', async () => {
   const html = await read('index.html'), game = await read('src/game.js');
   for (const id of ['pause-game', 'restart-maze', 'new-maze', 'next-maze', 'replay-maze', 'back-home', 'pause-dialog', 'confirm-dialog']) {
