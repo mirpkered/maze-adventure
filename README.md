@@ -10,6 +10,14 @@ The Phase 1 slice includes a Home screen and an Easy Quick Play maze. Trace from
 
 The Adventure entry is marked as coming later. Story chapters, linked mazes, cosmetics, custom setup, and persistent saves are not implemented yet.
 
+## Install on iPhone
+
+Open the published site in Safari, use **Share → Add to Home Screen**, and launch the new icon. The app opens in standalone display mode with a dedicated Home Screen icon and iOS safe-area padding. The normal browser site remains usable without installation.
+
+The service worker caches the app shell for offline startup and uses network-first refreshes while online. Installed apps check for the worker update on launch; a newly activated version is shown after a reload or next launch. When changing the shell cache strategy, increment the `shell-v1` cache name in `service-worker.js`. Offline use keeps the most recently fetched files available.
+
+The manifest and service worker use paths relative to the app directory so the same files work locally and under the GitHub Pages `/maze-adventure/` path. Regenerate the PNG icon sizes with `npm run icons` after changing `scripts/generate-icons.mjs`.
+
 ## Requirements
 
 - Node.js 20 or newer (no third-party packages)

@@ -4,6 +4,6 @@
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
 /* Limit gesture suppression to the maze. The 24px page gutters keep the board
    outside the iOS edge-swipe area; Safari zoom remains enabled in the viewport. */
-.app-shell{padding-left:max(52px,calc(env(safe-area-inset-left) + 24px));padding-right:max(52px,calc(env(safe-area-inset-right) + 24px))}
+.app-shell{min-height:100vh;min-height:100dvh;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);padding-left:max(52px,calc(env(safe-area-inset-left) + 24px));padding-right:max(52px,calc(env(safe-area-inset-right) + 24px))}
 .maze-paper,#maze{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:contain}
 @media(max-width:700px){.app-shell{padding-left:max(24px,calc(env(safe-area-inset-left) + 8px));padding-right:max(24px,calc(env(safe-area-inset-right) + 8px))}}

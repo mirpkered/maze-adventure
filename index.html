@@ -5,8 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f5efdf" />
     <meta name="description" content="A little maze adventure from Mirpworks." />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Maze Adventure" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
     <title>Maze Adventure — Mirpworks</title>
-    <link rel="stylesheet" href="src/styles.css" />
+    <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
     <main class="app-shell">
@@ -53,6 +59,7 @@
       </section>
       <footer class="site-footer"><span>© MIRPWORKS</span><span>MADE FOR A MOMENT OF PLAY</span></footer>
     </main>
-    <script type="module" src="src/game.js"></script>
+    <script type="module" src="./src/game.js"></script>
+    <script type="module" src="./src/pwa.js"></script>
   </body>
 </html>

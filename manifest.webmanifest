@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "Maze Adventure",
+  "short_name": "Maze Adventure",
+  "description": "A little maze adventure from Mirpworks.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#f5efdf",
+  "background_color": "#f5efdf",
+  "icons": [
+    {
+      "src": "./icons/maze-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/maze-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
