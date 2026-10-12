@@ -5,6 +5,7 @@ import { clientToViewBoxPoint, mazeToSvgPoint, svgToMazePoint, transformPoint } 
 import { createTraceRecorder, mazeLayoutId } from './trace-diagnostics.js';
 import { bindEmblemQaTrigger, closeQaSession, startQaSession } from './qa-mode.js';
 import { finalPointerMovement, pointerMovementSamples } from './pointer-samples.js';
+import { APP_BUILD_ID } from './build-info.js';
 
 const $ = selector => document.querySelector(selector);
 const screens = ['home', 'play', 'complete', 'settings', 'help', 'about'].map(id => $(`#${id}`));
@@ -47,7 +48,7 @@ function syncQaControls() {
   $('#trace-diagnostics').hidden = !qaEnabled || !traceSession;
 }
 
-function recordTraceEvent(eventType, event, point, accepted, reason = null, canceled = false) {
+function recordTraceEvent(eventType, event, point, accepted, reason = null, canceled = false, movement = null, sampleType = 'dispatched', sampleIndex = null) {
   if (!traceRecorder || !traceSession) return;
   const state = traceSession.diagnostics;
   let captured = false;
@@ -55,6 +56,8 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
   traceRecorder.record({
     eventType,
     pointerType: event?.pointerType ?? 'unknown',
+    sampleType,
+    sampleIndex,
     client: event && Number.isFinite(event.clientX) ? { x: Math.round(event.clientX * 10) / 10, y: Math.round(event.clientY * 10) / 10 } : null,
     maze: point ? { x: Math.round(point.x * 1000) / 1000, y: Math.round(point.y * 1000) / 1000 } : null,
     cell: { ...state.cell },
@@ -67,6 +70,9 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
     resumeAcquisitionThreshold: state.resumeAcquisitionThreshold,
     failureCategory: state.failureCategory,
     traceHealth: state.traceHealth,
+    interpolationCount: movement?.interpolatedSamples ?? 0,
+    attemptedTransitions: movement?.attemptedTransitions ?? [],
+    strokeBreakCreated: movement?.strokeBreakCreated ?? false,
     gestureState: state.active ? (state.recovering ? 'recovering' : 'active') : 'idle',
     accepted: Boolean(accepted),
     rejectedReason: reason ?? state.reason ?? (accepted ? null : 'no-route-or-stroke-change'),
@@ -91,6 +97,7 @@ function diagnosticReport() {
     ink: traceSession?.stroke.map(point => ({ x: Math.round(point.x * 1000) / 1000, y: Math.round(point.y * 1000) / 1000 })) ?? [],
     state: state ? { ...state } : null,
     inkCellAssociation: state?.strokeCells ?? [],
+    buildId: APP_BUILD_ID,
   }), null, 2);
 }
 
@@ -103,7 +110,7 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
   const reversal = state.candidateReversal ? `${state.candidateReversal.x},${state.candidateReversal.y} (${state.candidateReversalOpen ? 'open' : 'closed'})` : 'none';
   const resume = state.resumeAcquisitionDistance === null ? '—' : `${state.resumeAcquisitionDistance.toFixed(3)}/${state.resumeAcquisitionThreshold.toFixed(3)}`;
-  output.textContent = `QA trace · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · resume distance/limit ${resume} · gesture ${state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  output.textContent = `QA trace · build ${APP_BUILD_ID} · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · resume distance/limit ${resume} · gesture ${state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -310,12 +317,14 @@ window.addEventListener('pointermove', event => {
   if (activePointerId !== event.pointerId || $('#play').hidden || paused) return;
   event.preventDefault();
   let moved = false, complete = false;
-  for (const sample of pointerMovementSamples(event)) {
+  const samples = pointerMovementSamples(event);
+  for (const [sampleIndex, sample] of samples.entries()) {
     lastClientPointer = { x: sample.clientX, y: sample.clientY };
     lastRawPointer = pointInMaze(sample);
     const result = traceSession.move(event.pointerId, lastRawPointer);
     moved ||= result.moved;
-    recordTraceEvent('pointermove', sample, lastRawPointer, result.moved, result.reason ?? (!result.moved ? 'no-route-or-stroke-change' : null));
+    recordTraceEvent('pointermove', sample, lastRawPointer, result.moved, result.reason ?? (!result.moved ? 'no-route-or-stroke-change' : null), false, result,
+      sample === event ? 'dispatched' : 'coalesced', sampleIndex);
     if (result.complete) { complete = true; break; }
   }
   if (moved) renderTrace();
@@ -430,10 +439,3 @@ updateSettingsControls();
 activeScreen($('#home'));
 setQaMode(qaEnabled);
 updateTraceDiagnostics();
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  const workerUrl = new URL('../service-worker.js', import.meta.url);
-  const appScope = new URL('../', import.meta.url).pathname;
-  navigator.serviceWorker.register(workerUrl, { scope: appScope, updateViaCache: 'none' })
-    .then(registration => registration.update())
-    .catch(() => {});
-}

@@ -169,6 +169,22 @@ test('slight wall penetration near a corner does not advance the route or stroke
   assert.ok(Math.hypot(session.stroke.at(-1).x - before.x, session.stroke.at(-1).y - before.y) < 0.6);
 });
 
+test('a recovery below the ink spacing threshold cannot leave a dangling stroke break', () => {
+  const session = createTraceSession(mazeWithRoute([{ x: 0, y: 0 }, { x: 1, y: 0 }], 2, 2));
+  session.begin(804, { x: 0, y: 0 });
+  session.move(804, { x: 0.42, y: 0.42 });
+  const inkAtTip = session.stroke.map(point => ({ ...point }));
+  const collision = session.move(804, { x: 0.48, y: 0.48 });
+  assert.equal(collision.blocked, true);
+  const reentry = session.move(804, { x: 0.42, y: 0.42 });
+  assert.equal(reentry.recovering, false);
+  assert.deepEqual(session.stroke, inkAtTip, 'a sub-threshold re-entry does not add ink or move the pencil');
+  assert.deepEqual(session.strokeBreaks, [], 'a break is recorded only when a new ink point is appended');
+  session.move(804, { x: 0.2, y: 0.2 });
+  assert.deepEqual(session.strokeBreaks, [], 'the next connected accepted segment stays connected');
+  assert.ok(session.stroke.length > inkAtTip.length);
+});
+
 test('finger can leave the corridor at a wall and retrace backward without lifting', () => {
   const route = Array.from({ length: 4 }, (_, x) => ({ x, y: 0 }));
   const session = createTraceSession(mazeWithRoute(route, 5, 1));
@@ -424,6 +440,7 @@ test('diagnostic recorder is bounded, relative-time based, and resettable', () =
   assert.equal(report.events[1].eventType, 'pointercancel');
   assert.deepEqual(report.checkpoints.map(event => event.eventType), ['pointerdown', 'pointercancel']);
   assert.equal(report.maze.layoutId, 'maze-test');
+  assert.equal(report.buildId, null);
   recorder.reset();
   assert.equal(recorder.length, 0);
   assert.equal(recorder.dropped, 0);
@@ -445,6 +462,20 @@ test('diagnostic checkpoints retain early gesture and wall transitions beyond th
   assert.equal(report.checkpoints[1].candidateReversalOpen, true);
   assert.deepEqual(report.checkpoints[1].pencilPosition, { x: 1.25, y: 2 });
   assert.equal(report.droppedCheckpoints, 0);
+});
+
+test('diagnostic samples retain source, interpolation, attempted edge, and build evidence', () => {
+  const recorder = createTraceRecorder({ now: () => 10 });
+  recorder.record({ eventType: 'pointermove', sampleType: 'coalesced', sampleIndex: 2,
+    interpolationCount: 7, attemptedTransitions: [{ from: { x: 1, y: 2 }, to: { x: 2, y: 2 }, open: false }],
+    strokeBreakCreated: true, accepted: false, rejectedReason: 'closed-wall-collision' });
+  const report = recorder.report({ layoutId: 'maze-test', dimensions: { width: 3, height: 3 }, route: [], ink: [], state: null, buildId: 'build-test' });
+  assert.equal(report.buildId, 'build-test');
+  assert.equal(report.events[0].sampleType, 'coalesced');
+  assert.equal(report.events[0].sampleIndex, 2);
+  assert.equal(report.events[0].interpolationCount, 7);
+  assert.deepEqual(report.events[0].attemptedTransitions, [{ from: { x: 1, y: 2 }, to: { x: 2, y: 2 }, open: false }]);
+  assert.equal(report.events[0].strokeBreakCreated, true);
 });
 
 test('layout fingerprint is stable and changes with maze topology', () => {

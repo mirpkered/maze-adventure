@@ -22,6 +22,8 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
         t: Math.max(0, Math.round(now() - startedAt)),
         eventType: String(event.eventType ?? 'unknown').slice(0, 32),
         pointerType: String(event.pointerType ?? 'unknown').slice(0, 16),
+        sampleType: String(event.sampleType ?? 'dispatched').slice(0, 16),
+        sampleIndex: Number.isInteger(event.sampleIndex) ? event.sampleIndex : null,
         client: point(event.client),
         maze: point(event.maze),
         cell: cell(event.cell),
@@ -34,6 +36,11 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
         resumeAcquisitionThreshold: Number.isFinite(event.resumeAcquisitionThreshold) ? Math.round(event.resumeAcquisitionThreshold * 1000) / 1000 : null,
         failureCategory: typeof event.failureCategory === 'string' ? event.failureCategory.slice(0, 32) : null,
         traceHealth: typeof event.traceHealth === 'string' ? event.traceHealth.slice(0, 40) : null,
+        interpolationCount: Number.isInteger(event.interpolationCount) ? event.interpolationCount : 0,
+        attemptedTransitions: Array.isArray(event.attemptedTransitions) ? event.attemptedTransitions.slice(0, 24).map(transition => ({
+          from: cell(transition.from), to: cell(transition.to), open: Boolean(transition.open),
+        })) : [],
+        strokeBreakCreated: Boolean(event.strokeBreakCreated),
         gestureState: String(event.gestureState ?? 'unknown').slice(0, 16),
         accepted: Boolean(event.accepted),
         rejectedReason: typeof event.rejectedReason === 'string' ? event.rejectedReason.slice(0, 80) : null,
@@ -55,9 +62,10 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
       previous = entry;
     },
     reset() { events = []; checkpoints = []; dropped = 0; droppedCheckpoints = 0; previous = null; startedAt = now(); },
-    report({ layoutId, dimensions, mazeDefinition, route, ink, state, inkCellAssociation }) {
+    report({ layoutId, dimensions, mazeDefinition, route, ink, state, inkCellAssociation, buildId = null }) {
       return {
         format: 'maze-adventure-trace-qa-v1',
+        buildId,
         privacy: 'Pointer coordinates are maze-local; no name, account, URL, or pointer identifier is recorded.',
         maze: { layoutId, dimensions, definition: mazeDefinition },
       current: { route, ink, inkCellAssociation, state },

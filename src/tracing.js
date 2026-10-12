@@ -47,9 +47,13 @@ function constrainStrokePoint(point, cell, maze) {
 }
 
 function appendInk(stroke, strokeCells, strokeBreaks, point, cell, breakBefore = false) {
-  if (breakBefore && stroke.length) strokeBreaks.push(stroke.length);
   const last = stroke.at(-1);
   if (!last || Math.hypot(point.x - last.x, point.y - last.y) > MIN_STROKE_POINT_DISTANCE) {
+    // A break belongs to an actual new point. Recording it before the
+    // distance filter leaves a dangling M command when recovery only moves
+    // within the point-spacing threshold; the next real point then appears as
+    // a detached fragment despite no accepted ink having started there.
+    if (breakBefore && stroke.length && strokeBreaks.at(-1) !== stroke.length) strokeBreaks.push(stroke.length);
     stroke.push(copyPoint(point));
     strokeCells.push({ ...cell });
   }
@@ -67,9 +71,13 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
   const strokeBreaks = [...currentStrokeBreaks];
   let position = copyPoint(acceptedPosition ?? currentStroke.at(-1) ?? path.at(-1));
   let moved = false, blocked = false, complete = false, reason = null;
+  let interpolatedSamples = 0;
+  const attemptedTransitions = [];
+  const initialBreakCount = strokeBreaks.length;
   const reject = code => { blocked = true; reason ??= code; };
   const distance = Math.hypot(to.x - from.x, to.y - from.y);
   const samples = Math.max(1, Math.ceil(distance / MAX_SAMPLE_DISTANCE));
+  interpolatedSamples = Math.max(0, samples - 1);
   let rejoining = recovering;
 
   for (let index = 1; index <= samples; index++) {
@@ -87,6 +95,7 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
     let transition = null;
     if (!same) {
       const dx = candidate.x - current.x, dy = candidate.y - current.y;
+      if (Math.abs(dx) + Math.abs(dy) === 1) attemptedTransitions.push({ from: { ...current }, to: { ...candidate }, open: canMove(maze, current, candidate) });
       if (Math.abs(dx) + Math.abs(dy) !== 1 || !canMove(maze, current, candidate)) {
         reject('closed-or-nonadjacent-edge');
         rejoining = true;
@@ -129,7 +138,8 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
     rejoining = false;
   }
 
-  return { path: nextPath, stroke, strokeCells, strokeBreaks, position, moved, blocked, reason, complete, recovering: rejoining, recovered: blocked && moved && !rejoining };
+  return { path: nextPath, stroke, strokeCells, strokeBreaks, position, moved, blocked, reason, complete, recovering: rejoining, recovered: blocked && moved && !rejoining,
+    interpolatedSamples, attemptedTransitions, strokeBreakCreated: strokeBreaks.length > initialBreakCount };
 }
 
 /** Pointer lift and cancellation preserve both the legal endpoint and all ink. */
