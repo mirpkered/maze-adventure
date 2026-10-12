@@ -52,7 +52,7 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v10/);
+  assert.match(worker, /shell-v11/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);
   assert.match(worker, /\.\/src\/qa-mode\.js/);
@@ -120,9 +120,12 @@ test('iPhone portrait keeps the maze as a responsive, scoped touch target', asyn
 });
 
 test('touch input uses the SVG screen transform, coalesced samples, and safe rotation cancellation', async () => {
-  const game = await read('src/game.js');
+  const game = await read('src/game.js'), samples = await read('src/pointer-samples.js');
   assert.match(game, /svg\.getScreenCTM\(\)\?\.inverse\(\)/);
-  assert.match(game, /event\.getCoalescedEvents\?\./);
+  assert.match(game, /pointerMovementSamples\(event\)/);
+  assert.match(samples, /getCoalescedEvents/);
+  assert.match(samples, /samples\.push\(event\)/);
+  assert.match(game, /finalPointerMovement\(traceSession, event\.pointerId, event, lastRawPointer\)/);
   assert.match(game, /window\.addEventListener\('resize', clearPointer\)/);
   assert.match(game, /svgToMazePoint\(pointAt\(event\), PAD, CELL\)/);
 });

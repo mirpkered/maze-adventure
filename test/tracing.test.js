@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { createTraceSession, traceSegment } from '../src/tracing.js';
 import { createTraceRecorder, mazeLayoutId } from '../src/trace-diagnostics.js';
 import { advancePath, canMove, validateMaze } from '../src/maze.js';
+import { finalPointerMovement, pointerMovementSamples } from '../src/pointer-samples.js';
 
 function mazeWithRoute(route, width = Math.max(...route.map(p => p.x)) + 1, height = Math.max(...route.map(p => p.y)) + 1) {
   const cells = Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => ({ x, y, walls: { N: true, E: true, S: true, W: true } })));
@@ -83,6 +84,43 @@ test('fast movement between pointer samples checks and visits every intermediate
   const maze = mazeWithRoute(route), result = traceSegment(maze, [route[0]], route[0], route.at(-1));
   assert.deepEqual(result.path, route);
   assert.equal(result.blocked, false);
+});
+
+test('coalesced movement includes the dispatched pointer endpoint when it differs', () => {
+  const first = { clientX: 10, clientY: 20 }, lastCoalesced = { clientX: 40, clientY: 20 };
+  const event = { clientX: 60, clientY: 20, getCoalescedEvents: () => [first, lastCoalesced] };
+  assert.deepEqual(pointerMovementSamples(event), [first, lastCoalesced, event]);
+  const duplicate = { clientX: 40, clientY: 20, getCoalescedEvents: () => [first, lastCoalesced] };
+  assert.deepEqual(pointerMovementSamples(duplicate), [first, lastCoalesced]);
+});
+
+test('pointerup traces its final position and cancellation adds no movement', () => {
+  const route = Array.from({ length: 4 }, (_, x) => ({ x, y: 0 }));
+  const session = createTraceSession(mazeWithRoute(route));
+  session.begin(403, route[0]);
+  const released = finalPointerMovement(session, 403, { type: 'pointerup' }, route[3]);
+  assert.deepEqual(released.path, route);
+  assert.deepEqual(session.position, route[3]);
+  const beforeCancel = session.stroke.map(point => ({ ...point }));
+  assert.equal(finalPointerMovement(session, 403, { type: 'pointercancel' }, route[0]), null);
+  assert.deepEqual(session.stroke, beforeCancel);
+  session.end(403);
+});
+
+test('sparse high-speed samples follow legal turns with a continuous pencil line', () => {
+  const route = [
+    { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 },
+    { x: 2, y: 1 }, { x: 2, y: 2 }, { x: 3, y: 2 },
+  ];
+  const session = createTraceSession(mazeWithRoute(route, 4, 3));
+  session.begin(401, route[0]);
+  session.move(401, route[2]);
+  session.move(401, route[4]);
+  const final = session.move(401, route[5]);
+  assert.deepEqual(final.path, route);
+  assert.equal(final.blocked, false);
+  assert.ok(session.stroke.every((point, index, points) => index === 0 || Math.hypot(point.x - points[index - 1].x, point.y - points[index - 1].y) < 0.2),
+    'interpolated samples and cell transitions keep the accepted stroke connected');
 });
 
 test('slow pointer movement remains continuous and follows every legal cell', () => {
@@ -454,6 +492,23 @@ test('dead-end ink survives retracing, lift, resume, and repeat traversal', () =
   assert.deepEqual(session.path, route, 'pencil resumes from its independent position and can revisit the marked branch');
   assert.ok(session.stroke.length > deadEndInk.length);
   assert.equal(session.diagnostics.strokeCells.length, session.stroke.length);
+});
+
+test('abandoned wrong branch remains inked when the player takes another branch', () => {
+  const explored = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }];
+  const maze = mazeWithRoute(explored, 3, 2);
+  maze.cells[0][1].walls.E = false;
+  maze.cells[0][2].walls.W = false;
+  const session = createTraceSession(maze);
+  session.begin(402, explored[0]);
+  session.move(402, explored[1]);
+  session.move(402, explored[2]);
+  const abandonedMarks = session.stroke.map(point => ({ ...point }));
+  session.move(402, explored[1]);
+  session.move(402, { x: 2, y: 0 });
+  assert.deepEqual(session.path, [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }]);
+  assert.deepEqual(session.stroke.slice(0, abandonedMarks.length), abandonedMarks);
+  assert.ok(session.diagnostics.strokeCells.some(cell => cell.x === 1 && cell.y === 1), 'the abandoned branch stays represented in permanent ink');
 });
 
 test('wall collision at the reported iPhone endpoint remains reversible and resumable', () => {

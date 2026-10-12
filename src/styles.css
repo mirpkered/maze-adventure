@@ -324,3 +324,86 @@ button:focus-visible, a:focus-visible { outline-offset: 4px; }
   .home-art.title-art .art-caption { font-size: 7px; bottom: 5%; }
 }
 @media (prefers-reduced-motion: reduce) { .hub-card { transition: none; } }
+
+/* Garden journal palette and layered paper surfaces. */
+:root {
+  color: #33443a;
+  background: #f2ebdc;
+  --ink: #33443a;
+  --muted: #66756b;
+  --rust: #bd6145;
+  --green: #42624e;
+  --paper: #fbf7ef;
+  --line: #d9cfbe;
+}
+body {
+  background:
+    radial-gradient(ellipse at 12% 4%, rgba(111,138,109,.22), transparent 34%),
+    radial-gradient(ellipse at 92% 86%, rgba(200,111,74,.09), transparent 31%),
+    #e6ebe2;
+}
+body[data-paper-theme="light"] {
+  --paper: #fffefa;
+  --line: #d9dfd5;
+  background:
+    radial-gradient(ellipse at 12% 4%, rgba(111,138,109,.15), transparent 34%),
+    radial-gradient(ellipse at 92% 86%, rgba(200,111,74,.08), transparent 31%),
+    #e4eae2;
+}
+.topbar { border-bottom-color: rgba(63,81,71,.18); }
+.mark { background: #42624e; }
+.eyebrow { color: #42624e; }
+.home-art.title-art {
+  border-color: rgba(63,81,71,.2);
+  background:
+    radial-gradient(circle at 72% 25%, rgba(244,194,123,.28), transparent 16%),
+    linear-gradient(145deg, #d6e2d5, #e7dfce 76%);
+  box-shadow: 0 18px 42px rgba(47,68,54,.12), inset 0 1px rgba(255,255,255,.72);
+}
+.home-art.title-art::after { border-color: rgba(63,81,71,.24); }
+.art-label, .art-caption { color: #536d59; }
+.hub-card { border-color: #c8d0c2; background: rgba(251,247,239,.92); box-shadow: 0 2px 0 rgba(63,81,71,.07); }
+.hub-card.primary {
+  border-color: #994a36;
+  background: linear-gradient(155deg, #cb7655, #b95b40);
+  box-shadow: 0 3px 0 #984a35, 0 10px 22px rgba(111,66,48,.18);
+}
+.hub-card.adventure { border-color: #aab9a7; background: linear-gradient(155deg, #edf1e8, #dfe8dc); }
+.hub-card.secondary { border-color: #cbd4c7; background: rgba(251,247,239,.94); }
+.hub-card:not(:disabled):hover { border-color: #42624e; }
+.hub-card:focus-visible, .small-button:focus-visible, .button:focus-visible {
+  outline: 3px solid #42624e;
+  outline-offset: 3px;
+}
+.play-heading h1 { color: #334b3c; }
+.play-heading .eyebrow { color: #6f8a6d; }
+.timer-wrap { padding: 6px 12px; border: 1px solid #cbd5c9; border-radius: 999px; background: rgba(251,247,239,.9); }
+.timer-label, .time-result span { color: #52675a; }
+.timer-wrap output { color: #334b3c; }
+.play-hint { color: #536d59; }
+.maze-paper {
+  border-color: #c8d0c2;
+  border-radius: 14px;
+  background-color: #fbf7ef;
+  background-image: repeating-linear-gradient(0deg, rgba(92,112,84,.018) 0, rgba(92,112,84,.018) 1px, transparent 1px, transparent 5px);
+  box-shadow: 0 16px 38px rgba(48,66,52,.14), 0 2px 5px rgba(48,66,52,.07), inset 0 1px rgba(255,255,255,.9);
+}
+.wall { stroke: #3f5147; stroke-width: 2.7; }
+.trail { stroke: #c86f4a; stroke-width: 4.5; opacity: .96; }
+.player { fill: #c86f4a; }
+.marker-start { fill: #42624e; }
+.marker-end { fill: #bd6145; }
+.play-footer { color: #52675a; }
+.small-button { border-color: #c8d0c2; background: rgba(251,247,239,.68); color: #3f5147; }
+.small-button:hover { border-color: #42624e; background: #edf1e8; }
+.settings-panel, .complete-card, .dialog-card {
+  border-color: #d9cfbe;
+  border-radius: 12px;
+  background: #fbf7ef;
+  box-shadow: 0 12px 30px rgba(48,66,52,.09);
+}
+.site-footer { border-top-color: rgba(63,81,71,.18); color: #66756b; }
+@media (max-width: 420px) {
+  .maze-paper { border-radius: 11px; }
+  .timer-wrap { padding: 5px 9px; }
+}

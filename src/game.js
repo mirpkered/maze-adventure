@@ -4,6 +4,7 @@ import { DEFAULT_PREFERENCES, readPreferences, writePreferences } from './prefer
 import { clientToViewBoxPoint, mazeToSvgPoint, svgToMazePoint, transformPoint } from './coordinates.js';
 import { createTraceRecorder, mazeLayoutId } from './trace-diagnostics.js';
 import { bindEmblemQaTrigger, closeQaSession, startQaSession } from './qa-mode.js';
+import { finalPointerMovement, pointerMovementSamples } from './pointer-samples.js';
 
 const $ = selector => document.querySelector(selector);
 const screens = ['home', 'play', 'complete', 'settings', 'help', 'about'].map(id => $(`#${id}`));
@@ -234,12 +235,17 @@ function finishPointer(event, cancel = false) {
   if (activePointerId !== event.pointerId) return;
   lastClientPointer = { x: event.clientX, y: event.clientY };
   lastRawPointer = pointInMaze(event);
-  recordTraceEvent(event.type ?? (cancel ? 'pointercancel' : 'pointerup'), event, lastRawPointer, true, null, cancel);
+  const finalMove = !cancel ? finalPointerMovement(traceSession, event.pointerId, event, lastRawPointer) : null;
+  if (finalMove?.moved) renderTrace();
+  recordTraceEvent(event.type ?? (cancel ? 'pointercancel' : 'pointerup'), event, lastRawPointer,
+    finalMove ? finalMove.moved : true,
+    finalMove?.reason ?? (!finalMove?.moved && finalMove ? 'no-route-or-stroke-change' : null), cancel);
   if (cancel) traceSession.cancel(event.pointerId);
   else traceSession.end(event.pointerId);
   activePointerId = null;
   try { if (svg.hasPointerCapture?.(event.pointerId)) svg.releasePointerCapture(event.pointerId); } catch { /* Capture may already be released by the browser. */ }
   updateTraceDiagnostics();
+  return Boolean(finalMove?.complete);
 }
 function completeMaze() {
   pauseTimer(); $('#final-time').textContent = formatTime(elapsed);
@@ -303,11 +309,8 @@ svg.addEventListener('pointerdown', event => {
 window.addEventListener('pointermove', event => {
   if (activePointerId !== event.pointerId || $('#play').hidden || paused) return;
   event.preventDefault();
-  let coalesced;
-  try { coalesced = event.getCoalescedEvents?.(); } catch { /* Older WebViews may expose but not implement this method. */ }
-  const samples = coalesced?.length ? coalesced : [event];
   let moved = false, complete = false;
-  for (const sample of samples) {
+  for (const sample of pointerMovementSamples(event)) {
     lastClientPointer = { x: sample.clientX, y: sample.clientY };
     lastRawPointer = pointInMaze(sample);
     const result = traceSession.move(event.pointerId, lastRawPointer);
@@ -331,7 +334,7 @@ svg.addEventListener('keydown', event => {
   if (result.moved) renderTrace();
   if (result.complete) completeMaze();
 });
-window.addEventListener('pointerup', event => finishPointer(event));
+window.addEventListener('pointerup', event => { if (finishPointer(event)) completeMaze(); });
 window.addEventListener('pointercancel', event => finishPointer(event, true));
 window.addEventListener('lostpointercapture', event => finishPointer(event, true));
 document.addEventListener('visibilitychange', () => document.hidden ? pauseTimer() : startTimer());
