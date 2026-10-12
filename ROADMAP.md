@@ -100,6 +100,17 @@ This roadmap tracks intended phases, current state, priorities, and unresolved c
 - [ ] Request a fresh report if further diagnosis is needed: the supplied capture dropped 1,109 prior events, and its serialized wall definition does not match its stated layout fingerprint (`maze-7x7-f6f19bbd` vs computed `maze-7x7-758d79f2`).
 - [ ] Re-test dead-end marks, wall contact, same-gesture recovery, and lift/resume on a physical iPhone PWA.
 
+### Phase 2J — Wall collision recovery and touch reacquisition
+
+**Status: Implemented · deterministic regression and QA diagnostics complete · physical iPhone verification pending**
+
+- [x] Preserve the last legal pencil position at a closed wall and keep legal backward movement available through the current route.
+- [x] Resume within the current endpoint cell's legal corridor using a position-derived acquisition limit; pointerdown offsets do not advance or relocate the pencil.
+- [x] Record rejection cause/class, authoritative pencil position, logical cell, reversal candidate and edge state, acquisition distance/limit, and trace health in QA reports.
+- [x] Reproduce the provided route, closed east wall, and critical coordinates in a deterministic partial-layout regression; the message did not include the wall matrix needed to verify the stated fingerprint.
+- [x] Cover dead-end reversal in all four directions, permanent ink, lift/resume, post-collision exploration, and repeated wall contacts.
+- [ ] Verify the updated build on a physical iPhone PWA; automated tests do not establish hardware behavior.
+
 - [x] Inspect current Word Search Adventure title branding and QA hold source at `dcf1e39d373c6a1a2b3e3c15cd7051de2ec039cb`; its QA trigger holds the title logo for three seconds and cancels on release, pointer cancellation, blur, or movement over 12 px. The reference QA state is session-only.
 - [x] Add Maze Adventure horizontal SVG title logo and matching medallion; keep the approved application icon and maze drawing unchanged. Keep the Home menu and responsive single-screen title composition.
 - [x] Make the medallion hold enable locally persisted QA mode; preserve session-only `?qa=1`. Start a maze for the report/reset controls, then use **Exit QA mode** to clear device persistence. Shift+Enter is available to keyboard users.

@@ -111,6 +111,14 @@ Pause/Resume and the keyboard arrow-key alternative are maze-specific additions.
 - Permanent ink and pencil position are separate. Every legal forward or reverse movement appends ink; all marks remain visible until Restart Maze or New Maze. Backtracking changes only the current logical route and pencil position. Ink samples are never consulted to authorize movement. Re-entering after a blocked excursion starts a separate rendered stroke when a connecting line would cross a wall.
 - QA regression checks use the supplied report excerpt and deterministic permanent-ink tests for dead ends, repeated traversal, lift/resume, completion, reset, wall collision, no shortcut authorization, and current position independent from the ink tail. These tests do not establish physical iPhone behavior.
 
+## Phase 2J — Wall recovery and touch reacquisition
+
+- A wall-side sample can be outside the legal cell corridor before it crosses into a neighboring cell. Record that as a wall collision when the attempted side is closed, preserve the last legal pencil position, and keep a legal predecessor available for reversal.
+- Recovery follows the current route tip and open graph edges. A pointer lift clears only the gesture recovery state; it preserves the route, pencil position, and append-only ink.
+- Pointerdown acquisition requires the touch to be inside the current route cell's legal corridor. Its reported distance limit is derived from that corridor and current pencil position. Acquisition anchors subsequent movement at the finger without moving the pencil, so the offset itself never advances the route or crosses a wall.
+- QA events identify the rejection cause, failure class, authoritative pencil position, logical cell, legal reversal candidate, acquisition distance/limit, and trace health. Reports distinguish a wall block with an open reversal from a tracing recovery failure.
+- The supplied `maze-7x7-1e568f39` message did not include its cell wall definition. Regression coverage reconstructs only the supplied route and closed east wall, with a clearly labeled deterministic topology; it does not claim an exact fingerprint replay. Physical iPhone validation remains outstanding.
+
 ### Phase 2F title actions
 
 | Home action | Behavior |

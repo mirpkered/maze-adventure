@@ -3,12 +3,12 @@ import { advancePath, canMove } from './maze.js';
 const MAX_SAMPLE_DISTANCE = 0.055;
 const CORRIDOR_MARGIN = 0.46;
 const ENTRANCE_TOLERANCE = 0.62;
-const TRAIL_CAPTURE_RADIUS = 0.4;
 const STROKE_WALL_SAFE_OFFSET = 0.42;
 const MIN_STROKE_POINT_DISTANCE = 0.015;
 
 function nearestCell(point, maze) {
-  const x = Math.round(point.x), y = Math.round(point.y);
+  const roundedX = Math.round(point.x), roundedY = Math.round(point.y);
+  const x = Object.is(roundedX, -0) ? 0 : roundedX, y = Object.is(roundedY, -0) ? 0 : roundedY;
   if (x < 0 || y < 0 || x >= maze.width || y >= maze.height) return null;
   return { x, y };
 }
@@ -24,6 +24,17 @@ function insideCell(point, cell, maze) {
   if (ax <= 0.5 && ay <= CORRIDOR_MARGIN && dx !== 0 && canMove(maze, cell, { x: cell.x + Math.sign(dx), y: cell.y })) return true;
   if (ay <= 0.5 && ax <= CORRIDOR_MARGIN && dy !== 0 && canMove(maze, cell, { x: cell.x, y: cell.y + Math.sign(dy) })) return true;
   return false;
+}
+
+function acquisitionThreshold(point, cell, maze) {
+  const offsets = [[-CORRIDOR_MARGIN, -CORRIDOR_MARGIN], [-CORRIDOR_MARGIN, CORRIDOR_MARGIN], [CORRIDOR_MARGIN, -CORRIDOR_MARGIN], [CORRIDOR_MARGIN, CORRIDOR_MARGIN]];
+  for (const dx of [-1, 1]) {
+    if (canMove(maze, cell, { x: cell.x + dx, y: cell.y })) offsets.push([dx * 0.5, -CORRIDOR_MARGIN], [dx * 0.5, CORRIDOR_MARGIN]);
+  }
+  for (const dy of [-1, 1]) {
+    if (canMove(maze, cell, { x: cell.x, y: cell.y + dy })) offsets.push([-CORRIDOR_MARGIN, dy * 0.5], [CORRIDOR_MARGIN, dy * 0.5]);
+  }
+  return Math.max(...offsets.map(([dx, dy]) => Math.hypot(point.x - (cell.x + dx), point.y - (cell.y + dy))));
 }
 
 function constrainStrokePoint(point, cell, maze) {
@@ -98,7 +109,13 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
       complete ||= transition.complete;
       moved = true;
     } else if (!insideCell(point, current, maze)) {
-      reject('outside-current-corridor');
+      const dx = point.x - current.x, dy = point.y - current.y;
+      const wallSide = Math.abs(dx) > CORRIDOR_MARGIN
+        ? !canMove(maze, current, { x: current.x + Math.sign(dx), y: current.y })
+        : Math.abs(dy) > CORRIDOR_MARGIN
+          ? !canMove(maze, current, { x: current.x, y: current.y + Math.sign(dy) })
+          : false;
+      reject(wallSide ? 'closed-wall-collision' : 'outside-current-corridor');
       rejoining = true;
       continue;
     }
@@ -112,7 +129,7 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
     rejoining = false;
   }
 
-  return { path: nextPath, stroke, strokeCells, strokeBreaks, position, moved, blocked, reason, complete, recovering: rejoining };
+  return { path: nextPath, stroke, strokeCells, strokeBreaks, position, moved, blocked, reason, complete, recovering: rejoining, recovered: blocked && moved && !rejoining };
 }
 
 /** Pointer lift and cancellation preserve both the legal endpoint and all ink. */
@@ -127,6 +144,17 @@ export function createTraceSession(maze) {
   let recovering = false;
   let lastBlocked = false;
   let lastReason = null;
+  let lastFailureCategory = null;
+  let lastResumeDistance = null;
+  let lastResumeThreshold = 0;
+  const failureCategory = reason => {
+    if (!reason) return null;
+    if (reason.startsWith('begin-')) return 'acquisition';
+    if (reason === 'closed-wall-collision' || reason === 'closed-or-nonadjacent-edge' || reason === 'off-center-edge') return 'collision';
+    if (reason.startsWith('rejoin-') || reason === 'route-revisit') return 'route-history';
+    if (reason.startsWith('outside-')) return 'corridor-recovery';
+    return 'gesture';
+  };
   const end = id => {
     if (pointerId !== id) return false;
     pointerId = null;
@@ -142,7 +170,31 @@ export function createTraceSession(maze) {
     get position() { return position; },
     get endpoint() { return position; },
     get active() { return pointerId !== null; },
-    get diagnostics() { return { raw: lastPoint ? copyPoint(lastPoint) : null, endpoint: copyPoint(position), cell: { ...path.at(-1) }, previousCell: path.length > 1 ? { ...path.at(-2) } : null, strokeCells: strokeCells.map(cell => ({ ...cell })), strokeBreaks: [...strokeBreaks], active: pointerId !== null, recovering, blocked: lastBlocked, reason: lastReason, pathLength: path.length, strokeLength: stroke.length }; },
+    get diagnostics() {
+      const cell = path.at(-1);
+      const candidateReversal = path.length > 1 ? { ...path.at(-2) } : null;
+      const candidateReversalOpen = candidateReversal ? canMove(maze, cell, candidateReversal) : false;
+      const traceHealth = lastFailureCategory === 'acquisition' ? 'acquisition-rejected'
+        : lastFailureCategory === 'route-history' ? 'route-history-rejected'
+          : lastFailureCategory === 'collision' && candidateReversalOpen ? 'wall-blocked-reversal-available'
+            : recovering && candidateReversalOpen ? 'recovering-reversal-available'
+              : recovering ? 'recovery-needs-corridor-reentry'
+                : lastBlocked ? 'blocked' : 'ready';
+      return {
+        raw: lastPoint ? copyPoint(lastPoint) : null,
+        endpoint: copyPoint(position), authoritativePosition: copyPoint(position),
+        cell: { ...cell }, logicalCell: { ...cell },
+        previousCell: candidateReversal, candidateReversal,
+        candidateReversalOpen,
+        traceHealth,
+        strokeCells: strokeCells.map(cell => ({ ...cell })), strokeBreaks: [...strokeBreaks],
+        active: pointerId !== null, recovering, blocked: lastBlocked, reason: lastReason,
+        failureCategory: lastFailureCategory,
+        resumeAcquisitionDistance: lastResumeDistance,
+        resumeAcquisitionThreshold: lastResumeThreshold,
+        pathLength: path.length, strokeLength: stroke.length,
+      };
+    },
     begin(id, point) {
       if (pointerId !== null) { lastReason = 'gesture-already-active'; return false; }
       const cell = nearestCell(point, maze), endpoint = path.at(-1);
@@ -150,15 +202,28 @@ export function createTraceSession(maze) {
       const atEntrance = entranceStart && cell && sameCell(cell, maze.start) && cell.y === 0
         && point.y - cell.y < -CORRIDOR_MARGIN && Math.abs(point.y - cell.y) <= ENTRANCE_TOLERANCE
         && Math.abs(point.x - cell.x) <= CORRIDOR_MARGIN;
-      if (!cell || !sameCell(cell, endpoint) || (!insideCell(point, cell, maze) && !atEntrance)) { lastReason = 'begin-outside-route-endpoint-corridor'; return false; }
-      if (!entranceStart && Math.hypot(point.x - position.x, point.y - position.y) > TRAIL_CAPTURE_RADIUS) { lastReason = 'begin-too-far-from-pencil-position'; return false; }
+      lastResumeDistance = Math.hypot(point.x - position.x, point.y - position.y);
+      lastResumeThreshold = cell && sameCell(cell, endpoint) ? acquisitionThreshold(position, cell, maze) : 0;
+      if (!cell || !sameCell(cell, endpoint) || (!insideCell(point, cell, maze) && !atEntrance)) {
+        lastReason = 'begin-outside-route-endpoint-corridor';
+        lastFailureCategory = 'acquisition';
+        lastBlocked = true;
+        return false;
+      }
+      if (!entranceStart && lastResumeDistance > lastResumeThreshold + 1e-9) {
+        lastReason = 'begin-too-far-from-pencil-position';
+        lastFailureCategory = 'acquisition';
+        lastBlocked = true;
+        return false;
+      }
       pointerId = id;
-      // Anchor the new gesture to the legal pencil endpoint, not the latest
-      // permanent-ink sample (which may belong to an older explored branch).
-      lastPoint = copyPoint(position);
+      // Keep the finger anchor separate from the pencil. Acquisition offset
+      // does not draw or advance the maze; subsequent movement starts here.
+      lastPoint = copyPoint(point);
       recovering = false;
       lastBlocked = false;
       lastReason = null;
+      lastFailureCategory = null;
       return true;
     },
     move(id, point) {
@@ -171,21 +236,23 @@ export function createTraceSession(maze) {
       position = result.position;
       lastPoint = copyPoint(point);
       recovering = result.recovering;
-      lastBlocked = result.blocked;
-      lastReason = result.reason;
+      lastBlocked = result.recovered ? false : result.blocked;
+      lastReason = result.recovered ? null : result.reason;
+      lastFailureCategory = result.recovered ? null : failureCategory(result.reason);
       return result;
     },
     step(direction) {
       if (pointerId !== null) return { path, stroke, position, moved: false, blocked: false, complete: false };
       const current = path.at(-1), candidate = { x: current.x + direction.x, y: current.y + direction.y };
       const advance = advancePath(maze, path, candidate);
-      if (!advance.moved) { lastReason = canMove(maze, current, candidate) ? 'route-revisit' : 'closed-or-nonadjacent-edge'; return { path, stroke, position, moved: false, blocked: true, reason: lastReason, complete: false }; }
+      if (!advance.moved) { lastReason = canMove(maze, current, candidate) ? 'route-revisit' : 'closed-or-nonadjacent-edge'; lastFailureCategory = failureCategory(lastReason); lastBlocked = true; return { path, stroke, position, moved: false, blocked: true, reason: lastReason, complete: false }; }
       path = advance.path;
       position = { ...candidate };
       appendInk(stroke, strokeCells, strokeBreaks, position, candidate);
       recovering = false;
       lastBlocked = false;
       lastReason = null;
+      lastFailureCategory = null;
       return { path, stroke, position, moved: true, blocked: false, complete: advance.complete };
     },
     end,

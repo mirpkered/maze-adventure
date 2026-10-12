@@ -26,7 +26,7 @@ test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, col
   assert.match(game, /isQaRequested\(location\.search\)/);
   assert.match(html, /id="disable-qa-mode"[^>]*>Exit QA mode/);
   assert.match(game, /window\.mazeAdventureTraceDiagnostics = \(\) => traceSession\?\.diagnostics/);
-  for (const item of ['pointerType', 'client:', 'maze:', 'acceptedInkEndpoint', 'previousRouteCell', 'gestureState', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
+  for (const item of ['pointerType', 'client:', 'maze:', 'acceptedInkEndpoint', 'pencilPosition', 'previousRouteCell', 'candidateReversal', 'resumeAcquisitionDistance', 'resumeAcquisitionThreshold', 'failureCategory', 'traceHealth', 'gestureState', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
   assert.match(game, /navigator\.clipboard\?\.writeText/);
   assert.match(game, /document\.execCommand\('copy'\)/);
   assert.match(game, /traceRecorder\.reset\(\)/);

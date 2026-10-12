@@ -66,7 +66,14 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
     maze: point ? { x: Math.round(point.x * 1000) / 1000, y: Math.round(point.y * 1000) / 1000 } : null,
     cell: { ...state.cell },
     acceptedInkEndpoint: { ...state.endpoint },
+    pencilPosition: { ...state.authoritativePosition },
     previousRouteCell: state.previousCell ? { ...state.previousCell } : null,
+    candidateReversal: state.candidateReversal,
+    candidateReversalOpen: state.candidateReversalOpen,
+    resumeAcquisitionDistance: state.resumeAcquisitionDistance,
+    resumeAcquisitionThreshold: state.resumeAcquisitionThreshold,
+    failureCategory: state.failureCategory,
+    traceHealth: state.traceHealth,
     gestureState: state.active ? (state.recovering ? 'recovering' : 'active') : 'idle',
     accepted: Boolean(accepted),
     rejectedReason: reason ?? state.reason ?? (accepted ? null : 'no-route-or-stroke-change'),
@@ -101,7 +108,9 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   output.hidden = false;
   const state = traceSession.diagnostics;
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
-  output.textContent = `QA trace · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · accepted ${point(state.endpoint)} · cell ${state.cell.x},${state.cell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'}` : 'clear'} · gesture ${state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  const reversal = state.candidateReversal ? `${state.candidateReversal.x},${state.candidateReversal.y} (${state.candidateReversalOpen ? 'open' : 'closed'})` : 'none';
+  const resume = state.resumeAcquisitionDistance === null ? '—' : `${state.resumeAcquisitionDistance.toFixed(3)}/${state.resumeAcquisitionThreshold.toFixed(3)}`;
+  output.textContent = `QA trace · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · resume distance/limit ${resume} · gesture ${state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
