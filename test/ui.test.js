@@ -23,7 +23,7 @@ test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, col
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(html, /id="copy-trace-report"[^>]*>Copy diagnostic report/);
   assert.match(html, /id="reset-trace-log"[^>]*>Reset diagnostic log/);
-  assert.match(game, /isQaRequested\(location\.search\)/);
+  assert.match(game, /startQaSession\(location, history, deviceStorage\)/);
   assert.match(html, /id="disable-qa-mode"[^>]*>Exit QA mode/);
   assert.match(game, /window\.mazeAdventureTraceDiagnostics = \(\) => traceSession\?\.diagnostics/);
   for (const item of ['pointerType', 'client:', 'maze:', 'acceptedInkEndpoint', 'pencilPosition', 'previousRouteCell', 'candidateReversal', 'resumeAcquisitionDistance', 'resumeAcquisitionThreshold', 'failureCategory', 'traceHealth', 'gestureState', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
@@ -34,13 +34,15 @@ test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, col
   for (const item of ['raw', 'endpoint', 'cell', 'blocked', 'recovering']) assert.ok(tracing.includes(item));
 });
 
-test('logo hold enables persistent QA, keeps the URL path, and supports explicit deactivation', async () => {
+test('logo hold enables session-only QA, consumes explicit launch URLs, and supports deactivation', async () => {
   const html = await read('index.html'), css = await read('src/styles.css'), game = await read('src/game.js'), worker = await read('service-worker.js');
   const qaMode = await read('src/qa-mode.js');
   assert.match(qaMode, /QA_LOGO_HOLD_MS = 3000/);
   assert.match(qaMode, /QA_LOGO_MOVE_LIMIT = 12/);
-  assert.match(qaMode, /localStorage|storage/);
-  assert.match(game, /isQaEnabledOnStartup\(location\.search, deviceStorage\)/);
+  assert.match(qaMode, /startQaSession/);
+  assert.match(qaMode, /closeQaSession/);
+  assert.doesNotMatch(qaMode, /setItem\(|getItem\(/);
+  assert.match(game, /startQaSession\(location, history, deviceStorage\)/);
   assert.match(game, /setQaMode\(true\)/);
   assert.match(game, /function syncQaControls\(\)/);
   assert.match(game, /renderMaze\(\); activeScreen\(\$\('#play'\)\); syncQaControls\(\)/);

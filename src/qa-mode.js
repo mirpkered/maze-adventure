@@ -6,21 +6,30 @@ export function isQaRequested(search = '') {
   return new URLSearchParams(search).get('qa') === '1';
 }
 
-export function readQaPreference(storage) {
-  try { return storage?.getItem(QA_STORAGE_KEY) === 'enabled'; }
-  catch { return false; }
-}
-
-export function isQaEnabledOnStartup(search, storage) {
-  return isQaRequested(search) || readQaPreference(storage);
-}
-
-export function writeQaPreference(storage, enabled) {
+function removeQaQuery(location, history) {
   try {
-    if (enabled) storage?.setItem(QA_STORAGE_KEY, 'enabled');
-    else storage?.removeItem(QA_STORAGE_KEY);
-    return Boolean(storage);
-  } catch { return false; }
+    const url = new URL(location.href);
+    if (!url.searchParams.has('qa')) return;
+    url.searchParams.delete('qa');
+    history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  } catch { /* URL cleanup must not prevent the game from starting. */ }
+}
+
+function clearLegacyQaPreference(storage) {
+  try { storage?.removeItem(QA_STORAGE_KEY); }
+  catch { /* Storage can be unavailable in private or embedded contexts. */ }
+}
+
+export function startQaSession(location, history, storage) {
+  clearLegacyQaPreference(storage);
+  const enabled = isQaRequested(location.search);
+  if (enabled) removeQaQuery(location, history);
+  return enabled;
+}
+
+export function closeQaSession(location, history, storage) {
+  clearLegacyQaPreference(storage);
+  removeQaQuery(location, history);
 }
 
 export function bindEmblemQaTrigger(target, activate, {

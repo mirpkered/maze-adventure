@@ -3,7 +3,7 @@ import { createTraceSession } from './tracing.js';
 import { DEFAULT_PREFERENCES, readPreferences, writePreferences } from './preferences.js';
 import { clientToViewBoxPoint, mazeToSvgPoint, svgToMazePoint, transformPoint } from './coordinates.js';
 import { createTraceRecorder, mazeLayoutId } from './trace-diagnostics.js';
-import { bindEmblemQaTrigger, isQaEnabledOnStartup, isQaRequested, writeQaPreference } from './qa-mode.js';
+import { bindEmblemQaTrigger, closeQaSession, startQaSession } from './qa-mode.js';
 
 const $ = selector => document.querySelector(selector);
 const screens = ['home', 'play', 'complete', 'settings', 'help', 'about'].map(id => $(`#${id}`));
@@ -15,31 +15,23 @@ let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, time
 let paused = false, activeOverlay = null, returnFocus = null, resumeAfterOverlay = false;
 let isolatedPage = [], bodyOverflow = '';
 let preferences = readPreferences();
-const qaFromUrl = isQaRequested(location.search);
-let qaEnabled = isQaEnabledOnStartup(location.search, deviceStorage);
+let qaEnabled = startQaSession(location, history, deviceStorage);
 let lastRawPointer = null, lastClientPointer = null;
 let traceRecorder = qaEnabled ? createTraceRecorder({ limit: 400 }) : null;
 let currentLayoutId = null;
 if (qaEnabled) document.body.dataset.qa = 'true';
 
-function setQaMode(enabled, { persist = true } = {}) {
+function setQaMode(enabled) {
   qaEnabled = Boolean(enabled);
-  const stored = persist ? writeQaPreference(deviceStorage, qaEnabled) : readQaPreference(deviceStorage);
   if (qaEnabled) {
     traceRecorder ??= createTraceRecorder({ limit: 400 });
-    $('#qa-mode-status').textContent = stored
-      ? 'QA mode is saved on this device. Use Exit QA mode to turn it off.'
-      : 'QA mode is on for this session. Use Exit QA mode to turn it off.';
+    $('#qa-mode-status').textContent = 'QA mode is on for this session. Use Exit QA mode to turn it off.';
     window.mazeAdventureTraceDiagnostics = () => traceSession?.diagnostics ?? null;
   } else {
     $('#trace-diagnostic-fallback').hidden = true;
     $('#trace-diagnostic-status').textContent = '';
     $('#qa-mode-status').textContent = '';
-    if (qaFromUrl) {
-      const url = new URL(location.href);
-      url.searchParams.delete('qa');
-      history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    }
+    closeQaSession(location, history, deviceStorage);
     delete window.mazeAdventureTraceDiagnostics;
     traceRecorder = null;
   }
@@ -433,7 +425,7 @@ document.addEventListener('keydown', event => {
 
 updateSettingsControls();
 activeScreen($('#home'));
-setQaMode(qaEnabled, { persist: false });
+setQaMode(qaEnabled);
 updateTraceDiagnostics();
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   const workerUrl = new URL('../service-worker.js', import.meta.url);
