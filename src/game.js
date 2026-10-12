@@ -120,6 +120,7 @@ function formatTime(milliseconds) {
 function activeScreen(screen) {
   document.body.dataset.screen = screen.id;
   for (const item of screens) item.hidden = item !== screen;
+  if (['home', 'settings', 'help', 'about'].includes(screen.id)) window.dispatchEvent(new Event('maze-adventure:safe-to-update'));
   if (screen !== $('#play')) pauseTimer();
   else if (!paused && !activeOverlay) startTimer();
 }
