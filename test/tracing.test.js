@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createTraceSession, traceSegment } from '../src/tracing.js';
 import { createTraceRecorder, mazeLayoutId } from '../src/trace-diagnostics.js';
-import { advancePath, canMove, validateMaze } from '../src/maze.js';
+import { advancePath, canMove, createMaze, validateMaze } from '../src/maze.js';
 import { finalPointerMovement, pointerMovementSamples } from '../src/pointer-samples.js';
 
 function mazeWithRoute(route, width = Math.max(...route.map(p => p.x)) + 1, height = Math.max(...route.map(p => p.y)) + 1) {
@@ -613,6 +613,95 @@ test('wall collision at the reported iPhone endpoint remains reversible and resu
   session.move(203, { x: 0, y: 6 });
   assert.deepEqual(session.path.at(-1), { x: 0, y: 6 }, 'repeated wall contacts do not permanently block legal input');
   assert.deepEqual(session.stroke.slice(0, marksBeforeRepeat.length), marksBeforeRepeat);
+});
+
+test('reported corridor-edge recovery coordinates remain reversible without losing the pencil tip', () => {
+  // The report omitted the full wall definition. These two cases preserve the
+  // supplied legal route and collision facts without claiming a layout replay.
+  const firstRoute = Array.from({ length: 6 }, (_, y) => ({ x: 0, y }));
+  const firstMaze = mazeWithRoute(firstRoute, 2, 7);
+  firstMaze.cells[5][0].walls.E = false;
+  firstMaze.cells[5][1].walls.W = false;
+  const first = createTraceSession(firstMaze);
+  first.begin(810, firstRoute[0]);
+  first.move(810, firstRoute.at(-1));
+  first.move(810, { x: 0.285, y: 5.42 });
+  const tip = { ...first.position };
+  const marks = first.stroke.map(point => ({ ...point }));
+  const edgeDrift = first.move(810, { x: 0.307, y: 5.467 });
+  assert.equal(edgeDrift.blocked, true);
+  assert.deepEqual(first.position, tip);
+  first.end(810);
+  assert.equal(first.begin(812, { x: 0.48, y: 5.34 }), true, 'the supplied touch reacquisition point is practical after a lift');
+  assert.deepEqual(first.position, tip, 'resume acquisition does not move the pencil');
+  first.move(812, { x: 0.2, y: 5.42 });
+  assert.equal(first.diagnostics.recovering, false);
+  assert.ok(first.stroke.length >= marks.length);
+  assert.deepEqual(first.stroke.slice(0, marks.length), marks);
+  assert.ok(first.position.x < tip.x, 'legal reverse movement advances the pencil back toward cell (0,5)');
+
+  const secondRoute = [...Array.from({ length: 6 }, (_, y) => ({ x: 0, y })), { x: 1, y: 5 }];
+  const secondMaze = mazeWithRoute(secondRoute, 7, 7);
+  const second = createTraceSession(secondMaze);
+  second.begin(811, secondRoute[0]);
+  for (const cell of secondRoute.slice(1)) second.move(811, cell);
+  second.move(811, { x: 1.4188556957678766, y: 5.42 });
+  const legalTip = { ...second.position };
+  const wallContact = second.move(811, { x: 1.539, y: 5.452 });
+  assert.equal(wallContact.blocked, true);
+  assert.deepEqual(second.position, legalTip);
+  second.end(811);
+  assert.equal(second.begin(813, { x: 1.2, y: 5.42 }), true, 'the player can reacquire the legal wall endpoint after lifting');
+  assert.deepEqual(second.position, legalTip, 'resuming cannot teleport the pencil');
+  second.move(813, { x: 1.2, y: 5.42 });
+  assert.deepEqual(second.path.at(-1), { x: 1, y: 5 });
+  assert.equal(second.diagnostics.recovering, false);
+  assert.ok(second.position.x < legalTip.x);
+});
+
+test('deterministic generated-maze stress traces, reverses, resumes, and preserves ink across 64 seeds', () => {
+  const seeded = seed => () => {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let value = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    value = value + Math.imul(value ^ value >>> 7, 61 | value) ^ value;
+    return ((value ^ value >>> 14) >>> 0) / 4294967296;
+  };
+  const routeToExit = maze => {
+    const queue = [[maze.start]], seen = new Set([`${maze.start.x},${maze.start.y}`]);
+    while (queue.length) {
+      const route = queue.shift(), current = route.at(-1);
+      if (current.x === maze.end.x && current.y === maze.end.y) return route;
+      for (const next of [{ x: current.x + 1, y: current.y }, { x: current.x - 1, y: current.y },
+        { x: current.x, y: current.y + 1 }, { x: current.x, y: current.y - 1 }]) {
+        const key = `${next.x},${next.y}`;
+        if (!seen.has(key) && canMove(maze, current, next)) { seen.add(key); queue.push([...route, next]); }
+      }
+    }
+    throw new Error('Generated maze has no exit route.');
+  };
+
+  for (let seed = 1; seed <= 64; seed++) {
+    const maze = createMaze(7, 7, seeded(seed));
+    assert.equal(validateMaze(maze), true, `seed ${seed} is structurally sound`);
+    const route = routeToExit(maze), session = createTraceSession(maze), pointer = 900 + seed;
+    assert.equal(session.begin(pointer, route[0]), true);
+    for (const cell of route.slice(1)) {
+      const result = session.move(pointer, cell);
+      assert.equal(result.blocked, false, `seed ${seed} follows each legal route edge`);
+      assert.ok(Math.hypot(session.position.x - session.path.at(-1).x, session.position.y - session.path.at(-1).y) <= 0.5);
+    }
+    assert.deepEqual(session.path, route, `seed ${seed} reaches the actual exit`);
+    const inkAtExit = session.stroke.map(point => ({ ...point }));
+    session.end(pointer);
+    assert.equal(session.begin(pointer + 1000, session.position), true, `seed ${seed} resumes at the pencil tip`);
+    for (const cell of route.slice(0, -1).reverse()) {
+      assert.equal(session.move(pointer + 1000, cell).blocked, false, `seed ${seed} reverses along the open route`);
+    }
+    assert.deepEqual(session.path, [maze.start], `seed ${seed} returns to the entrance`);
+    assert.ok(session.stroke.length >= inkAtExit.length, `seed ${seed} never discards permanent ink`);
+    assert.deepEqual(session.stroke.slice(0, inkAtExit.length), inkAtExit, `seed ${seed} retains the original drawing`);
+    session.end(pointer + 1000);
+  }
 });
 
 test('dead-end recovery works across all four movement directions', () => {

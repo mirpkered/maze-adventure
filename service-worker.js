@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'mirpworks-maze-adventure-';
-const CACHE_NAME = `${CACHE_PREFIX}shell-v13`;
+const CACHE_NAME = `${CACHE_PREFIX}shell-v14`;
 const APP_BASE = new URL('./', self.registration.scope);
 const SHELL_FILES = [
   './',
