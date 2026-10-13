@@ -60,7 +60,7 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
   const strokeCells = currentStrokeCells?.map(cell => ({ ...cell })) ?? stroke.map(point => nearestCell(point, maze) ?? path.at(-1));
   const strokeBreaks = [...currentStrokeBreaks];
   let position = copyPoint(acceptedPosition ?? currentStroke.at(-1) ?? path.at(-1));
-  let moved = false, blocked = false, complete = false, reason = null;
+  let moved = false, blocked = false, complete = false, wallCollision = false, reason = null;
   let interpolatedSamples = 0;
   const attemptedTransitions = [];
   const initialBreakCount = strokeBreaks.length;
@@ -78,6 +78,12 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
     const current = nextPath.at(-1);
     const same = sameCell(candidate, current);
     if (rejoining && (!same && !canMove(maze, current, candidate))) {
+      const adjacent = Math.abs(candidate.x - current.x) + Math.abs(candidate.y - current.y) === 1;
+      if (adjacent) {
+        wallCollision = true;
+        reject('closed-or-nonadjacent-edge');
+        break;
+      }
       reject('rejoin-not-route-tail');
       continue;
     }
@@ -87,6 +93,7 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
       const dx = candidate.x - current.x, dy = candidate.y - current.y;
       if (Math.abs(dx) + Math.abs(dy) === 1) attemptedTransitions.push({ from: { ...current }, to: { ...candidate }, open: canMove(maze, current, candidate) });
       if (Math.abs(dx) + Math.abs(dy) !== 1 || !canMove(maze, current, candidate)) {
+        wallCollision ||= Math.abs(dx) + Math.abs(dy) === 1 && !canMove(maze, current, candidate);
         reject('closed-or-nonadjacent-edge');
         rejoining = true;
         // Do not accept a later sample from this same sparse diagonal segment;
@@ -115,6 +122,11 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
           ? !canMove(maze, current, { x: current.x, y: current.y + Math.sign(dy) })
           : false;
       reject(wallSide ? 'closed-wall-collision' : 'outside-current-corridor');
+      if (wallSide) {
+        wallCollision = true;
+        rejoining = true;
+        break;
+      }
       rejoining = true;
       continue;
     }
@@ -128,7 +140,7 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
     rejoining = false;
   }
 
-  return { path: nextPath, stroke, strokeCells, strokeBreaks, position, moved, blocked, reason, complete, recovering: rejoining, recovered: blocked && moved && !rejoining,
+  return { path: nextPath, stroke, strokeCells, strokeBreaks, position, moved, blocked, reason, complete, wallCollision, recovering: rejoining, recovered: blocked && moved && !rejoining,
     interpolatedSamples, attemptedTransitions, strokeBreakCreated: strokeBreaks.length > initialBreakCount };
 }
 
@@ -140,6 +152,10 @@ export function createTraceSession(maze) {
   let strokeBreaks = [];
   let position = { ...maze.start };
   let pointerId = null;
+  let lockedPointerId = null;
+  let lockedOutMovementCount = 0;
+  let wallCollisionTerminated = false;
+  let lastResumeAfterWallCollision = false;
   let lastTracePoint = null;
   let lastPointerPoint = null;
   let hasBegun = false;
@@ -160,11 +176,19 @@ export function createTraceSession(maze) {
     return 'gesture';
   };
   const end = id => {
-    if (pointerId !== id) return false;
-    pointerId = null;
-    lastTracePoint = null;
-    lastPointerPoint = null;
-    recovering = false;
+    if (pointerId !== id && lockedPointerId !== id) return false;
+    if (pointerId === id) {
+      pointerId = null;
+      lastTracePoint = null;
+      lastPointerPoint = null;
+      recovering = false;
+    }
+    if (lockedPointerId === id) {
+      lockedPointerId = null;
+      lockedOutMovementCount = 0;
+      lastPointerPoint = null;
+      recovering = false;
+    }
     return true;
   };
 
@@ -179,7 +203,8 @@ export function createTraceSession(maze) {
       const cell = path.at(-1);
       const candidateReversal = path.length > 1 ? { ...path.at(-2) } : null;
       const candidateReversalOpen = candidateReversal ? canMove(maze, cell, candidateReversal) : false;
-      const traceHealth = lastFailureCategory === 'acquisition' ? 'acquisition-rejected'
+      const traceHealth = lockedPointerId !== null ? 'wall-collision-gesture-terminated'
+        : lastFailureCategory === 'acquisition' ? 'acquisition-rejected'
         : lastFailureCategory === 'route-history' ? 'route-history-rejected'
           : lastFailureCategory === 'collision' && candidateReversalOpen ? 'wall-blocked-reversal-available'
             : recovering && candidateReversalOpen ? 'recovering-reversal-available'
@@ -194,6 +219,8 @@ export function createTraceSession(maze) {
         traceHealth,
         strokeCells: strokeCells.map(cell => ({ ...cell })), strokeBreaks: [...strokeBreaks],
         active: pointerId !== null, recovering, blocked: lastBlocked, reason: lastReason,
+        lockedOut: lockedPointerId !== null, lockedOutMovementCount,
+        wallCollisionTerminated, resumeAfterWallCollision: lastResumeAfterWallCollision,
         failureCategory: lastFailureCategory,
         resumeAcquisitionDistance: lastResumeDistance,
         resumeAcquisitionThreshold: lastResumeThreshold,
@@ -203,6 +230,12 @@ export function createTraceSession(maze) {
       };
     },
     begin(id, point, { radius = DEFAULT_ACQUISITION_RADIUS, pixelsPerMazeUnit = null } = {}) {
+      if (lockedPointerId !== null) {
+        lastReason = 'wall-collision-pointer-locked-until-release';
+        lastFailureCategory = 'gesture';
+        lastBlocked = true;
+        return false;
+      }
       if (pointerId !== null) { lastReason = 'gesture-already-active'; return false; }
       const cell = nearestCell(point, maze);
       const entranceStart = path.length === 1 && stroke.length === 1;
@@ -228,6 +261,8 @@ export function createTraceSession(maze) {
         return false;
       }
       pointerId = id;
+      lastResumeAfterWallCollision = wallCollisionTerminated;
+      wallCollisionTerminated = false;
       // Anchor this gesture's contact point at the legal pencil endpoint.
       // The acquisition offset is not movement: only later finger deltas are
       // sent through the normal swept collision and route-history checks.
@@ -241,6 +276,12 @@ export function createTraceSession(maze) {
       return true;
     },
     move(id, point) {
+      if (lockedPointerId === id) {
+        lockedOutMovementCount++;
+        lastPointerPoint = copyPoint(point);
+        return { path, stroke, position, moved: false, blocked: true, reason: 'wall-collision-pointer-locked-out', complete: false,
+          ignored: true, lockedOut: true, lockedOutMovementCount, firstLockedOutMove: lockedOutMovementCount === 1 };
+      }
       if (pointerId !== id || !lastTracePoint || !lastPointerPoint) { lastReason = 'move-without-active-gesture'; return { path, stroke, position, moved: false, blocked: false, reason: lastReason, complete: false }; }
       const target = {
         x: lastTracePoint.x + point.x - lastPointerPoint.x,
@@ -254,6 +295,19 @@ export function createTraceSession(maze) {
       position = result.position;
       lastPointerPoint = copyPoint(point);
       lastTracePoint = target;
+      if (result.wallCollision) {
+        pointerId = null;
+        lockedPointerId = id;
+        lockedOutMovementCount = 0;
+        lastTracePoint = null;
+        recovering = false;
+        wallCollisionTerminated = true;
+        lastBlocked = true;
+        lastReason = result.reason;
+        lastFailureCategory = 'collision';
+        lastResumeAfterWallCollision = false;
+        return { ...result, recovering: false, recovered: false, gestureTerminatedByWallCollision: true, lockedOut: true };
+      }
       recovering = result.recovering;
       lastBlocked = result.recovered ? false : result.blocked;
       lastReason = result.recovered ? null : result.reason;
@@ -261,7 +315,7 @@ export function createTraceSession(maze) {
       return result;
     },
     step(direction) {
-      if (pointerId !== null) return { path, stroke, position, moved: false, blocked: false, complete: false };
+      if (pointerId !== null || lockedPointerId !== null) return { path, stroke, position, moved: false, blocked: false, complete: false };
       const current = path.at(-1), candidate = { x: current.x + direction.x, y: current.y + direction.y };
       const advance = advancePath(maze, path, candidate);
       if (!advance.moved) { lastReason = canMove(maze, current, candidate) ? 'route-revisit' : 'closed-or-nonadjacent-edge'; lastFailureCategory = failureCategory(lastReason); lastBlocked = true; return { path, stroke, position, moved: false, blocked: true, reason: lastReason, complete: false }; }

@@ -185,16 +185,26 @@ test('a recovery below the ink spacing threshold cannot leave a dangling stroke 
   assert.ok(session.stroke.length > inkAtTip.length);
 });
 
-test('finger can leave the corridor at a wall and retrace backward without lifting', () => {
+test('wall contact locks the finger until release, then endpoint re-tap can retrace', () => {
   const route = Array.from({ length: 4 }, (_, x) => ({ x, y: 0 }));
   const session = createTraceSession(mazeWithRoute(route, 5, 1));
   session.begin(32, { x: 0, y: 0 }); session.move(32, { x: 3.2, y: 0 });
-  session.move(32, { x: 3.7, y: 0 }); // wall contact; physical pointer remains outside the accepted trail
-  session.move(32, { x: 3.75, y: 0.2 });
-  const recovered = session.move(32, { x: 2.4, y: 0 });
+  const collision = session.move(32, { x: 3.7, y: 0 });
+  const legalTip = { ...session.position }, ink = session.stroke.map(point => ({ ...point }));
+  assert.equal(collision.gestureTerminatedByWallCollision, true);
+  assert.equal(session.active, false);
+  assert.equal(session.diagnostics.lockedOut, true);
+  assert.equal(session.move(32, { x: 3.75, y: 0.2 }).ignored, true);
+  assert.equal(session.move(32, { x: 2.4, y: 0 }).ignored, true);
+  assert.deepEqual(session.position, legalTip);
+  assert.deepEqual(session.stroke, ink);
+  session.end(32);
+  assert.equal(session.begin(33, legalTip), true);
+  const recovered = session.move(33, { x: legalTip.x - 1, y: legalTip.y });
   assert.equal(recovered.moved, true);
   assert.deepEqual(session.path, route.slice(0, 3));
-  assert.ok(Math.abs(session.stroke.at(-1).x - 2.4) < 0.06);
+  assert.ok(session.stroke.length > ink.length);
+  assert.deepEqual(session.stroke.slice(0, ink.length), ink);
 });
 
 test('collision followed by immediate reversal preserves every legal pencil mark', () => {
@@ -210,11 +220,11 @@ test('collision followed by immediate reversal preserves every legal pencil mark
   assert.ok(Math.abs(session.position.x - 1.4) < 0.06);
 });
 
-test('continuous reversal at a corner retraces without lifting', () => {
+test('legal reversal at a corner retraces without lifting when no wall was hit', () => {
   const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 2 }];
   const session = createTraceSession(mazeWithRoute(route, 3, 3));
   session.begin(41, { x: 0, y: 0 }); session.move(41, { x: 1, y: 0 });
-  session.move(41, { x: 1, y: 2 }); session.move(41, { x: 1.6, y: 2 });
+  session.move(41, { x: 1, y: 2 });
   const reversed = session.move(41, { x: 1, y: 0.4 });
   assert.equal(reversed.moved, true);
   assert.deepEqual(session.path, route.slice(0, 2));
@@ -271,9 +281,12 @@ test('recovery retraces around a corner and cannot shortcut to a nonadjacent pat
   const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 1 }, { x: 2, y: 2 }];
   const maze = mazeWithRoute(route, 4, 3), session = createTraceSession(maze);
   session.begin(35, { x: 0, y: 0 }); session.move(35, { x: 2, y: 0 }); session.move(35, { x: 2, y: 2 });
-  session.move(35, { x: 2.6, y: 2 }); // blocked by a closed edge
-  session.move(35, { x: 2.65, y: 2.18 }); // move outside corridor before returning
-  const result = session.move(35, { x: 2, y: 1.4 });
+  const collision = session.move(35, { x: 2.6, y: 2 }); // closed edge ends this pointer's gesture
+  assert.equal(collision.gestureTerminatedByWallCollision, true);
+  assert.equal(session.move(35, { x: 2.65, y: 2.18 }).ignored, true);
+  session.end(35);
+  assert.equal(session.begin(350, session.position), true);
+  const result = session.move(350, { x: 2, y: 1.4 });
   assert.equal(result.moved, true);
   assert.deepEqual(session.path, route.slice(0, 4));
   assert.ok(Math.abs(session.stroke.at(-1).x - 2) < 0.06);
@@ -293,7 +306,9 @@ test('recovery cannot cut diagonally across a maze corner to another open branch
 
 test('repeated recovery updates keep the logical and visual endpoints synchronized', () => {
   const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }];
-  const session = createTraceSession(mazeWithRoute(route, 3, 3));
+  const maze = mazeWithRoute(route, 3, 3);
+  maze.cells[1][1].walls.S = false; maze.cells[2][1].walls.N = false;
+  const session = createTraceSession(maze);
   session.begin(36, { x: 0, y: 0 }); session.move(36, { x: 1, y: 0 }); session.move(36, { x: 1, y: 1 });
   for (const point of [{ x: 1, y: 1.55 }, { x: 1.1, y: 1.58 }, { x: 1, y: 0.4 }]) session.move(36, point);
   assert.deepEqual(session.path, route.slice(0, 2));
@@ -301,7 +316,7 @@ test('repeated recovery updates keep the logical and visual endpoints synchroniz
   assert.ok(session.stroke.every(point => point.x >= -0.46 && point.y >= -0.46));
 });
 
-test('wall recovery cannot project onto an older parallel corridor across a wall', () => {
+test('wall contact cannot project onto an older parallel corridor before a physical re-tap', () => {
   // This reproduces the unrecoverable state: the route doubles back through a
   // parallel corridor, the old and current ink can be less than one finger
   // width apart, and the finger leaves toward the separating wall.
@@ -316,14 +331,22 @@ test('wall recovery cannot project onto an older parallel corridor across a wall
   session.move(71, { x: 0, y: 1.42 });
   assert.deepEqual(session.path, route);
 
-  session.move(71, { x: 0, y: 0.49 }); // touch the wall shared with the earlier row
-  const restored = session.move(71, { x: 0, y: 0.54 });
+  const collision = session.move(71, { x: 0, y: 0.49 }); // closed edge shared with the earlier row
+  assert.equal(collision.gestureTerminatedByWallCollision, true);
+  const tip = { ...session.position }, inkAtTip = session.stroke.map(point => ({ ...point }));
+  const locked = session.move(71, { x: 0, y: 0.54 });
+  assert.equal(locked.ignored, true);
+  assert.deepEqual(session.position, tip);
+  assert.deepEqual(session.stroke, inkAtTip);
+  session.end(71);
+  assert.equal(session.begin(72, tip), true);
+  const restored = session.move(72, { x: 0.05, y: tip.y });
   assert.equal(restored.blocked, false);
   assert.deepEqual(session.path, route);
   assert.equal(Math.round(session.stroke.at(-1).y), session.path.at(-1).y,
     'the visible endpoint remains in the logical endpoint cell');
 
-  const reverse = session.move(71, { x: 1.7, y: 1.42 });
+  const reverse = session.move(72, { x: 1.7, y: 1.42 });
   assert.equal(reverse.moved, true);
   assert.deepEqual(session.path, route.slice(0, 4), 'the legal predecessor remains reachable without lifting');
   assert.equal(Math.round(session.stroke.at(-1).x), session.path.at(-1).x);
@@ -355,76 +378,58 @@ test('wall-side recovery preserves the route tip when old ink is closer across a
   assert.deepEqual(reverse.path, path, 'the same route can be retraced without a reset');
 });
 
-test('after a blocked sample both route directions remain available in the same gesture', () => {
+test('wall collision locks the active finger and legal reversal returns after endpoint re-tap', () => {
   const route = Array.from({ length: 4 }, (_, x) => ({ x, y: 0 }));
   const session = createTraceSession(mazeWithRoute(route, 5, 2));
   session.begin(72, { x: 0, y: 0 });
   session.move(72, { x: 2, y: 0 });
-  assert.equal(session.move(72, { x: 2, y: 0.7 }).blocked, true);
-  const recovered = session.move(72, { x: 2, y: 0.42 });
-  assert.equal(recovered.recovering, false, 'the pointer re-enters the legal corridor without a lift');
-  assert.deepEqual(session.path, route.slice(0, 3));
-  assert.equal(session.move(72, { x: 1.2, y: 0 }).moved, true);
-  assert.deepEqual(session.path, route.slice(0, 2));
-  assert.equal(session.move(72, { x: 2.4, y: 0 }).moved, true);
-  assert.deepEqual(session.path, route.slice(0, 3));
-  assert.equal(session.move(72, { x: 2.4, y: 0.7 }).blocked, true, 'repeated wall contact is safely rejected');
-  assert.equal(session.move(72, { x: 1.1, y: 0 }).moved, true, 'reverse remains available after repeated contact');
+  const collision = session.move(72, { x: 2, y: 0.7 });
+  assert.equal(collision.gestureTerminatedByWallCollision, true);
+  const tip = { ...session.position };
+  assert.equal(session.move(72, { x: 1.2, y: 0 }).ignored, true, 'returning to the passage cannot reactivate the collided pointer');
+  session.end(72);
+  assert.equal(session.begin(73, tip), true);
+  assert.equal(session.move(73, { x: tip.x - 1, y: tip.y }).moved, true);
   assert.deepEqual(session.path, route.slice(0, 2));
 });
 
-test('a blocked drag can turn into a legal corridor without lifting', () => {
+test('legal branch turn and backtrack remain available without a wall contact', () => {
   const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }];
   const session = createTraceSession(mazeWithRoute(route, 3, 2));
   session.begin(8, { x: 0, y: 0 });
   session.move(8, { x: 1, y: 0 });
-  assert.equal(session.move(8, { x: 2, y: 0 }).blocked, true);
-  session.move(8, { x: 1, y: 0 }); // retrace to the junction
   const turn = session.move(8, { x: 1, y: 1 });
   assert.deepEqual(turn.path, route);
   assert.equal(turn.blocked, false);
+  const back = session.move(8, { x: 1, y: 0 });
+  assert.deepEqual(back.path, route.slice(0, 2));
+  assert.equal(back.blocked, false);
 });
 
-test('long multi-turn gesture with repeated wall contacts keeps forward and reverse transitions available', () => {
-  const route = [
-    ...Array.from({ length: 7 }, (_, x) => ({ x, y: 0 })),
-    ...Array.from({ length: 7 }, (_, index) => ({ x: 6 - index, y: 1 })),
-    ...Array.from({ length: 7 }, (_, index) => ({ x: index, y: 2 })),
-    ...Array.from({ length: 7 }, (_, index) => ({ x: 6 - index, y: 3 })),
-  ];
-  const maze = mazeWithRoute(route, 7, 5), recorded = [{ eventType: 'pointerdown', pointerType: 'touch', maze: { x: 0, y: 0 } }];
-  const collisionIndices = new Set([3, 8, 14, 19, 22]);
-  for (let index = 1; index <= 22; index++) {
-    const destination = route[index];
-    recorded.push({ eventType: 'pointermove', pointerType: 'touch', maze: destination });
-    if (!collisionIndices.has(index)) continue;
-    const current = route[index];
-    const blockedOffsets = [
-      { x: 0, y: -0.49 }, { x: 0.49, y: 0 }, { x: 0, y: 0.49 }, { x: -0.49, y: 0 },
-    ].filter(offset => !canMove(maze, current, { x: current.x + Math.sign(offset.x), y: current.y + Math.sign(offset.y) }));
-    recorded.push({ eventType: 'pointermove', pointerType: 'touch', maze: { x: current.x + blockedOffsets[0].x, y: current.y + blockedOffsets[0].y } });
-    recorded.push({ eventType: 'pointermove', pointerType: 'touch', maze: current });
-  }
-  const endpointIndex = 22;
-  recorded.push({ eventType: 'pointermove', pointerType: 'touch', maze: route[endpointIndex + 1] });
-  recorded.push({ eventType: 'pointermove', pointerType: 'touch', maze: route[endpointIndex] });
-  recorded.push({ eventType: 'pointermove', pointerType: 'touch', maze: route[endpointIndex - 1] });
-  recorded.push({ eventType: 'pointerup', pointerType: 'touch', maze: route[endpointIndex - 1] });
-
-  let eventTime = 0;
-  const recorder = createTraceRecorder({ now: () => eventTime++ });
-  for (const event of recorded) recorder.record(event);
-  const replayReport = recorder.report({ layoutId: mazeLayoutId(maze), dimensions: { width: maze.width, height: maze.height }, route: [], ink: [], state: null });
-  const { session, moveResults } = replayRecordedPointerEvents(maze, replayReport.events);
-  assert.equal(moveResults.filter(result => result.blocked).length, collisionIndices.size, 'the replay records every repeated wall contact');
-  const [forward, reverse, secondReverse] = moveResults.slice(-3);
-  assert.ok(forward.moved, 'legal forward movement still works after the long gesture');
-  assert.deepEqual(forward.path, route.slice(0, endpointIndex + 2));
-  assert.ok(reverse.moved, 'immediate reverse movement still works after the long gesture');
-  assert.deepEqual(reverse.path, route.slice(0, endpointIndex + 1));
-  assert.ok(secondReverse.moved, 'a second reverse transition is still legal');
-  assert.deepEqual(secondReverse.path, route.slice(0, endpointIndex));
-  assert.equal(session.diagnostics.strokeCells.length, session.stroke.length, 'each visible sample retains its logical-cell association');
+test('repeated wall contacts each require release and endpoint re-tap while preserving ink', () => {
+  const route = Array.from({ length: 4 }, (_, x) => ({ x, y: 0 }));
+  const session = createTraceSession(mazeWithRoute(route, 5, 2));
+  assert.equal(session.begin(77, route[0]), true);
+  assert.equal(session.move(77, route[3]).blocked, false);
+  const first = session.move(77, { x: 3.7, y: 0 });
+  assert.equal(first.gestureTerminatedByWallCollision, true);
+  const firstTip = { ...session.position }, originalInk = session.stroke.map(point => ({ ...point }));
+  assert.equal(session.move(77, { x: 2, y: 0 }).ignored, true);
+  assert.deepEqual(session.position, firstTip);
+  session.end(77);
+  assert.equal(session.begin(78, firstTip), true);
+  assert.equal(session.move(78, { x: 2.7, y: 0 }).moved, true, 're-tap allows legal backtracking');
+  const secondTip = { ...session.position };
+  const second = session.move(78, { x: secondTip.x - 3.4, y: secondTip.y });
+  assert.equal(second.gestureTerminatedByWallCollision, true, 'the opposite closed boundary also ends drawing');
+  assert.deepEqual(session.position, session.stroke.at(-1));
+  assert.deepEqual(session.stroke.slice(0, originalInk.length), originalInk);
+  assert.equal(session.move(78, { x: 1, y: 0 }).ignored, true);
+  session.end(78);
+  assert.equal(session.begin(79, session.position), true);
+  const resumedAt = { ...session.position };
+  assert.equal(session.move(79, { x: resumedAt.x + 1.5, y: resumedAt.y }).moved, true,
+    'a fresh re-tap can continue legally after repeated collisions');
 });
 
 test('diagnostic recorder is bounded, relative-time based, and resettable', () => {
@@ -469,6 +474,8 @@ test('diagnostic samples retain source, interpolation, attempted edge, and build
   recorder.record({ eventType: 'pointermove', sampleType: 'coalesced', sampleIndex: 2,
     interpolationCount: 7, attemptedTransitions: [{ from: { x: 1, y: 2 }, to: { x: 2, y: 2 }, open: false }],
     resumeAcquisitionDistancePixels: 18.5, resumeAcquisitionThresholdPixels: 24,
+    gestureTerminatedByWallCollision: true, lockedOutMovement: true, lockedOutMovementCount: 3,
+    resumeAfterWallCollision: true, gestureState: 'locked-out-until-release',
     strokeBreakCreated: true, accepted: false, rejectedReason: 'closed-wall-collision' });
   const report = recorder.report({ layoutId: 'maze-test', dimensions: { width: 3, height: 3 }, route: [], ink: [], state: null, buildId: 'build-test' });
   assert.equal(report.buildId, 'build-test');
@@ -478,6 +485,11 @@ test('diagnostic samples retain source, interpolation, attempted edge, and build
   assert.deepEqual(report.events[0].attemptedTransitions, [{ from: { x: 1, y: 2 }, to: { x: 2, y: 2 }, open: false }]);
   assert.equal(report.events[0].resumeAcquisitionDistancePixels, 18.5);
   assert.equal(report.events[0].resumeAcquisitionThresholdPixels, 24);
+  assert.equal(report.events[0].gestureTerminatedByWallCollision, true);
+  assert.equal(report.events[0].lockedOutMovement, true);
+  assert.equal(report.events[0].lockedOutMovementCount, 3);
+  assert.equal(report.events[0].resumeAfterWallCollision, true);
+  assert.equal(report.events[0].gestureState, 'locked-out-until-release');
   assert.equal(report.events[0].strokeBreakCreated, true);
 });
 
@@ -566,7 +578,8 @@ test('wall collision at the reported iPhone endpoint remains reversible and resu
   assert.equal(collision.reason, 'closed-wall-collision');
   assert.equal(session.position.x, 1.4188556957678766, 'wall contact leaves the authoritative pencil position unchanged');
   assert.deepEqual(session.stroke, inkAtLegalEndpoint, 'collision never erases or adds marks through the wall');
-  assert.equal(session.diagnostics.traceHealth, 'wall-blocked-reversal-available');
+  assert.equal(session.diagnostics.traceHealth, 'wall-collision-gesture-terminated');
+  assert.equal(session.diagnostics.lockedOut, true);
   assert.deepEqual(session.diagnostics.candidateReversal, { x: 0, y: 5 });
   assert.equal(session.diagnostics.candidateReversalOpen, true);
 
@@ -610,9 +623,14 @@ test('wall collision at the reported iPhone endpoint remains reversible and resu
   session.move(203, { x: 0, y: 5 });
   session.move(203, { x: 1.6, y: 5.42 });
   assert.equal(session.diagnostics.reason, 'closed-wall-collision');
-  assert.equal(session.diagnostics.traceHealth, 'wall-blocked-reversal-available');
-  session.move(203, { x: 0.4, y: 5.42 });
-  session.move(203, { x: 0, y: 6 });
+  assert.equal(session.diagnostics.traceHealth, 'wall-collision-gesture-terminated');
+  const contactTip = { ...session.position };
+  assert.equal(session.move(203, { x: 0.4, y: 5.42 }).ignored, true);
+  assert.deepEqual(session.position, contactTip);
+  session.end(203);
+  assert.equal(session.begin(204, contactTip), true);
+  session.move(204, { x: contactTip.x - 1.42, y: contactTip.y });
+  session.move(204, { x: 0, y: 6 });
   assert.deepEqual(session.path.at(-1), { x: 0, y: 6 }, 'repeated wall contacts do not permanently block legal input');
   assert.deepEqual(session.stroke.slice(0, marksBeforeRepeat.length), marksBeforeRepeat);
 });
@@ -672,9 +690,16 @@ test('incident-class endpoint acquisition anchors near-wall touch input without 
   assert.deepEqual(session.path.at(-1), { x: 5, y: 1 });
   assert.ok(session.position.x < 5.5, 'the pencil remains on the legal side of the closed cell boundary');
   const reverse = session.move(904, { x: beforeWallAttempt.x + 0.44, y: beforeWallAttempt.y });
-  assert.equal(reverse.recovering, false, 'a legal return clears recovery after the rejected wall push');
-  assert.ok(session.position.x <= beforeWallAttempt.x + 1e-9);
+  assert.equal(reverse.ignored, true, 'the collided finger cannot resume by moving back toward the corridor');
+  const wallTip = { ...session.position };
   session.end(904);
+  assert.equal(session.begin(906, wallTip, { radius, pixelsPerMazeUnit: 42.9 }), true,
+    'a physical release and endpoint re-tap starts a new drawing gesture');
+  const resumed = session.move(906, { x: wallTip.x - 0.2, y: wallTip.y });
+  assert.equal(resumed.moved, true);
+  assert.ok(session.position.x < wallTip.x);
+  assert.equal(session.diagnostics.resumeAfterWallCollision, true);
+  session.end(906);
 
   const position = { ...session.position };
   const outside = { x: 5.993, y: 4.093 };
@@ -790,7 +815,12 @@ test('dead-end recovery works across all four movement directions', () => {
     const ink = session.stroke.map(point => ({ ...point }));
     const blocked = session.move(300 + index, scenario.outward);
     assert.equal(blocked.blocked, true, `direction case ${index} stops at the dead-end wall`);
-    session.move(300 + index, scenario.back);
+    const tip = { ...session.position };
+    assert.equal(session.diagnostics.lockedOut, true, `direction case ${index} locks after wall collision`);
+    assert.equal(session.move(300 + index, scenario.back).ignored, true, `direction case ${index} ignores movement until release`);
+    session.end(300 + index);
+    assert.equal(session.begin(400 + index, tip), true, `direction case ${index} reacquires the visible tip`);
+    session.move(400 + index, { x: tip.x + scenario.back.x - scenario.deadEnd.x, y: tip.y + scenario.back.y - scenario.deadEnd.y });
     assert.deepEqual(session.path.at(-1), scenario.back, `direction case ${index} reverses through its open corridor`);
     assert.equal(session.diagnostics.recovering, false);
     assert.deepEqual(session.stroke.slice(0, ink.length), ink);
@@ -836,6 +866,42 @@ test('pointer cancellation ends the gesture and preserves the route', () => {
   assert.equal(session.active, false);
   assert.deepEqual(session.path, route.slice(0, 3));
   assert.equal(session.begin(4, { x: 2, y: 0 }), true);
+});
+
+test('wall-collision lockout survives movement and second pointers until the owner releases or cancels', () => {
+  const route = Array.from({ length: 3 }, (_, x) => ({ x, y: 0 }));
+  const session = createTraceSession(mazeWithRoute(route, 4, 2));
+  assert.equal(session.begin(501, route[0]), true);
+  session.move(501, route[2]);
+  const collision = session.move(501, { x: 2.7, y: 0 });
+  assert.equal(collision.gestureTerminatedByWallCollision, true);
+  const tip = { ...session.position }, ink = session.stroke.map(point => ({ ...point }));
+  assert.equal(session.active, false, 'drawing ends at collision while pointer ownership remains locked');
+  assert.equal(session.diagnostics.lockedOut, true);
+
+  assert.equal(session.begin(502, tip), false, 'a second pointer cannot bypass the held pointer lock');
+  assert.equal(session.diagnostics.reason, 'wall-collision-pointer-locked-until-release');
+  const ignored = session.move(501, { x: 1.8, y: 0 });
+  assert.equal(ignored.ignored, true);
+  assert.equal(ignored.firstLockedOutMove, true);
+  assert.equal(session.move(501, { x: 1.7, y: 0 }).firstLockedOutMove, false);
+  assert.equal(session.diagnostics.lockedOutMovementCount, 2);
+  assert.deepEqual(session.position, tip);
+  assert.deepEqual(session.stroke, ink);
+
+  assert.equal(session.cancel(501), true, 'pointercancel safely releases the lock');
+  assert.equal(session.diagnostics.lockedOut, false);
+  assert.equal(session.begin(502, tip), true);
+  assert.equal(session.position.x, tip.x, 'reacquisition does not move the pencil');
+  assert.equal(session.diagnostics.resumeAfterWallCollision, true);
+  session.end(502);
+
+  const captureSession = createTraceSession(mazeWithRoute(route, 4, 2));
+  captureSession.begin(503, route[0]);
+  captureSession.move(503, route[2]);
+  captureSession.move(503, { x: 2.7, y: 0 });
+  assert.equal(captureSession.cancel(503), true, 'lost capture uses the same safe cancellation path');
+  assert.equal(captureSession.begin(504, captureSession.position), true);
 });
 
 test('actual iPhone QA report excerpt replays the wall stop and corridor rejoin decisions', async () => {

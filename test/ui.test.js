@@ -35,7 +35,7 @@ test('canonical Mirpworks launch splash covers startup, then reveals the title o
   assert.equal((html.match(/id="launch-splash"/g) || []).length, 1, 'the initial document must contain one splash layer');
   assert.ok(html.indexOf("querySelector('#launch-splash')") < html.indexOf('src="./src/game.js"'), 'splash startup must be initialized before the game module');
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.launch-splash \{ transition: opacity 100ms ease !important/);
-  assert.match(worker, /shell-v17/);
+  assert.match(worker, /shell-v18/);
   assert.match(worker, /\.\/branding\/mirpworks-logo\.jpg/);
   assert.match(styles, /body\[data-screen="home"\]/);
 });
@@ -53,7 +53,10 @@ test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, col
   assert.match(game, /startQaSession\(location, history, deviceStorage\)/);
   assert.match(html, /id="disable-qa-mode"[^>]*>Exit QA mode/);
   assert.match(game, /window\.mazeAdventureTraceDiagnostics = \(\) => traceSession\?\.diagnostics/);
-  for (const item of ['pointerType', 'client:', 'maze:', 'acceptedInkEndpoint', 'pencilPosition', 'previousRouteCell', 'candidateReversal', 'resumeAcquisitionDistance', 'resumeAcquisitionThreshold', 'resumeAcquisitionDistancePixels', 'resumeAcquisitionThresholdPixels', 'failureCategory', 'traceHealth', 'gestureState', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
+  for (const item of ['pointerType', 'client:', 'maze:', 'acceptedInkEndpoint', 'pencilPosition', 'previousRouteCell', 'candidateReversal', 'resumeAcquisitionDistance', 'resumeAcquisitionThreshold', 'resumeAcquisitionDistancePixels', 'resumeAcquisitionThresholdPixels', 'failureCategory', 'traceHealth', 'gestureState', 'gestureTerminatedByWallCollision', 'lockedOutMovement', 'lockedOutMovementCount', 'resumeAfterWallCollision', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
+  assert.match(game, /if \(!result\.ignored \|\| result\.firstLockedOutMove\)/, 'prolonged lockout movement logs only its first ignored sample');
+  assert.match(game, /window\.addEventListener\('pointercancel', event => finishPointer\(event, true\)\)/);
+  assert.match(game, /window\.addEventListener\('lostpointercapture', event => finishPointer\(event, true\)\)/);
   assert.match(game, /navigator\.clipboard\?\.writeText/);
   assert.match(game, /document\.execCommand\('copy'\)/);
   assert.match(game, /traceRecorder\.reset\(\)/);
@@ -79,7 +82,7 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v17/);
+  assert.match(worker, /shell-v18/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);

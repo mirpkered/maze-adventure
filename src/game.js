@@ -102,9 +102,13 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
     failureCategory: state.failureCategory,
     traceHealth: state.traceHealth,
     interpolationCount: movement?.interpolatedSamples ?? 0,
+    gestureTerminatedByWallCollision: Boolean(movement?.gestureTerminatedByWallCollision),
+    lockedOutMovement: Boolean(movement?.ignored),
+    lockedOutMovementCount: state.lockedOutMovementCount,
+    resumeAfterWallCollision: state.resumeAfterWallCollision,
     attemptedTransitions: movement?.attemptedTransitions ?? [],
     strokeBreakCreated: movement?.strokeBreakCreated ?? false,
-    gestureState: state.active ? (state.recovering ? 'recovering' : 'active') : 'idle',
+    gestureState: state.lockedOut ? 'locked-out-until-release' : state.active ? (state.recovering ? 'recovering' : 'active') : 'idle',
     accepted: Boolean(accepted),
     movementAccepted: Boolean(movement?.moved || (eventType === 'pointermove' && accepted)),
     rejectedReason: reason ?? state.reason ?? (accepted ? null : 'no-route-or-stroke-change'),
@@ -155,7 +159,7 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
   const reversal = state.candidateReversal ? `${state.candidateReversal.x},${state.candidateReversal.y} (${state.candidateReversalOpen ? 'open' : 'closed'})` : 'none';
   const resume = state.resumeAcquisitionDistancePixels === null ? '—' : `${state.resumeAcquisitionDistancePixels.toFixed(1)}/${state.resumeAcquisitionThresholdPixels.toFixed(0)}px`;
-  output.textContent = `QA trace · build ${APP_BUILD_ID} · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · resume distance/limit ${resume} · gesture ${state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  output.textContent = `QA trace · build ${APP_BUILD_ID} · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · resume distance/limit ${resume} · gesture ${state.lockedOut ? `locked until release (${state.lockedOutMovementCount} ignored)` : state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · resumed after wall ${state.resumeAfterWallCollision ? 'yes' : 'no'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -376,8 +380,10 @@ window.addEventListener('pointermove', event => {
     lastRawPointer = pointInMaze(sample);
     const result = traceSession.move(event.pointerId, lastRawPointer);
     moved ||= result.moved;
-    recordTraceEvent('pointermove', sample, lastRawPointer, result.moved, result.reason ?? (!result.moved ? 'no-route-or-stroke-change' : null), false, result,
-      sample === event ? 'dispatched' : 'coalesced', sampleIndex);
+    if (!result.ignored || result.firstLockedOutMove) {
+      recordTraceEvent('pointermove', sample, lastRawPointer, result.moved, result.reason ?? (!result.moved ? 'no-route-or-stroke-change' : null), false, result,
+        sample === event ? 'dispatched' : 'coalesced', sampleIndex);
+    }
     if (result.complete) { complete = true; break; }
   }
   if (moved) renderTrace();
