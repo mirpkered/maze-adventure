@@ -25,7 +25,16 @@ export function createMaze(width = 7, height = 7, random = Math.random) {
     visited.add(`${next.x},${next.y}`);
     stack.push(cells[next.y][next.x]);
   }
-  const maze = { width, height, cells, start: { x: 0, y: 0 }, end: { x: width - 1, y: height - 1 } };
+  const maze = {
+    width, height, cells,
+    start: { x: 0, y: 0 }, end: { x: width - 1, y: height - 1 },
+    // Start and finish are explicit, intentional openings in an otherwise
+    // enclosed perimeter. Out-of-bounds movement remains illegal.
+    entrance: { cell: { x: 0, y: 0 }, side: 'N' },
+    exit: { cell: { x: width - 1, y: height - 1 }, side: 'S' },
+  };
+  cells[maze.entrance.cell.y][maze.entrance.cell.x].walls.N = false;
+  cells[maze.exit.cell.y][maze.exit.cell.x].walls.S = false;
   if (!validateMaze(maze)) throw new Error('Generated maze failed validation.');
   return maze;
 }
@@ -60,17 +69,45 @@ export function isConnected(maze) {
 export function validateMaze(maze) {
   if (!maze || !Number.isInteger(maze.width) || !Number.isInteger(maze.height) || maze.width < 2 || maze.height < 2) return false;
   if (!inBounds(maze, maze.start) || !inBounds(maze, maze.end) || maze.cells?.length !== maze.height) return false;
+  const openings = [maze.entrance, maze.exit].filter(Boolean);
+  const openingKeys = new Set();
+  for (const opening of openings) {
+    if (!['N', 'E', 'S', 'W'].includes(opening.side) || !inBounds(maze, opening.cell)) return false;
+    const { x, y } = opening.cell;
+    if (opening.side === 'N' && y !== 0 || opening.side === 'S' && y !== maze.height - 1 || opening.side === 'W' && x !== 0 || opening.side === 'E' && x !== maze.width - 1) return false;
+    const key = `${x},${y},${opening.side}`;
+    if (openingKeys.has(key)) return false;
+    openingKeys.add(key);
+  }
   for (let y = 0; y < maze.height; y++) {
     if (maze.cells[y]?.length !== maze.width) return false;
     for (let x = 0; x < maze.width; x++) {
       const walls = maze.cells[y][x]?.walls;
       if (!walls || DIRECTIONS.some(d => typeof walls[d.name] !== 'boolean')) return false;
-      if (y === 0 && !walls.N || x === 0 && !walls.W || y === maze.height - 1 && !walls.S || x === maze.width - 1 && !walls.E) return false;
+      if (y === 0 && !walls.N && !openingKeys.has(`${x},${y},N`) || x === 0 && !walls.W && !openingKeys.has(`${x},${y},W`)
+        || y === maze.height - 1 && !walls.S && !openingKeys.has(`${x},${y},S`) || x === maze.width - 1 && !walls.E && !openingKeys.has(`${x},${y},E`)) return false;
+      if (openingKeys.has(`${x},${y},N`) && walls.N || openingKeys.has(`${x},${y},E`) && walls.E
+        || openingKeys.has(`${x},${y},S`) && walls.S || openingKeys.has(`${x},${y},W`) && walls.W) return false;
       if (x + 1 < maze.width && walls.E !== maze.cells[y][x + 1]?.walls?.W) return false;
       if (y + 1 < maze.height && walls.S !== maze.cells[y + 1]?.[x]?.walls?.N) return false;
     }
   }
   return isConnected(maze);
+}
+
+/** Canonical renderable closed edges, deduplicated from the cell wall graph. */
+export function getWallSegments(maze) {
+  const segments = [];
+  for (let y = 0; y < maze.height; y++) for (let x = 0; x < maze.width; x++) {
+    const walls = maze.cells[y][x].walls;
+    const northBlocked = y === 0 ? walls.N : walls.N || maze.cells[y - 1][x].walls.S;
+    const westBlocked = x === 0 ? walls.W : walls.W || maze.cells[y][x - 1].walls.E;
+    if (northBlocked) segments.push({ orientation: 'horizontal', x, y });
+    if (westBlocked) segments.push({ orientation: 'vertical', x, y });
+    if (x === maze.width - 1 && walls.E) segments.push({ orientation: 'vertical', x: x + 1, y });
+    if (y === maze.height - 1 && walls.S) segments.push({ orientation: 'horizontal', x, y: y + 1 });
+  }
+  return segments;
 }
 
 export function validatePath(maze, path) {

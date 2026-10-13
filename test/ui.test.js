@@ -21,8 +21,12 @@ test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, col
   const html = await read('index.html'), game = await read('src/game.js'), tracing = await read('src/tracing.js');
   assert.match(html, /id="trace-diagnostics"[^>]*hidden/);
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
-  assert.match(html, /id="copy-trace-report"[^>]*>Copy diagnostic report/);
-  assert.match(html, /id="reset-trace-log"[^>]*>Reset diagnostic log/);
+  assert.match(html, /id="copy-qa-summary"[^>]*>Copy quick summary/);
+  assert.match(html, /id="copy-qa-incident"[^>]*>Copy recent incident/);
+  assert.match(html, /id="copy-trace-report"[^>]*>Share \/ export full report/);
+  assert.match(html, /id="clear-qa-sessions"/);
+  assert.match(html, /stored only on this device for up to 24 hours/);
+  assert.match(html, /id="reset-trace-log"[^>]*>Reset current log/);
   assert.match(game, /startQaSession\(location, history, deviceStorage\)/);
   assert.match(html, /id="disable-qa-mode"[^>]*>Exit QA mode/);
   assert.match(game, /window\.mazeAdventureTraceDiagnostics = \(\) => traceSession\?\.diagnostics/);
@@ -52,7 +56,8 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v14/);
+  assert.match(worker, /shell-v15/);
+  assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);
   assert.match(worker, /\.\/src\/qa-mode\.js/);

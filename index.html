@@ -66,7 +66,10 @@
         <div class="maze-paper" id="maze-paper"><svg id="maze" draggable="false" tabindex="0" role="application" aria-label="Maze. Trace from the entrance to the exit. Focus the maze and use arrow keys to move one passage at a time." viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg></div>
         <output id="trace-diagnostics" class="trace-diagnostics" hidden aria-live="off"></output>
         <section id="trace-diagnostic-tools" class="trace-diagnostic-tools" hidden aria-label="QA tracing diagnostics">
-          <div class="diagnostic-actions"><button id="copy-trace-report" class="small-button">Copy diagnostic report</button><button id="reset-trace-log" class="small-button">Reset diagnostic log</button><button id="disable-qa-mode" class="small-button">Exit QA mode</button></div>
+          <div class="diagnostic-actions"><button id="copy-qa-summary" class="small-button">Copy quick summary</button><button id="copy-qa-incident" class="small-button">Copy recent incident</button><button id="copy-trace-report" class="small-button">Share / export full report</button><button id="reset-trace-log" class="small-button">Reset current log</button><button id="clear-qa-sessions" class="small-button">Clear saved QA sessions</button><button id="disable-qa-mode" class="small-button">Exit QA mode</button></div>
+          <output id="qa-retention-status" aria-live="polite"></output>
+          <label class="qa-session-picker" for="qa-session-history">Saved QA session</label><select id="qa-session-history" aria-label="Saved QA session"><option value="current">Current session</option></select>
+          <p class="qa-privacy-note">QA reports are stored only on this device for up to 24 hours. They are not sent to Mirpworks.</p>
           <output id="qa-mode-status" aria-live="polite"></output>
           <output id="trace-diagnostic-status" aria-live="polite"></output>
           <textarea id="trace-diagnostic-fallback" aria-label="Diagnostic report for manual copying" readonly hidden rows="8"></textarea>

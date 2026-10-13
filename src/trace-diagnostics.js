@@ -9,6 +9,8 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
   let checkpoints = [];
   let dropped = 0;
   let droppedCheckpoints = 0;
+  let observed = 0, acceptedCount = 0, canceledCount = 0;
+  const rejectedCounts = {};
   let previous = null;
   const point = value => value && Number.isFinite(value.x) && Number.isFinite(value.y)
     ? { x: Math.round(value.x * 1000) / 1000, y: Math.round(value.y * 1000) / 1000 }
@@ -50,10 +52,16 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
         layoutId: typeof event.layoutId === 'string' ? event.layoutId.slice(0, 64) : null,
       };
       events.push(entry);
+      observed++;
+      const movementAccepted = event.movementAccepted ?? (entry.eventType === 'pointermove' && entry.accepted);
+      entry.movementAccepted = Boolean(movementAccepted);
+      if (entry.movementAccepted) acceptedCount++;
+      else if (entry.rejectedReason && entry.rejectedReason !== 'no-route-or-stroke-change') rejectedCounts[entry.rejectedReason] = (rejectedCounts[entry.rejectedReason] ?? 0) + 1;
+      if (entry.pointerCanceled) canceledCount++;
       if (events.length > limit) { events.shift(); dropped++; }
       const lifecycle = ['pointerdown', 'pointerup', 'pointercancel', 'lostpointercapture'].includes(entry.eventType);
       const blockedTransition = entry.blocked && (!previous?.blocked || previous?.rejectedReason !== entry.rejectedReason);
-      const recovered = entry.accepted && previous?.blocked;
+      const recovered = entry.movementAccepted && previous?.blocked;
       const gestureTransition = entry.gestureState !== previous?.gestureState;
       if (lifecycle || blockedTransition || recovered || gestureTransition) {
         checkpoints.push(entry);
@@ -61,7 +69,7 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
       }
       previous = entry;
     },
-    reset() { events = []; checkpoints = []; dropped = 0; droppedCheckpoints = 0; previous = null; startedAt = now(); },
+    reset() { events = []; checkpoints = []; dropped = 0; droppedCheckpoints = 0; observed = 0; acceptedCount = 0; canceledCount = 0; for (const key of Object.keys(rejectedCounts)) delete rejectedCounts[key]; previous = null; startedAt = now(); },
     report({ layoutId, dimensions, mazeDefinition, route, ink, state, inkCellAssociation, buildId = null }) {
       return {
         format: 'maze-adventure-trace-qa-v1',
@@ -75,12 +83,14 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
         eventLimit: limit,
         droppedCheckpoints,
         checkpointLimit: CHECKPOINT_LIMIT,
+        counters: { observed, accepted: acceptedCount, rejectedByReason: { ...rejectedCounts }, canceled: canceledCount, durationMs: Math.max(0, now() - startedAt) },
       };
     },
     get length() { return events.length; },
     get dropped() { return dropped; },
     get checkpointCount() { return checkpoints.length; },
     get droppedCheckpoints() { return droppedCheckpoints; },
+    get counters() { return { observed, accepted: acceptedCount, rejectedByReason: { ...rejectedCounts }, canceled: canceledCount, durationMs: Math.max(0, now() - startedAt) }; },
   };
 }
 

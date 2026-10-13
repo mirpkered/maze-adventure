@@ -1,4 +1,4 @@
-import { createMaze } from './maze.js';
+import { createMaze, getWallSegments } from './maze.js';
 import { createTraceSession } from './tracing.js';
 import { DEFAULT_PREFERENCES, readPreferences, writePreferences } from './preferences.js';
 import { clientToViewBoxPoint, mazeToSvgPoint, svgToMazePoint, transformPoint } from './coordinates.js';
@@ -6,6 +6,7 @@ import { createTraceRecorder, mazeLayoutId } from './trace-diagnostics.js';
 import { bindEmblemQaTrigger, closeQaSession, startQaSession } from './qa-mode.js';
 import { finalPointerMovement, pointerMovementSamples } from './pointer-samples.js';
 import { APP_BUILD_ID } from './build-info.js';
+import { createQaDiagnosticsStore, createQuickSummary, createRecentIncident } from './qa-diagnostics-store.js';
 
 const $ = selector => document.querySelector(selector);
 const screens = ['home', 'play', 'complete', 'settings', 'help', 'about'].map(id => $(`#${id}`));
@@ -20,13 +21,21 @@ let preferences = readPreferences();
 let qaEnabled = startQaSession(location, history, deviceStorage);
 let lastRawPointer = null, lastClientPointer = null;
 let traceRecorder = qaEnabled ? createTraceRecorder({ limit: 400 }) : null;
+const qaStore = createQaDiagnosticsStore(deviceStorage);
+let qaSessionId = qaEnabled ? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` : null;
+let persistTimer = null;
 let currentLayoutId = null;
 if (qaEnabled) document.body.dataset.qa = 'true';
 
 function setQaMode(enabled) {
+  if (qaEnabled && !enabled) {
+    clearTimeout(persistTimer);
+    if (traceRecorder && traceSession && qaSessionId) qaStore.save(diagnosticReportObject(), { sessionId: qaSessionId, buildId: APP_BUILD_ID });
+  }
   qaEnabled = Boolean(enabled);
   if (qaEnabled) {
     traceRecorder ??= createTraceRecorder({ limit: 400 });
+    qaSessionId ??= `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     $('#qa-mode-status').textContent = 'QA mode is on for this session. Use Exit QA mode to turn it off.';
     window.mazeAdventureTraceDiagnostics = () => traceSession?.diagnostics ?? null;
   } else {
@@ -36,6 +45,7 @@ function setQaMode(enabled) {
     closeQaSession(location, history, deviceStorage);
     delete window.mazeAdventureTraceDiagnostics;
     traceRecorder = null;
+    qaSessionId = null;
   }
   syncQaControls();
   updateTraceDiagnostics();
@@ -46,6 +56,24 @@ function syncQaControls() {
   else delete document.body.dataset.qa;
   $('#trace-diagnostic-tools').hidden = !qaEnabled;
   $('#trace-diagnostics').hidden = !qaEnabled || !traceSession;
+  if (qaEnabled) refreshQaSessions();
+}
+
+function refreshQaSessions() {
+  const picker = $('#qa-session-history');
+  if (!picker) return;
+  const selected = picker.value;
+  picker.replaceChildren(new Option('Current session', 'current'));
+  const sessions = qaStore.list();
+  for (const item of sessions) picker.add(new Option(`${new Date(item.savedAt).toLocaleString()} · ${item.buildId ?? 'build unknown'}`, item.sessionId));
+  if ([...picker.options].some(option => option.value === selected)) picker.value = selected;
+  $('#qa-retention-status').textContent = `Local QA history: ${qaStore.available ? `${sessions.length} retained session(s), up to 24 hours` : 'unavailable; current session only'}. Reports stay on this device.`;
+}
+
+function selectedQaReport() {
+  const id = $('#qa-session-history')?.value;
+  if (!id || id === 'current') return diagnosticReportObject();
+  return qaStore.list().find(item => item.sessionId === id)?.report ?? diagnosticReportObject();
 }
 
 function recordTraceEvent(eventType, event, point, accepted, reason = null, canceled = false, movement = null, sampleType = 'dispatched', sampleIndex = null) {
@@ -75,22 +103,26 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
     strokeBreakCreated: movement?.strokeBreakCreated ?? false,
     gestureState: state.active ? (state.recovering ? 'recovering' : 'active') : 'idle',
     accepted: Boolean(accepted),
+    movementAccepted: Boolean(movement?.moved || (eventType === 'pointermove' && accepted)),
     rejectedReason: reason ?? state.reason ?? (accepted ? null : 'no-route-or-stroke-change'),
     blocked: state.blocked,
     pointerCaptured: captured,
     pointerCanceled: canceled,
     layoutId: currentLayoutId,
   });
+  queueQaPersistence();
   updateTraceDiagnostics(point);
 }
 
-function diagnosticReport() {
+function diagnosticReportObject() {
   const state = traceSession?.diagnostics;
-  return JSON.stringify(traceRecorder.report({
+  return traceRecorder.report({
     layoutId: currentLayoutId,
     dimensions: maze ? { width: maze.width, height: maze.height } : null,
     mazeDefinition: maze ? {
       start: { ...maze.start }, end: { ...maze.end },
+      entrance: maze.entrance ? { cell: { ...maze.entrance.cell }, side: maze.entrance.side } : null,
+      exit: maze.exit ? { cell: { ...maze.exit.cell }, side: maze.exit.side } : null,
       cells: maze.cells.map(row => row.map(cell => ({ x: cell.x, y: cell.y, walls: { ...cell.walls } }))),
     } : null,
     route: traceSession?.path.map(cell => ({ ...cell })) ?? [],
@@ -98,7 +130,17 @@ function diagnosticReport() {
     state: state ? { ...state } : null,
     inkCellAssociation: state?.strokeCells ?? [],
     buildId: APP_BUILD_ID,
-  }), null, 2);
+  });
+}
+function diagnosticReport() { return JSON.stringify(diagnosticReportObject(), null, 2); }
+function queueQaPersistence() {
+  if (!qaEnabled || !traceRecorder || !traceSession || !qaSessionId) return;
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    const report = diagnosticReportObject();
+    qaStore.save(report, { sessionId: qaSessionId, buildId: APP_BUILD_ID });
+    refreshQaSessions();
+  }, 700);
 }
 
 function updateTraceDiagnostics(raw = lastRawPointer) {
@@ -172,12 +214,10 @@ function renderMaze() {
   svg.append(trail);
   const walls = create('g', { class: 'walls', 'aria-hidden': 'true' });
   const line = (x1, y1, x2, y2) => walls.append(create('line', { x1, y1, x2, y2, class: 'wall' }));
-  for (let y = 0; y < maze.height; y++) for (let x = 0; x < maze.width; x++) {
-    const cell = maze.cells[y][x], x0 = PAD + x * CELL, y0 = PAD + y * CELL, x1 = x0 + CELL, y1 = y0 + CELL;
-    if (cell.walls.N && !(x === maze.start.x && y === maze.start.y)) line(x0, y0, x1, y0);
-    if (cell.walls.W && x > 0) line(x0, y0, x0, y1);
-    if (cell.walls.E) line(x1, y0, x1, y1);
-    if (cell.walls.S && !(x === maze.end.x && y === maze.end.y)) line(x0, y1, x1, y1);
+  for (const segment of getWallSegments(maze)) {
+    const x0 = PAD + segment.x * CELL, y0 = PAD + segment.y * CELL;
+    if (segment.orientation === 'horizontal') line(x0, y0, x0 + CELL, y0);
+    else line(x0, y0, x0, y0 + CELL);
   }
   svg.append(walls);
   const start = svgPoint(maze.start), end = svgPoint(maze.end);
@@ -225,7 +265,7 @@ function makeMaze(reuse = false) {
   activePointerId = null; elapsed = 0; paused = false; displayTime();
   $('#final-time').textContent = '0:00';
   $('#play-hint').textContent = 'Trace from the entrance to the flower. You can lift and continue.';
-  renderMaze(); activeScreen($('#play')); syncQaControls(); updateTraceDiagnostics(); $('#play-title').focus({ preventScroll: true }); startTimer();
+  renderMaze(); activeScreen($('#play')); syncQaControls(); updateTraceDiagnostics(); queueQaPersistence(); $('#play-title').focus({ preventScroll: true }); startTimer();
 }
 
 function clearPointer() {
@@ -247,7 +287,7 @@ function finishPointer(event, cancel = false) {
   if (finalMove?.moved) renderTrace();
   recordTraceEvent(event.type ?? (cancel ? 'pointercancel' : 'pointerup'), event, lastRawPointer,
     finalMove ? finalMove.moved : true,
-    finalMove?.reason ?? (!finalMove?.moved && finalMove ? 'no-route-or-stroke-change' : null), cancel);
+    finalMove?.reason ?? (!finalMove?.moved && finalMove ? 'no-route-or-stroke-change' : null), cancel, finalMove);
   if (cancel) traceSession.cancel(event.pointerId);
   else traceSession.end(event.pointerId);
   activePointerId = null;
@@ -383,35 +423,56 @@ $('#reset-settings').addEventListener('click', () => openOverlay($('#reset-dialo
 $('#cancel-reset').addEventListener('click', () => closeOverlay());
 $('#confirm-reset').addEventListener('click', () => { preferences = writePreferences({ ...DEFAULT_PREFERENCES }); updateSettingsControls(); closeOverlay(); });
 
+async function copyQaText(value, label) {
+  const fallback = $('#trace-diagnostic-fallback'), status = $('#trace-diagnostic-status');
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+    await navigator.clipboard.writeText(value); fallback.hidden = true; status.textContent = `${label} copied.`;
+  } catch {
+    fallback.value = value; fallback.hidden = false; fallback.focus({ preventScroll: true });
+    fallback.select(); fallback.setSelectionRange(0, fallback.value.length);
+    let copied = false; try { copied = document.execCommand('copy'); } catch { /* Selection remains available. */ }
+    status.textContent = copied ? `${label} copied.` : `Clipboard unavailable. ${label} is selected below; use Copy, then paste or share it.`;
+  }
+}
+$('#copy-qa-summary').addEventListener('click', () => {
+  if (!qaEnabled || !traceRecorder) return;
+  const report = selectedQaReport();
+  copyQaText(createQuickSummary(report, report.counters ?? traceRecorder.counters), 'Quick summary');
+});
+$('#copy-qa-incident').addEventListener('click', () => {
+  if (!qaEnabled || !traceRecorder) return;
+  copyQaText(JSON.stringify(createRecentIncident(selectedQaReport()), null, 2), 'Recent incident');
+});
 $('#copy-trace-report').addEventListener('click', async () => {
-    if (!qaEnabled || !traceRecorder) return;
-    const report = diagnosticReport();
-    const fallback = $('#trace-diagnostic-fallback');
-    const status = $('#trace-diagnostic-status');
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
-      await navigator.clipboard.writeText(report);
-      fallback.hidden = true;
-      status.textContent = 'Diagnostic report copied. Paste it into your support message.';
-    } catch {
-      fallback.value = report;
-      fallback.hidden = false;
-      fallback.focus({ preventScroll: true });
-      fallback.select();
-      fallback.setSelectionRange(0, fallback.value.length);
-      let copied = false;
-      try { copied = document.execCommand('copy'); } catch { /* Manual selection remains available below. */ }
-      status.textContent = copied
-        ? 'Diagnostic report copied. Paste it into your support message.'
-        : 'Clipboard access is unavailable. The report is selected below; use Copy, then paste it into your support message.';
+  if (!qaEnabled || !traceRecorder) return;
+  const file = new File([JSON.stringify(selectedQaReport(), null, 2)], `maze-adventure-qa-${Date.now()}.json`, { type: 'application/json' });
+  try {
+    if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+      await navigator.share({ title: 'Maze Adventure QA report', files: [file] });
+      $('#trace-diagnostic-status').textContent = 'Full report opened in the system share sheet.'; return;
     }
+  } catch (error) { if (error?.name === 'AbortError') return; }
+  const url = URL.createObjectURL(file), link = document.createElement('a');
+  link.href = url; link.download = file.name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  $('#trace-diagnostic-status').textContent = 'Full JSON report exported as a file.';
 });
 $('#reset-trace-log').addEventListener('click', () => {
     if (!qaEnabled || !traceRecorder) return;
     traceRecorder.reset();
     $('#trace-diagnostic-fallback').hidden = true;
-    $('#trace-diagnostic-status').textContent = 'Diagnostic event log cleared.';
+    $('#trace-diagnostic-status').textContent = 'Current diagnostic log cleared; maze and pencil progress were kept.';
+    queueQaPersistence();
     updateTraceDiagnostics();
+});
+$('#clear-qa-sessions').addEventListener('click', () => {
+  if (!qaEnabled || !window.confirm('Delete locally saved QA sessions? Game progress and preferences will remain.')) return;
+  const cleared = qaStore.clear(); refreshQaSessions();
+  $('#qa-retention-status').textContent = cleared ? 'Saved QA sessions cleared. Game progress and preferences remain.' : 'Local QA storage unavailable; no saved reports could be cleared.';
+});
+window.addEventListener('pagehide', () => {
+  if (!qaEnabled || !traceRecorder || !traceSession || !qaSessionId) return;
+  clearTimeout(persistTimer); qaStore.save(diagnosticReportObject(), { sessionId: qaSessionId, buildId: APP_BUILD_ID });
 });
 $('#disable-qa-mode').addEventListener('click', () => setQaMode(false));
 bindEmblemQaTrigger($('#qa-logo-trigger'), () => {
