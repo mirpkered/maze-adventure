@@ -36,6 +36,8 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
         candidateReversalOpen: typeof event.candidateReversalOpen === 'boolean' ? event.candidateReversalOpen : null,
         resumeAcquisitionDistance: Number.isFinite(event.resumeAcquisitionDistance) ? Math.round(event.resumeAcquisitionDistance * 1000) / 1000 : null,
         resumeAcquisitionThreshold: Number.isFinite(event.resumeAcquisitionThreshold) ? Math.round(event.resumeAcquisitionThreshold * 1000) / 1000 : null,
+        resumeAcquisitionDistancePixels: Number.isFinite(event.resumeAcquisitionDistancePixels) ? Math.round(event.resumeAcquisitionDistancePixels * 10) / 10 : null,
+        resumeAcquisitionThresholdPixels: Number.isFinite(event.resumeAcquisitionThresholdPixels) ? Math.round(event.resumeAcquisitionThresholdPixels * 10) / 10 : null,
         failureCategory: typeof event.failureCategory === 'string' ? event.failureCategory.slice(0, 32) : null,
         traceHealth: typeof event.traceHealth === 'string' ? event.traceHealth.slice(0, 40) : null,
         interpolationCount: Number.isInteger(event.interpolationCount) ? event.interpolationCount : 0,

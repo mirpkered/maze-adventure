@@ -468,6 +468,7 @@ test('diagnostic samples retain source, interpolation, attempted edge, and build
   const recorder = createTraceRecorder({ now: () => 10 });
   recorder.record({ eventType: 'pointermove', sampleType: 'coalesced', sampleIndex: 2,
     interpolationCount: 7, attemptedTransitions: [{ from: { x: 1, y: 2 }, to: { x: 2, y: 2 }, open: false }],
+    resumeAcquisitionDistancePixels: 18.5, resumeAcquisitionThresholdPixels: 24,
     strokeBreakCreated: true, accepted: false, rejectedReason: 'closed-wall-collision' });
   const report = recorder.report({ layoutId: 'maze-test', dimensions: { width: 3, height: 3 }, route: [], ink: [], state: null, buildId: 'build-test' });
   assert.equal(report.buildId, 'build-test');
@@ -475,6 +476,8 @@ test('diagnostic samples retain source, interpolation, attempted edge, and build
   assert.equal(report.events[0].sampleIndex, 2);
   assert.equal(report.events[0].interpolationCount, 7);
   assert.deepEqual(report.events[0].attemptedTransitions, [{ from: { x: 1, y: 2 }, to: { x: 2, y: 2 }, open: false }]);
+  assert.equal(report.events[0].resumeAcquisitionDistancePixels, 18.5);
+  assert.equal(report.events[0].resumeAcquisitionThresholdPixels, 24);
   assert.equal(report.events[0].strokeBreakCreated, true);
 });
 
@@ -572,10 +575,9 @@ test('wall collision at the reported iPhone endpoint remains reversible and resu
   assert.equal(session.diagnostics.reason, 'begin-outside-route-endpoint-corridor');
   assert.equal(session.diagnostics.failureCategory, 'acquisition');
   assert.ok(session.diagnostics.resumeAcquisitionDistance > session.diagnostics.resumeAcquisitionThreshold);
-  assert.equal(session.begin(202, { x: 0.54, y: 5.46 }), true,
-    'resume accepts a point in the same legal cell even when it is more than 0.4 from the pencil');
-  assert.ok(session.diagnostics.resumeAcquisitionDistance > 0.4);
-  assert.ok(session.diagnostics.resumeAcquisitionDistance <= session.diagnostics.resumeAcquisitionThreshold);
+  assert.equal(session.begin(202, { x: 1.4188556957678766, y: 5.42 }), true,
+    'resume succeeds at the visible pencil endpoint');
+  assert.ok(session.diagnostics.resumeAcquisitionDistance < session.diagnostics.resumeAcquisitionThreshold);
   assert.equal(session.diagnostics.failureCategory, null);
   assert.equal(session.position.x, 1.4188556957678766, 'acquisition does not teleport the pencil');
   const reversal = session.move(202, { x: 0.4, y: 5.42 });
@@ -615,6 +617,74 @@ test('wall collision at the reported iPhone endpoint remains reversible and resu
   assert.deepEqual(session.stroke.slice(0, marksBeforeRepeat.length), marksBeforeRepeat);
 });
 
+test('incident-class endpoint acquisition anchors near-wall touch input without weakening wall checks', () => {
+  // The report provides endpoint and touch coordinates, but not its complete
+  // maze wall definition. Rebuild the relevant corridor and closed east wall.
+  const route = [
+    { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 },
+    { x: 3, y: 1 }, { x: 4, y: 1 }, { x: 5, y: 1 },
+  ];
+  const maze = mazeWithRoute(route, 7, 7), session = createTraceSession(maze);
+  session.begin(901, route[0]);
+  for (const cell of route.slice(1)) session.move(901, cell);
+  session.move(901, { x: 5.42, y: 0.788 });
+  assert.deepEqual(session.path.at(-1), { x: 5, y: 1 });
+  assert.deepEqual(session.position, { x: 5.42, y: 0.788 });
+  const marks = session.stroke.map(point => ({ ...point }));
+  session.end(901);
+
+  const radius = 0.56; // equivalent to a 24 CSS-pixel radius at 42.9 px/cell
+  const reportedAttempts = [
+    [{ x: 5.858, y: 0.698 }, true],
+    [{ x: 5.941, y: 0.675 }, true],
+    [{ x: 6.008, y: 0.608 }, false],
+    [{ x: 5.888, y: 0.705 }, true],
+    [{ x: 5.971, y: 0.901 }, false],
+  ];
+  for (const [point, expected] of reportedAttempts) {
+    const distance = Math.hypot(point.x - session.position.x, point.y - session.position.y);
+    assert.equal(session.begin(905, point, { radius, pixelsPerMazeUnit: 42.9 }), expected,
+      `resume at (${point.x}, ${point.y}) follows the measured ${distance.toFixed(3)}-cell threshold`);
+    if (expected) session.end(905);
+    else assert.equal(session.diagnostics.resumeAcquisitionDistance > radius, true);
+  }
+
+  const nearWallFinger = { x: 5.858, y: 0.698 };
+  assert.equal(Math.hypot(nearWallFinger.x - session.position.x, nearWallFinger.y - session.position.y) < radius, true);
+  assert.equal(session.begin(902, nearWallFinger, { radius, pixelsPerMazeUnit: 42.9 }), true,
+    'a finger landing across the wall-side cell boundary can acquire the visible endpoint');
+  assert.deepEqual(session.position, { x: 5.42, y: 0.788 }, 'pointerdown acquisition does not move the pencil');
+  assert.equal(session.diagnostics.resumeAcquisitionDistancePixels < session.diagnostics.resumeAcquisitionThresholdPixels, true);
+  assert.equal(session.stroke.length, marks.length, 'acquisition itself draws no ink');
+
+  const backward = session.move(902, { x: 5.758, y: 0.698 });
+  assert.equal(backward.moved, true, 'finger delta is applied from the authoritative endpoint');
+  assert.equal(backward.recovering, false);
+  assert.deepEqual(session.path.at(-1), { x: 5, y: 1 });
+  assert.ok(session.position.x < 5.42, 'pencil begins moving back into the legal passage');
+  assert.deepEqual(session.stroke.slice(0, marks.length), marks, 'permanent ink remains append-only');
+  session.end(902);
+
+  const beforeWallAttempt = { ...session.position };
+  assert.equal(session.begin(904, { x: beforeWallAttempt.x + 0.44, y: beforeWallAttempt.y }, { radius, pixelsPerMazeUnit: 42.9 }), true);
+  const wallAttempt = session.move(904, { x: beforeWallAttempt.x + 0.68, y: beforeWallAttempt.y });
+  assert.equal(wallAttempt.blocked, true, 'the contact offset cannot turn acquisition into a wall crossing');
+  assert.deepEqual(session.path.at(-1), { x: 5, y: 1 });
+  assert.ok(session.position.x < 5.5, 'the pencil remains on the legal side of the closed cell boundary');
+  const reverse = session.move(904, { x: beforeWallAttempt.x + 0.44, y: beforeWallAttempt.y });
+  assert.equal(reverse.recovering, false, 'a legal return clears recovery after the rejected wall push');
+  assert.ok(session.position.x <= beforeWallAttempt.x + 1e-9);
+  session.end(904);
+
+  const position = { ...session.position };
+  const outside = { x: 5.993, y: 4.093 };
+  assert.equal(session.begin(903, outside, { radius, pixelsPerMazeUnit: 42.9 }), false,
+    'a distant historical-looking location cannot reacquire the pencil');
+  assert.equal(session.diagnostics.reason, 'begin-outside-route-endpoint-corridor');
+  assert.deepEqual(session.position, position);
+  assert.equal(session.stroke.length >= marks.length, true);
+});
+
 test('reported corridor-edge recovery coordinates remain reversible without losing the pencil tip', () => {
   // The report omitted the full wall definition. These two cases preserve the
   // supplied legal route and collision facts without claiming a layout replay.
@@ -634,7 +704,7 @@ test('reported corridor-edge recovery coordinates remain reversible without losi
   first.end(810);
   assert.equal(first.begin(812, { x: 0.48, y: 5.34 }), true, 'the supplied touch reacquisition point is practical after a lift');
   assert.deepEqual(first.position, tip, 'resume acquisition does not move the pencil');
-  first.move(812, { x: 0.2, y: 5.42 });
+  first.move(812, { x: 0.25, y: 5.34 });
   assert.equal(first.diagnostics.recovering, false);
   assert.ok(first.stroke.length >= marks.length);
   assert.deepEqual(first.stroke.slice(0, marks.length), marks);
@@ -653,7 +723,7 @@ test('reported corridor-edge recovery coordinates remain reversible without losi
   second.end(811);
   assert.equal(second.begin(813, { x: 1.2, y: 5.42 }), true, 'the player can reacquire the legal wall endpoint after lifting');
   assert.deepEqual(second.position, legalTip, 'resuming cannot teleport the pencil');
-  second.move(813, { x: 1.2, y: 5.42 });
+  second.move(813, { x: 1.0, y: 5.42 });
   assert.deepEqual(second.path.at(-1), { x: 1, y: 5 });
   assert.equal(second.diagnostics.recovering, false);
   assert.ok(second.position.x < legalTip.x);

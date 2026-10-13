@@ -14,6 +14,7 @@ const svg = $('#maze');
 let deviceStorage = null;
 try { deviceStorage = window.localStorage; } catch { /* Private or embedded contexts may block storage. */ }
 const SIZE = 400, PAD = 24, CELL = (SIZE - PAD * 2) / 7;
+const PENCIL_ACQUISITION_RADIUS_PX = 24;
 let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, timerId;
 let paused = false, activeOverlay = null, returnFocus = null, resumeAfterOverlay = false;
 let isolatedPage = [], bodyOverflow = '';
@@ -96,6 +97,8 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
     candidateReversalOpen: state.candidateReversalOpen,
     resumeAcquisitionDistance: state.resumeAcquisitionDistance,
     resumeAcquisitionThreshold: state.resumeAcquisitionThreshold,
+    resumeAcquisitionDistancePixels: state.resumeAcquisitionDistancePixels,
+    resumeAcquisitionThresholdPixels: state.resumeAcquisitionThresholdPixels,
     failureCategory: state.failureCategory,
     traceHealth: state.traceHealth,
     interpolationCount: movement?.interpolatedSamples ?? 0,
@@ -151,7 +154,7 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   const state = traceSession.diagnostics;
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
   const reversal = state.candidateReversal ? `${state.candidateReversal.x},${state.candidateReversal.y} (${state.candidateReversalOpen ? 'open' : 'closed'})` : 'none';
-  const resume = state.resumeAcquisitionDistance === null ? '—' : `${state.resumeAcquisitionDistance.toFixed(3)}/${state.resumeAcquisitionThreshold.toFixed(3)}`;
+  const resume = state.resumeAcquisitionDistancePixels === null ? '—' : `${state.resumeAcquisitionDistancePixels.toFixed(1)}/${state.resumeAcquisitionThresholdPixels.toFixed(0)}px`;
   output.textContent = `QA trace · build ${APP_BUILD_ID} · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · resume distance/limit ${resume} · gesture ${state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
@@ -188,6 +191,15 @@ function pointAt(event) {
 }
 function pointInMaze(event) { return svgToMazePoint(pointAt(event), PAD, CELL); }
 function svgPoint(point) { return mazeToSvgPoint(point, PAD, CELL); }
+function pencilAcquisitionOptions() {
+  const rect = svg.getBoundingClientRect();
+  const cellPixels = rect.width * CELL / SIZE;
+  const pixelsPerMazeUnit = cellPixels > 0 ? cellPixels : null;
+  return {
+    radius: pixelsPerMazeUnit ? PENCIL_ACQUISITION_RADIUS_PX / pixelsPerMazeUnit : 0.5,
+    pixelsPerMazeUnit,
+  };
+}
 
 function renderTrace() {
   if (!traceSession) return;
@@ -346,7 +358,7 @@ svg.addEventListener('pointerdown', event => {
   if (paused || activeOverlay) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'game-not-interactive'); return; }
   if (!event.isPrimary) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'non-primary-pointer'); return; }
   if (activePointerId !== null) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'another-pointer-owns-gesture'); return; }
-  const began = traceSession.begin(event.pointerId, lastRawPointer);
+  const began = traceSession.begin(event.pointerId, lastRawPointer, pencilAcquisitionOptions());
   if (began) {
     activePointerId = event.pointerId;
     try { svg.setPointerCapture(event.pointerId); } catch { /* Older embedded WebViews may lack pointer capture. */ }
