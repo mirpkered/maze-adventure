@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-launch-pending>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -11,11 +11,30 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" sizes="180x180" href="./icons/maze-adventure-icon-180.png" />
+    <link rel="preload" as="image" href="./branding/mirpworks-logo.jpg" />
+    <style>
+      html[data-launch-pending], html[data-launch-pending] body, body[data-launch-pending] { background: #fff !important; }
+      .app-shell[data-launch-pending] { visibility: hidden; }
+      .launch-splash { position: fixed; z-index: 10000; inset: 0; display: grid; place-items: center; overflow: hidden; box-sizing: border-box; padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); background: #fff; opacity: 1; transition: opacity 700ms ease; }
+      .launch-splash img { display: block; width: min(72vw, 420px); max-height: 72dvh; height: auto; object-fit: contain; opacity: 0; transition: opacity 650ms ease; }
+      .launch-splash.is-logo-visible img { opacity: 1; }
+      .launch-splash.is-exiting { opacity: 0; pointer-events: none; }
+      .app-shell[data-launch-revealing] { animation: launch-app-reveal 450ms ease both; }
+      @keyframes launch-app-reveal { from { opacity: 0; } to { opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) {
+        .launch-splash { transition: opacity 100ms ease !important; }
+        .launch-splash img { transition: opacity 80ms ease !important; }
+        .app-shell[data-launch-revealing] { animation-duration: 100ms; }
+      }
+    </style>
     <title>Maze Adventure — Mirpworks</title>
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
-  <body>
-    <main class="app-shell">
+  <body data-launch-pending>
+    <div class="launch-splash" id="launch-splash" role="img" aria-label="Mirpworks studio logo">
+      <img src="./branding/mirpworks-logo.jpg" alt="" draggable="false" />
+    </div>
+    <main class="app-shell" data-launch-pending inert aria-hidden="true">
       <aside id="app-update-notice" class="app-update-notice" role="status" hidden>
         <span>A game update is ready. It will apply when you leave this maze.</span>
         <button id="apply-app-update" type="button">Reload now</button>
@@ -105,6 +124,60 @@
       <section class="overlay" id="reset-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title" hidden><div class="dialog-card"><p class="eyebrow">RESET PREFERENCES</p><h2 id="reset-title">Restore default settings?</h2><p>Your sound and paper choices will return to their defaults.</p><button class="button button-primary" id="confirm-reset">Reset settings</button><button class="small-button" id="cancel-reset">Cancel</button></div></section>
       <footer class="site-footer"><span>© MIRPWORKS</span><span>MADE FOR A MOMENT OF PLAY</span></footer>
     </main>
+    <script>
+      (() => {
+        const splash = document.querySelector('#launch-splash');
+        const app = document.querySelector('.app-shell');
+        const root = document.documentElement;
+        const body = document.body;
+        let done = false;
+        let reducedMotion = false;
+        let exitTimer;
+        let fallbackTimer;
+        const finish = (immediate = false) => {
+          if (done) return;
+          done = true;
+          window.clearTimeout(exitTimer);
+          window.clearTimeout(fallbackTimer);
+          const reveal = () => {
+            splash?.remove();
+            app?.removeAttribute('data-launch-pending');
+            app?.removeAttribute('data-launch-revealing');
+            app?.removeAttribute('inert');
+            app?.removeAttribute('aria-hidden');
+            body.removeAttribute('data-launch-pending');
+            root.removeAttribute('data-launch-pending');
+          };
+          if (immediate || !splash) { reveal(); return; }
+          splash.classList.add('is-exiting');
+          app?.removeAttribute('data-launch-pending');
+          app?.setAttribute('data-launch-revealing', '');
+          app?.removeAttribute('inert');
+          app?.removeAttribute('aria-hidden');
+          body.removeAttribute('data-launch-pending');
+          root.removeAttribute('data-launch-pending');
+          exitTimer = window.setTimeout(reveal, reducedMotion ? 100 : 700);
+        };
+
+        try {
+          const logo = splash?.querySelector('img');
+          logo?.addEventListener('error', () => finish(true), { once: true });
+          if (!splash || !app || (logo?.complete && logo.naturalWidth === 0)) { finish(true); return; }
+          reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          const fadeInMs = reducedMotion ? 80 : 650;
+          const holdMs = reducedMotion ? 40 : 1400;
+          const fadeOutMs = reducedMotion ? 100 : 700;
+          fallbackTimer = window.setTimeout(() => finish(true), fadeInMs + holdMs + fadeOutMs + 750);
+          window.requestAnimationFrame(() => {
+            if (done) return;
+            splash.classList.add('is-logo-visible');
+            exitTimer = window.setTimeout(() => finish(), fadeInMs + holdMs);
+          });
+        } catch {
+          finish(true);
+        }
+      })();
+    </script>
     <script type="module" src="./src/game.js"></script>
     <script type="module" src="./src/pwa.js"></script>
   </body>

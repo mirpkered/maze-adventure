@@ -17,6 +17,29 @@ test('title screen exposes the playable mode and functional supporting controls'
   assert.doesNotMatch(html, /<button[^>]*disabled[^>]*><strong>(?:Daily Challenge|Customize|Trophy Room|Achievements|Statistics)<\/strong>/);
 });
 
+test('canonical Mirpworks launch splash covers startup, then reveals the title once', async () => {
+  const html = await read('index.html'), worker = await read('service-worker.js'), styles = await read('src/styles.css');
+  assert.match(html, /<html lang="en" data-launch-pending>/);
+  assert.match(html, /<body data-launch-pending>[\s\S]*?<div class="launch-splash" id="launch-splash" role="img" aria-label="Mirpworks studio logo">[\s\S]*?<img src="\.\/branding\/mirpworks-logo\.jpg" alt=""/);
+  assert.match(html, /<main class="app-shell" data-launch-pending inert aria-hidden="true">/);
+  assert.match(html, /rel="preload" as="image" href="\.\/branding\/mirpworks-logo\.jpg"/);
+  assert.match(html, /\.launch-splash img[^}]*width:\s*min\(72vw, 420px\)[^}]*object-fit:\s*contain/);
+  assert.match(html, /env\(safe-area-inset-(?:top|right|bottom|left)\)/);
+  assert.match(html, /const fadeInMs = reducedMotion \? 80 : 650/);
+  assert.match(html, /const holdMs = reducedMotion \? 40 : 1400/);
+  assert.match(html, /const fadeOutMs = reducedMotion \? 100 : 700/);
+  assert.match(html, /setTimeout\(\(\) => finish\(true\), fadeInMs \+ holdMs \+ fadeOutMs \+ 750\)/);
+  assert.match(html, /addEventListener\('error', \(\) => finish\(true\)/);
+  assert.match(html, /window\.requestAnimationFrame\(\(\) =>/);
+  assert.match(html, /app\?\.setAttribute\('data-launch-revealing', ''\)/);
+  assert.equal((html.match(/id="launch-splash"/g) || []).length, 1, 'the initial document must contain one splash layer');
+  assert.ok(html.indexOf("querySelector('#launch-splash')") < html.indexOf('src="./src/game.js"'), 'splash startup must be initialized before the game module');
+  assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.launch-splash \{ transition: opacity 100ms ease !important/);
+  assert.match(worker, /shell-v16/);
+  assert.match(worker, /\.\/branding\/mirpworks-logo\.jpg/);
+  assert.match(styles, /body\[data-screen="home"\]/);
+});
+
 test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, collision, and gesture state', async () => {
   const html = await read('index.html'), game = await read('src/game.js'), tracing = await read('src/tracing.js');
   assert.match(html, /id="trace-diagnostics"[^>]*hidden/);
@@ -56,7 +79,7 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v15/);
+  assert.match(worker, /shell-v16/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);
