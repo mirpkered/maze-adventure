@@ -44,3 +44,17 @@ test('QA diagnostics persistence fails safely when browser storage throws', () =
   assert.equal(store.save({}, { sessionId: 'x' }), false);
   assert.deepEqual(store.list(), []);
 });
+
+test('retained QA snapshots are size-bounded and clearing them leaves other app data intact', () => {
+  const storage = memoryStorage();
+  storage.setItem('maze-adventure-progress', JSON.stringify({ level: 1, preference: 'warm' }));
+  const store = createQaDiagnosticsStore(storage, { now: () => 5_000 });
+  const points = Array.from({ length: 12_000 }, (_, index) => ({ x: index / 1000, y: index / 2000 }));
+  assert.equal(store.save({ events: [], checkpoints: [], current: { ink: points, inkCellAssociation: points } }, { sessionId: 'large', buildId: 'test' }), true);
+  const saved = store.list()[0].report;
+  assert.equal(saved.retention.truncated, true);
+  assert.ok(JSON.stringify(saved).length * 2 <= 180_000);
+  assert.equal(store.clear(), true);
+  assert.equal(storage.getItem(QA_DIAGNOSTICS_STORAGE_KEY), '[]');
+  assert.deepEqual(JSON.parse(storage.getItem('maze-adventure-progress')), { level: 1, preference: 'warm' });
+});
