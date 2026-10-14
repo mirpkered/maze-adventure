@@ -1,7 +1,7 @@
-import { createMaze, getWallSegments } from './maze.js';
+import { createMazeForDifficulty, FREE_PLAY_DIFFICULTIES, getWallSegments } from './maze.js';
 import { createTraceSession } from './tracing.js';
 import { DEFAULT_PREFERENCES, readPreferences, writePreferences } from './preferences.js';
-import { clientToViewBoxPoint, mazeToSvgPoint, svgToMazePoint, transformPoint } from './coordinates.js';
+import { clientToViewBoxPoint, getMazeGridGeometry, mazeToSvgPoint, svgToMazePoint, transformPoint } from './coordinates.js';
 import { createTraceRecorder, mazeLayoutId } from './trace-diagnostics.js';
 import { bindEmblemQaTrigger, closeQaSession, startQaSession } from './qa-mode.js';
 import { finalPointerMovement, pointerMovementSamples } from './pointer-samples.js';
@@ -13,9 +13,11 @@ const screens = ['home', 'play', 'complete', 'settings', 'help', 'about'].map(id
 const svg = $('#maze');
 let deviceStorage = null;
 try { deviceStorage = window.localStorage; } catch { /* Private or embedded contexts may block storage. */ }
-const SIZE = 400, PAD = 24, CELL = (SIZE - PAD * 2) / 7;
+const SIZE = 400, PAD = 24;
+let gridGeometry = getMazeGridGeometry(7, 7, SIZE, PAD);
 const PENCIL_ACQUISITION_RADIUS_PX = 24;
 let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, timerId;
+let selectedDifficulty = 'easy';
 let paused = false, activeOverlay = null, returnFocus = null, resumeAfterOverlay = false;
 let isolatedPage = [], bodyOverflow = '';
 let preferences = readPreferences();
@@ -126,6 +128,7 @@ function diagnosticReportObject() {
   return traceRecorder.report({
     layoutId: currentLayoutId,
     dimensions: maze ? { width: maze.width, height: maze.height } : null,
+    difficulty: maze?.difficulty ?? selectedDifficulty,
     mazeDefinition: maze ? {
       start: { ...maze.start }, end: { ...maze.end },
       entrance: maze.entrance ? { cell: { ...maze.entrance.cell }, side: maze.entrance.side } : null,
@@ -193,11 +196,11 @@ function pointAt(event) {
   } catch { /* Fall back for older or incomplete embedded SVG implementations. */ }
   return clientToViewBoxPoint(client, svg.getBoundingClientRect(), { x: 0, y: 0, width: SIZE, height: SIZE });
 }
-function pointInMaze(event) { return svgToMazePoint(pointAt(event), PAD, CELL); }
-function svgPoint(point) { return mazeToSvgPoint(point, PAD, CELL); }
+function pointInMaze(event) { return svgToMazePoint(pointAt(event), gridGeometry.x, gridGeometry.cellSize, gridGeometry.y); }
+function svgPoint(point) { return mazeToSvgPoint(point, gridGeometry.x, gridGeometry.cellSize, gridGeometry.y); }
 function pencilAcquisitionOptions() {
   const rect = svg.getBoundingClientRect();
-  const cellPixels = rect.width * CELL / SIZE;
+  const cellPixels = rect.width * gridGeometry.cellSize / SIZE;
   const pixelsPerMazeUnit = cellPixels > 0 ? cellPixels : null;
   return {
     radius: pixelsPerMazeUnit ? PENCIL_ACQUISITION_RADIUS_PX / pixelsPerMazeUnit : 0.5,
@@ -218,6 +221,7 @@ function renderTrace() {
 }
 
 function renderMaze() {
+  gridGeometry = getMazeGridGeometry(maze.width, maze.height, SIZE, PAD);
   svg.replaceChildren();
   const ns = 'http://www.w3.org/2000/svg';
   const create = (tag, attributes, text) => {
@@ -231,15 +235,15 @@ function renderMaze() {
   const walls = create('g', { class: 'walls', 'aria-hidden': 'true' });
   const line = (x1, y1, x2, y2) => walls.append(create('line', { x1, y1, x2, y2, class: 'wall' }));
   for (const segment of getWallSegments(maze)) {
-    const x0 = PAD + segment.x * CELL, y0 = PAD + segment.y * CELL;
-    if (segment.orientation === 'horizontal') line(x0, y0, x0 + CELL, y0);
-    else line(x0, y0, x0, y0 + CELL);
+    const x0 = gridGeometry.x + segment.x * gridGeometry.cellSize, y0 = gridGeometry.y + segment.y * gridGeometry.cellSize;
+    if (segment.orientation === 'horizontal') line(x0, y0, x0 + gridGeometry.cellSize, y0);
+    else line(x0, y0, x0, y0 + gridGeometry.cellSize);
   }
   svg.append(walls);
   const start = svgPoint(maze.start), end = svgPoint(maze.end);
-  svg.append(create('text', { x: start.x, y: PAD - 7, 'text-anchor': 'middle', class: 'marker marker-start' }, 'START'));
-  svg.append(create('text', { x: end.x, y: SIZE - PAD + 17, 'text-anchor': 'middle', class: 'marker marker-end' }, '✿'));
-  svg.append(create('circle', { id: 'player', cx: start.x, cy: start.y, r: CELL * .19, class: 'player' }));
+  svg.append(create('text', { x: start.x, y: gridGeometry.y - 7, 'text-anchor': 'middle', class: 'marker marker-start' }, 'START'));
+  svg.append(create('text', { x: end.x, y: gridGeometry.y + maze.height * gridGeometry.cellSize + 17, 'text-anchor': 'middle', class: 'marker marker-end' }, '✿'));
+  svg.append(create('circle', { id: 'player', cx: start.x, cy: start.y, r: gridGeometry.cellSize * .19, class: 'player' }));
   renderTrace();
 }
 
@@ -275,7 +279,10 @@ function playCompletionSound() {
 }
 
 function makeMaze(reuse = false) {
-  if (!reuse || !maze) maze = createMaze(7, 7);
+  if (!reuse || !maze) maze = createMazeForDifficulty(selectedDifficulty);
+  selectedDifficulty = maze.difficulty ?? selectedDifficulty;
+  document.querySelector(`input[name="free-play-difficulty"][value="${selectedDifficulty}"]`).checked = true;
+  $('#play-difficulty').textContent = FREE_PLAY_DIFFICULTIES[selectedDifficulty].label.toUpperCase();
   currentLayoutId = mazeLayoutId(maze);
   traceSession = createTraceSession(maze);
   activePointerId = null; elapsed = 0; paused = false; displayTime();
@@ -409,6 +416,12 @@ document.addEventListener('visibilitychange', () => document.hidden ? pauseTimer
 window.addEventListener('blur', pauseTimer);
 window.addEventListener('focus', startTimer);
 
+for (const option of document.querySelectorAll('input[name="free-play-difficulty"]')) {
+  option.addEventListener('change', () => {
+    selectedDifficulty = option.value;
+    $('#quick-play-description').textContent = `Start ${FREE_PLAY_DIFFICULTIES[selectedDifficulty].label} · ${FREE_PLAY_DIFFICULTIES[selectedDifficulty].width}×${FREE_PLAY_DIFFICULTIES[selectedDifficulty].height} maze`;
+  });
+}
 $('#quick-play').addEventListener('click', () => makeMaze());
 $('#new-maze').addEventListener('click', () => makeMaze());
 $('#next-maze').addEventListener('click', () => makeMaze());

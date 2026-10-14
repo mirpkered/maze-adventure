@@ -16,12 +16,13 @@
 
 ### Modes and difficulty
 
-- Free Play will offer Quick Play and Custom configuration. Quick Play defaults to Medium once the full difficulty selection is available.
-- Easy, Medium, Hard, and Expert are the standard difficulty family. Easy is the first implementation and validation target.
+- Free Play currently offers immediately selectable Easy and Medium choices. There are no difficulty unlocks or progression gates.
+- Easy is 7×7 and Medium is 10×10. Both use the same perfect-maze generator and tracing rules; Medium has more junctions and wrong-turn branches on average.
+- Hard and Expert remain future possibilities and are not implemented. Custom mode is intended to let players choose dimensions independently.
 - Custom mode is intended to let players choose dimensions and difficulty independently.
 - Free Play primarily uses procedural mazes. Generated mazes must be validated as solvable.
 - Core difficulties are not locked behind progression.
-- Current size preference for future iPhone Free Play: 20×20 is the practical normal maximum; 25×25 remains experimental until tested on device. The current playable slice remains 7×7.
+- Current iPhone Free Play sizes are 7×7 and 10×10. Larger sizes require separate mobile usability testing before implementation.
 
 ### Adventure
 
@@ -47,7 +48,7 @@
 
 ## Phase 1 decisions
 
-- Easy Quick Play uses a small 7×7 perfect maze generated at runtime.
+- Easy uses the established 7×7 perfect maze generated at runtime. Medium uses the same randomized backtracking generator at 10×10.
 - The start is the upper-left cell; the exit is the lower-right cell.
 - The Phase 1 implementation uses pointer tracing over a cell graph. Movement accepts a nearby cell center only when there is an open neighboring edge; the route cannot jump through a wall or skip a cell.
 - The current maze is not persisted. “New maze” and “Next maze” generate a fresh puzzle.
@@ -66,7 +67,7 @@
 
 | Word Search Adventure control | Maze Adventure mapping | Status |
 | --- | --- | --- |
-| Free Play | Quick Play · Easy | Available; Maze Custom setup is deferred |
+| Free Play | Easy · 7×7, Medium · 10×10 | Both available without unlocks; Custom setup is deferred |
 | Adventure | Story levels | Coming later; campaign is outside this phase |
 | Daily Challenge | Daily maze | Coming later; no daily schedule/progression exists |
 | Customize | Cosmetics | Coming later; cosmetic inventory is not implemented |
@@ -122,7 +123,7 @@ Pause/Resume and the keyboard arrow-key alternative are maze-specific additions.
 
 | Home action | Behavior |
 | --- | --- |
-| Free Play | Starts a new Easy Quick Play maze. |
+| Free Play | Starts a new maze at the selected Easy (7×7) or Medium (10×10) difficulty. |
 | Adventure | Disabled and labeled Coming Soon; story levels are not implemented. |
 | Settings | Opens local sound and paper settings. |
 | How to Play | Opens instructions and a playable-maze entry. |

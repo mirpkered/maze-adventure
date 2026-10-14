@@ -56,9 +56,12 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
   const acceptedAfterReject = latestReject && (report.events ?? []).some(event => event.t > latestReject.t && event.movementAccepted);
   const status = !latestReject ? 'INSUFFICIENT EVIDENCE' : acceptedAfterReject ? 'RECOVERED AFTER LAST REJECTION' : 'RECOVERY NOT YET OBSERVED';
   const counts = Object.entries(rejectedByReason).map(([reason, count]) => `${reason}:${count}`).join(', ') || 'none';
+  const dimensions = report.maze?.dimensions;
+  const difficulty = report.maze?.difficulty ?? (dimensions?.width === 7 && dimensions?.height === 7 ? 'easy'
+    : dimensions?.width === 10 && dimensions?.height === 10 ? 'medium' : 'custom');
   return [
     `Maze Adventure QA ${report.buildId ?? 'build unknown'} | ${report.maze?.layoutId ?? 'maze unknown'}`,
-    `${report.maze?.dimensions?.width ?? '?'}x${report.maze?.dimensions?.height ?? '?'} Easy | ${(durationMs / 1000).toFixed(1)}s | events ${observed}, accepted ${accepted}, rejected ${Object.values(rejectedByReason).reduce((a, b) => a + b, 0)} (${counts}), canceled ${canceled}`,
+    `${dimensions?.width ?? '?'}x${dimensions?.height ?? '?'} ${difficulty} | ${(durationMs / 1000).toFixed(1)}s | events ${observed}, accepted ${accepted}, rejected ${Object.values(rejectedByReason).reduce((a, b) => a + b, 0)} (${counts}), canceled ${canceled}`,
     `pencil ${current?.authoritativePosition?.x?.toFixed?.(3) ?? '?'} ${current?.authoritativePosition?.y?.toFixed?.(3) ?? '?'} | cell ${current?.logicalCell?.x ?? '?'},${current?.logicalCell?.y ?? '?'} | gesture ${current?.active ? current.recovering ? 'recovering' : 'active' : 'idle'}`,
     `last rejection ${latestReject?.rejectedReason ?? 'none'} | ${status}`,
   ].join('\n').slice(0, 1900);

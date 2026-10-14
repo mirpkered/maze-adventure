@@ -76,12 +76,12 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
       previous = entry;
     },
     reset() { events = []; checkpoints = []; dropped = 0; droppedCheckpoints = 0; observed = 0; acceptedCount = 0; canceledCount = 0; for (const key of Object.keys(rejectedCounts)) delete rejectedCounts[key]; previous = null; startedAt = now(); },
-    report({ layoutId, dimensions, mazeDefinition, route, ink, state, inkCellAssociation, buildId = null }) {
+    report({ layoutId, dimensions, difficulty = null, mazeDefinition, route, ink, state, inkCellAssociation, buildId = null }) {
       return {
         format: 'maze-adventure-trace-qa-v1',
         buildId,
         privacy: 'Pointer coordinates are maze-local; no name, account, URL, or pointer identifier is recorded.',
-        maze: { layoutId, dimensions, definition: mazeDefinition },
+        maze: { layoutId, dimensions, difficulty, definition: mazeDefinition },
       current: { route, ink, inkCellAssociation, state },
         events: [...events],
         checkpoints: [...checkpoints],

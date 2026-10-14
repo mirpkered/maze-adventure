@@ -9,6 +9,11 @@ export const DIRECTIONS = [
   { name: 'W', dx: -1, dy: 0, opposite: 'E' },
 ];
 
+export const FREE_PLAY_DIFFICULTIES = Object.freeze({
+  easy: Object.freeze({ width: 7, height: 7, label: 'Easy' }),
+  medium: Object.freeze({ width: 10, height: 10, label: 'Medium' }),
+});
+
 export function createMaze(width = 7, height = 7, random = Math.random) {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 2 || height < 2) throw new RangeError('Maze dimensions must be integers of at least 2.');
   const cells = Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => ({ x, y, walls: { N: true, E: true, S: true, W: true } })));
@@ -37,6 +42,13 @@ export function createMaze(width = 7, height = 7, random = Math.random) {
   cells[maze.exit.cell.y][maze.exit.cell.x].walls.S = false;
   if (!validateMaze(maze)) throw new Error('Generated maze failed validation.');
   return maze;
+}
+
+/** Free Play sizes share the same maze model and generator; Easy keeps its original 7×7 behavior. */
+export function createMazeForDifficulty(difficulty = 'easy', random = Math.random) {
+  const configuration = FREE_PLAY_DIFFICULTIES[difficulty];
+  if (!configuration) throw new RangeError(`Unknown Free Play difficulty: ${difficulty}`);
+  return { ...createMaze(configuration.width, configuration.height, random), difficulty };
 }
 
 export function canMove(maze, from, to) {

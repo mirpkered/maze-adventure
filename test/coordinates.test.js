@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clientToViewBoxPoint, mazeToSvgPoint, svgToMazePoint, transformPoint } from '../src/coordinates.js';
+import { clientToViewBoxPoint, getMazeGridGeometry, mazeToSvgPoint, svgToMazePoint, transformPoint } from '../src/coordinates.js';
 
 const close = (actual, expected) => {
   assert.ok(Math.abs(actual.x - expected.x) < 1e-9, `x ${actual.x} != ${expected.x}`);
@@ -49,4 +49,20 @@ test('portrait and rotated viewport mappings preserve the same logical maze poin
     const mappedSvg = clientToViewBoxPoint(client, rect, viewBox);
     close(svgToMazePoint(mappedSvg, pad, cellSize), logical);
   }
+});
+
+test('7x7 and 10x10 grid geometry fits the same paper and maps cell centers consistently', () => {
+  const geometry = [getMazeGridGeometry(7, 7), getMazeGridGeometry(10, 10)];
+  assert.equal(geometry[0].cellSize, 352 / 7);
+  assert.equal(geometry[1].cellSize, 35.2);
+  for (const [index, dimensions] of [[0, 7], [1, 10]]) {
+    const layout = geometry[index];
+    assert.equal(layout.x, 24); assert.equal(layout.y, 24);
+    assert.ok(layout.x + dimensions * layout.cellSize <= 376);
+    assert.ok(layout.y + dimensions * layout.cellSize <= 376);
+    const mazePoint = { x: dimensions - 1, y: dimensions - 1 };
+    const svgPoint = mazeToSvgPoint(mazePoint, layout.x, layout.cellSize, layout.y);
+    close(svgToMazePoint(svgPoint, layout.x, layout.cellSize, layout.y), mazePoint);
+  }
+  assert.throws(() => getMazeGridGeometry(0, 10), RangeError);
 });

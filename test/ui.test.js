@@ -7,6 +7,9 @@ const read = file => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
 test('title screen exposes the playable mode and functional supporting controls', async () => {
   const html = await read('index.html');
   assert.match(html, /id="quick-play"/);
+  assert.match(html, /fieldset class="difficulty-picker"[\s\S]*?Choose your Free Play challenge[\s\S]*?value="easy" checked[\s\S]*?Easy[\s\S]*?7×7[\s\S]*?value="medium"[\s\S]*?Medium[\s\S]*?10×10/);
+  assert.match(html, /id="quick-play-description">Start Easy · 7×7 maze/);
+  assert.match(html, /id="play-difficulty">EASY/);
   assert.match(html, /id="open-settings"/);
   assert.match(html, /id="open-help"/);
   assert.match(html, /id="open-about"/);
@@ -35,7 +38,7 @@ test('canonical Mirpworks launch splash covers startup, then reveals the title o
   assert.equal((html.match(/id="launch-splash"/g) || []).length, 1, 'the initial document must contain one splash layer');
   assert.ok(html.indexOf("querySelector('#launch-splash')") < html.indexOf('src="./src/game.js"'), 'splash startup must be initialized before the game module');
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.launch-splash \{ transition: opacity 100ms ease !important/);
-  assert.match(worker, /shell-v18/);
+  assert.match(worker, /shell-v19/);
   assert.match(worker, /\.\/branding\/mirpworks-logo\.jpg/);
   assert.match(styles, /body\[data-screen="home"\]/);
 });
@@ -53,7 +56,7 @@ test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, col
   assert.match(game, /startQaSession\(location, history, deviceStorage\)/);
   assert.match(html, /id="disable-qa-mode"[^>]*>Exit QA mode/);
   assert.match(game, /window\.mazeAdventureTraceDiagnostics = \(\) => traceSession\?\.diagnostics/);
-  for (const item of ['pointerType', 'client:', 'maze:', 'acceptedInkEndpoint', 'pencilPosition', 'previousRouteCell', 'candidateReversal', 'resumeAcquisitionDistance', 'resumeAcquisitionThreshold', 'resumeAcquisitionDistancePixels', 'resumeAcquisitionThresholdPixels', 'failureCategory', 'traceHealth', 'gestureState', 'gestureTerminatedByWallCollision', 'lockedOutMovement', 'lockedOutMovementCount', 'resumeAfterWallCollision', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
+  for (const item of ['pointerType', 'client:', 'maze:', 'difficulty: maze?.difficulty', 'acceptedInkEndpoint', 'pencilPosition', 'previousRouteCell', 'candidateReversal', 'resumeAcquisitionDistance', 'resumeAcquisitionThreshold', 'resumeAcquisitionDistancePixels', 'resumeAcquisitionThresholdPixels', 'failureCategory', 'traceHealth', 'gestureState', 'gestureTerminatedByWallCollision', 'lockedOutMovement', 'lockedOutMovementCount', 'resumeAfterWallCollision', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
   assert.match(game, /if \(!result\.ignored \|\| result\.firstLockedOutMove\)/, 'prolonged lockout movement logs only its first ignored sample');
   assert.match(game, /window\.addEventListener\('pointercancel', event => finishPointer\(event, true\)\)/);
   assert.match(game, /window\.addEventListener\('lostpointercapture', event => finishPointer\(event, true\)\)/);
@@ -82,7 +85,7 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v18/);
+  assert.match(worker, /shell-v19/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);
@@ -111,6 +114,11 @@ test('gameplay actions keep restart, new maze, pause, and guarded Home behavior 
   }
   assert.match(game, /#restart-maze'\)\.addEventListener\('click', \(\) => makeMaze\(true\)/);
   assert.match(game, /#new-maze'\)\.addEventListener\('click', \(\) => makeMaze\(\)/);
+  assert.match(game, /createMazeForDifficulty\(selectedDifficulty\)/);
+  assert.match(game, /input\[name="free-play-difficulty"\]/);
+  assert.match(game, /quick-play-description'\)\.textContent = `Start \$\{/);
+  assert.match(game, /getMazeGridGeometry\(maze\.width, maze\.height, SIZE, PAD\)/);
+  assert.match(game, /selectedDifficulty = maze\.difficulty/);
   assert.match(game, /#pause-game'\)\.addEventListener/);
   assert.match(game, /#back-home'\)\.addEventListener\('click', openHomeConfirmation\)/);
   assert.match(game, /setAttribute\('inert'/);
@@ -158,5 +166,6 @@ test('touch input uses the SVG screen transform, coalesced samples, and safe rot
   assert.match(samples, /samples\.push\(event\)/);
   assert.match(game, /finalPointerMovement\(traceSession, event\.pointerId, event, lastRawPointer\)/);
   assert.match(game, /window\.addEventListener\('resize', clearPointer\)/);
-  assert.match(game, /svgToMazePoint\(pointAt\(event\), PAD, CELL\)/);
+  assert.match(game, /svgToMazePoint\(pointAt\(event\), gridGeometry\.x, gridGeometry\.cellSize, gridGeometry\.y\)/);
+  assert.match(game, /getMazeGridGeometry\(maze\.width, maze\.height, SIZE, PAD\)/);
 });

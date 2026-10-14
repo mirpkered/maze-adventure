@@ -6,7 +6,7 @@ Maze Adventure is a separate, mobile-first maze puzzle game inspired by the prog
 
 ## Play the foundation
 
-The Phase 1 slice includes a Home screen and an Easy Quick Play maze. Trace from START to the flower with a finger, mouse, or pointer. Walls stop movement; retrace the route to leave a dead end. Lifting your pointer preserves your route. The elapsed timer pauses when the page is hidden or the window loses focus.
+Free Play offers an immediate choice of Easy (7×7) or Medium (10×10), with no unlocks or progression gates. Both use the same generated maze rules and direct-touch pencil tracer. Medium's larger randomized layouts average more junctions, wrong-turn endpoints, and longer dead-end branches. Trace from START to the flower with a finger, mouse, or pointer. Walls stop movement; after a wall contact, release and tap near the pencil to continue. Retrace the route to leave a dead end. Lifting your pointer preserves your route. The elapsed timer pauses when the page is hidden or the window loses focus.
 
 Adventure is visibly marked Coming Soon. Story chapters, linked mazes, daily challenges, custom setup, cosmetics, and persistent maze progress are not implemented yet.
 
@@ -46,7 +46,7 @@ npm test
 npm run check
 ```
 
-The automated checks cover seeded maze connectivity and wall symmetry, explicit perimeter openings, canonical rendered wall segments, continuous tracing, turns, sparse input, collision recovery, permanent ink, lift/resume, pointer cancellation, and bounded diagnostics. Five hundred seeded 7×7 layouts are checked for consistent exterior geometry and solvability; a separate deterministic tracing stress pass covers generated mazes. Automated tests do not establish physical iPhone behavior.
+The automated checks cover seeded maze connectivity and wall symmetry, explicit perimeter openings, canonical rendered wall segments, continuous tracing, turns, sparse input, collision recovery, permanent ink, lift/resume, pointer cancellation, and bounded diagnostics. Five hundred seeded 7×7 layouts and 256 seeded Medium 10×10 layouts are checked; Medium samples also measure junctions, dead ends, branch length, and layout variation. A separate deterministic tracing stress pass covers generated mazes. Automated tests and mobile viewport inspection do not establish physical iPhone behavior.
 
 ## Project map
 

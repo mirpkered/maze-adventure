@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createTraceSession, traceSegment } from '../src/tracing.js';
 import { createTraceRecorder, mazeLayoutId } from '../src/trace-diagnostics.js';
-import { advancePath, canMove, createMaze, validateMaze } from '../src/maze.js';
+import { advancePath, canMove, createMaze, createMazeForDifficulty, validateMaze } from '../src/maze.js';
 import { finalPointerMovement, pointerMovementSamples } from '../src/pointer-samples.js';
 
 function mazeWithRoute(route, width = Math.max(...route.map(p => p.x)) + 1, height = Math.max(...route.map(p => p.y)) + 1) {
@@ -28,6 +28,29 @@ function replayRecordedPointerEvents(maze, events) {
     else if (event.eventType === 'pointercancel') session.cancel(pointerId);
   }
   return { session, moveResults };
+}
+
+function seeded(seed) {
+  return () => {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let value = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    value = value + Math.imul(value ^ value >>> 7, 61 | value) ^ value;
+    return ((value ^ value >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function findSolution(maze) {
+  const queue = [[{ ...maze.start }]], seen = new Set([`${maze.start.x},${maze.start.y}`]);
+  while (queue.length) {
+    const path = queue.shift(), current = path.at(-1);
+    if (current.x === maze.end.x && current.y === maze.end.y) return path;
+    for (const next of [{ x: current.x, y: current.y - 1 }, { x: current.x + 1, y: current.y },
+      { x: current.x, y: current.y + 1 }, { x: current.x - 1, y: current.y }]) {
+      const key = `${next.x},${next.y}`;
+      if (!seen.has(key) && canMove(maze, current, next)) { seen.add(key); queue.push([...path, next]); }
+    }
+  }
+  return null;
 }
 
 test('one continuous drag traverses multiple cells without cell-by-cell gestures', () => {
@@ -438,13 +461,14 @@ test('diagnostic recorder is bounded, relative-time based, and resettable', () =
   recorder.record({ eventType: 'pointerdown', accepted: true });
   now += 5; recorder.record({ eventType: 'pointermove', accepted: false, rejectedReason: 'closed-edge' });
   now += 5; recorder.record({ eventType: 'pointercancel', pointerCanceled: true });
-  const report = recorder.report({ layoutId: 'maze-test', dimensions: { width: 3, height: 3 }, route: [], ink: [], state: null });
+  const report = recorder.report({ layoutId: 'maze-test', dimensions: { width: 10, height: 10 }, difficulty: 'medium', route: [], ink: [], state: null });
   assert.equal(report.events.length, 2);
   assert.equal(report.droppedEvents, 1);
   assert.equal(report.events[0].t, 5);
   assert.equal(report.events[1].eventType, 'pointercancel');
   assert.deepEqual(report.checkpoints.map(event => event.eventType), ['pointerdown', 'pointercancel']);
   assert.equal(report.maze.layoutId, 'maze-test');
+  assert.equal(report.maze.difficulty, 'medium');
   assert.equal(report.buildId, null);
   recorder.reset();
   assert.equal(recorder.length, 0);
@@ -755,12 +779,6 @@ test('reported corridor-edge recovery coordinates remain reversible without losi
 });
 
 test('deterministic generated-maze stress traces, reverses, resumes, and preserves ink across 64 seeds', () => {
-  const seeded = seed => () => {
-    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-    let value = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    value = value + Math.imul(value ^ value >>> 7, 61 | value) ^ value;
-    return ((value ^ value >>> 14) >>> 0) / 4294967296;
-  };
   const routeToExit = maze => {
     const queue = [[maze.start]], seen = new Set([`${maze.start.x},${maze.start.y}`]);
     while (queue.length) {
@@ -797,6 +815,56 @@ test('deterministic generated-maze stress traces, reverses, resumes, and preserv
     assert.deepEqual(session.stroke.slice(0, inkAtExit.length), inkAtExit, `seed ${seed} retains the original drawing`);
     session.end(pointer + 1000);
   }
+});
+
+test('Medium maze uses the shared tracer for collision, release, endpoint re-tap, backtracking, and completion', () => {
+  const maze = createMazeForDifficulty('medium', seeded(31));
+  const solution = findSolution(maze);
+  assert.ok(solution, 'the 10x10 maze has a valid start-to-flower path');
+  const session = createTraceSession(maze);
+  assert.equal(session.begin(701, maze.start), true);
+  const collisionIndex = solution.findIndex((cell, index) => index > 1 && index < solution.length - 1 && [
+    { x: cell.x, y: cell.y - 1 }, { x: cell.x + 1, y: cell.y },
+    { x: cell.x, y: cell.y + 1 }, { x: cell.x - 1, y: cell.y },
+  ].some(next => next.x >= 0 && next.y >= 0 && next.x < maze.width && next.y < maze.height && !canMove(maze, cell, next)));
+  assert.ok(collisionIndex > 1, 'the solution includes an internal closed wall for a realistic contact');
+  for (const cell of solution.slice(1, collisionIndex + 1)) assert.equal(session.move(701, cell).moved, true);
+  const collisionCell = solution[collisionIndex], closedNeighbor = [
+    { x: collisionCell.x, y: collisionCell.y - 1 }, { x: collisionCell.x + 1, y: collisionCell.y },
+    { x: collisionCell.x, y: collisionCell.y + 1 }, { x: collisionCell.x - 1, y: collisionCell.y },
+  ].find(next => next.x >= 0 && next.y >= 0 && next.x < maze.width && next.y < maze.height && !canMove(maze, collisionCell, next));
+  const collisionPoint = {
+    x: session.position.x + Math.sign(closedNeighbor.x - collisionCell.x) * 0.7,
+    y: session.position.y + Math.sign(closedNeighbor.y - collisionCell.y) * 0.7,
+  };
+  const expectedCell = { ...session.path.at(-1) };
+  assert.equal(session.move(701, collisionPoint).gestureTerminatedByWallCollision, true);
+  const legalTip = { ...session.position }, ink = session.stroke.map(point => ({ ...point }));
+  assert.deepEqual(session.path.at(-1), expectedCell, 'collision cannot enter the cell behind the closed edge');
+  assert.ok(Math.hypot(session.position.x - collisionPoint.x, session.position.y - collisionPoint.y) > 0.1,
+    'the accepted pencil endpoint stops before the blocked finger destination');
+  assert.equal(session.move(701, solution[collisionIndex - 1]).ignored, true);
+  assert.deepEqual(session.stroke, ink);
+  session.end(701);
+  assert.equal(session.begin(702, legalTip), true);
+  assert.equal(session.move(702, solution[collisionIndex - 1]).moved, true, 'endpoint re-tap allows legal reversal');
+  assert.deepEqual(session.stroke.slice(0, ink.length), ink, 'collision and backtracking preserve the original ink history');
+  session.end(702);
+
+  assert.equal(session.begin(703, session.position), true);
+  for (let index = collisionIndex - 2; index >= 0; index--) assert.equal(session.move(703, solution[index]).moved, true);
+  session.end(703);
+  assert.equal(session.begin(704, session.position), true);
+  let completions = 0;
+  for (const cell of solution.slice(1)) {
+    const result = session.move(704, cell);
+    assert.equal(result.moved, true);
+    if (result.complete) completions++;
+  }
+  assert.equal(completions, 1, 'the shared tracing engine completes exactly once at the Medium flower');
+  assert.deepEqual(session.path.at(-1), maze.end);
+  assert.equal(session.stroke.at(-1).x, maze.end.x);
+  assert.equal(session.stroke.at(-1).y, maze.end.y);
 });
 
 test('dead-end recovery works across all four movement directions', () => {

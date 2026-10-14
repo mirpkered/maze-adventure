@@ -1,12 +1,44 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { advancePath, canMove, createMaze, getWallSegments, isConnected, validateMaze, validatePath } from '../src/maze.js';
+import { advancePath, canMove, createMaze, createMazeForDifficulty, getWallSegments, isConnected, validateMaze, validatePath } from '../src/maze.js';
+import { mazeLayoutId } from '../src/trace-diagnostics.js';
+
+function seeded(seed) {
+  let value = seed + 1;
+  return () => { value = (value * 48271) % 2147483647; return value / 2147483647; };
+}
+
+function navigationStats(maze) {
+  let junctions = 0, deadEnds = 0, longestDeadEndBranch = 0;
+  const degree = cell => [
+    { x: cell.x, y: cell.y - 1 }, { x: cell.x + 1, y: cell.y },
+    { x: cell.x, y: cell.y + 1 }, { x: cell.x - 1, y: cell.y },
+  ].filter(next => canMove(maze, cell, next)).length;
+  for (let y = 0; y < maze.height; y++) for (let x = 0; x < maze.width; x++) {
+    const cell = { x, y }, count = degree(cell);
+    if (count >= 3) junctions++;
+    if (count !== 1) continue;
+    deadEnds++;
+    let previous = null, current = cell, branchLength = 0;
+    while (true) {
+      branchLength++;
+      const neighbors = [
+        { x: current.x, y: current.y - 1 }, { x: current.x + 1, y: current.y },
+        { x: current.x, y: current.y + 1 }, { x: current.x - 1, y: current.y },
+      ].filter(next => canMove(maze, current, next));
+      const next = neighbors.find(candidate => !previous || candidate.x !== previous.x || candidate.y !== previous.y);
+      if (!next || degree(next) !== 2) break;
+      previous = current;
+      current = next;
+    }
+    longestDeadEndBranch = Math.max(longestDeadEndBranch, branchLength);
+  }
+  return { junctions, deadEnds, longestDeadEndBranch };
+}
 
 test('generated Easy mazes are connected and every wall has a matching neighbor', () => {
   for (let seed = 0; seed < 500; seed++) {
-    let value = seed + 1;
-    const random = () => { value = (value * 48271) % 2147483647; return value / 2147483647; };
-    const maze = createMaze(7, 7, random);
+    const maze = createMaze(7, 7, seeded(seed));
     assert.equal(isConnected(maze), true);
     assert.equal(validateMaze(maze), true);
     assert.deepEqual(maze.entrance, { cell: { x: 0, y: 0 }, side: 'N' });
@@ -28,6 +60,51 @@ test('generated Easy mazes are connected and every wall has a matching neighbor'
     assert.equal(segments.some(edge => edge.orientation === 'horizontal' && edge.x === 6 && edge.y === 7), false, `seed ${seed}: exit opening`);
     assert.equal(segments.length, new Set(segments.map(edge => `${edge.orientation}:${edge.x},${edge.y}`)).size, `seed ${seed}: wall segments unique`);
   }
+});
+
+test('Easy and Medium Free Play sizes stay stable and Medium offers more varied decisions', () => {
+  const sampleCount = 256, easyStats = [], mediumStats = [], mediumLayouts = new Set();
+  for (let seed = 0; seed < sampleCount; seed++) {
+    const easy = createMazeForDifficulty('easy', seeded(seed));
+    const medium = createMazeForDifficulty('medium', seeded(seed));
+    assert.equal(easy.width, 7); assert.equal(easy.height, 7);
+    assert.equal(medium.width, 10); assert.equal(medium.height, 10);
+    assert.equal(easy.difficulty, 'easy'); assert.equal(medium.difficulty, 'medium');
+    assert.equal(isConnected(medium), true, `medium seed ${seed} remains solvable`);
+    assert.equal(validateMaze(medium), true, `medium seed ${seed} has reciprocal walls and valid boundaries`);
+    assert.deepEqual(medium.entrance, { cell: { x: 0, y: 0 }, side: 'N' });
+    assert.deepEqual(medium.exit, { cell: { x: 9, y: 9 }, side: 'S' });
+    for (let y = 0; y < 10; y++) for (let x = 0; x < 10; x++) {
+      const cell = medium.cells[y][x];
+      if (x < 9) assert.equal(cell.walls.E, medium.cells[y][x + 1].walls.W);
+      if (y < 9) assert.equal(cell.walls.S, medium.cells[y + 1][x].walls.N);
+    }
+    const walls = getWallSegments(medium);
+    for (let y = 0; y < 10; y++) {
+      assert.ok(walls.some(edge => edge.orientation === 'vertical' && edge.x === 0 && edge.y === y));
+      assert.ok(walls.some(edge => edge.orientation === 'vertical' && edge.x === 10 && edge.y === y));
+    }
+    for (let x = 1; x < 10; x++) assert.ok(walls.some(edge => edge.orientation === 'horizontal' && edge.x === x && edge.y === 0));
+    for (let x = 0; x < 9; x++) assert.ok(walls.some(edge => edge.orientation === 'horizontal' && edge.x === x && edge.y === 10));
+    assert.ok(!walls.some(edge => edge.orientation === 'horizontal' && edge.x === 0 && edge.y === 0), `medium seed ${seed}: entrance opening`);
+    assert.ok(!walls.some(edge => edge.orientation === 'horizontal' && edge.x === 9 && edge.y === 10), `medium seed ${seed}: exit opening`);
+    const stats = navigationStats(medium);
+    assert.ok(stats.junctions >= 4, `medium seed ${seed}: has multiple decision junctions`);
+    assert.ok(stats.deadEnds >= 6, `medium seed ${seed}: offers believable wrong turns`);
+    mediumStats.push(stats); easyStats.push(navigationStats(easy));
+    mediumLayouts.add(mazeLayoutId(medium));
+  }
+  const mean = (items, key) => items.reduce((sum, item) => sum + item[key], 0) / items.length;
+  assert.ok(mean(mediumStats, 'junctions') >= mean(easyStats, 'junctions') * 1.7,
+    'the larger Medium maze presents substantially more junction decisions');
+  assert.ok(mean(mediumStats, 'deadEnds') >= mean(easyStats, 'deadEnds') * 1.5,
+    'the larger Medium maze includes substantially more wrong-turn endpoints');
+  assert.ok(mean(mediumStats, 'longestDeadEndBranch') > mean(easyStats, 'longestDeadEndBranch'),
+    'Medium includes longer dead-end branches on average');
+  assert.equal(mediumLayouts.size, sampleCount, 'seeded Medium layouts retain variation');
+  assert.equal(mazeLayoutId(createMazeForDifficulty('easy', seeded(33))), mazeLayoutId(createMaze(7, 7, seeded(33))),
+    'Easy keeps the original generator topology for the same random stream');
+  assert.throws(() => createMazeForDifficulty('hard'), RangeError, 'Hard is not enabled');
 });
 
 test('exterior boundaries are complete apart from declared entrance and exit', () => {

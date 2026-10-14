@@ -54,7 +54,14 @@
           </div>
           <p class="intro">Find your way through a little maze. Let’s play a game.</p>
           <nav class="hub-menu" aria-label="Main menu">
-            <button class="hub-card primary" id="quick-play"><span class="menu-icon" aria-hidden="true">✎</span><strong>Free Play</strong><span>Quick Play · Easy maze <b aria-hidden="true">↗</b></span></button>
+            <fieldset class="difficulty-picker">
+              <legend>Choose your Free Play challenge</legend>
+              <div class="difficulty-options">
+                <label class="difficulty-option"><input type="radio" name="free-play-difficulty" value="easy" checked /><span><strong>Easy</strong><small>7×7 · A gentle start</small></span></label>
+                <label class="difficulty-option"><input type="radio" name="free-play-difficulty" value="medium" /><span><strong>Medium</strong><small>10×10 · More to explore</small></span></label>
+              </div>
+            </fieldset>
+            <button class="hub-card primary" id="quick-play"><span class="menu-icon" aria-hidden="true">✎</span><strong>Free Play</strong><span id="quick-play-description">Start Easy · 7×7 maze <b aria-hidden="true">↗</b></span></button>
             <button class="hub-card adventure" disabled aria-describedby="adventure-status"><span class="menu-icon" aria-hidden="true">✿</span><strong>Adventure</strong><span id="adventure-status">Coming Soon · Story levels</span></button>
             <div class="hub-secondary-grid" aria-label="More">
               <button class="hub-card secondary" id="open-settings"><strong>Settings</strong><span>Sound &amp; paper</span></button>
@@ -78,7 +85,7 @@
       <section id="play" class="screen play-screen" aria-labelledby="play-title" hidden>
         <div class="play-heading">
           <button class="back-button" id="back-home" aria-label="Return to home">← <span>Home</span></button>
-          <div><p class="eyebrow">FREE PLAY <span class="dot">·</span> EASY</p><h1 id="play-title" tabindex="-1">A little winding way</h1></div>
+          <div><p class="eyebrow">FREE PLAY <span class="dot">·</span> <span id="play-difficulty">EASY</span></p><h1 id="play-title" tabindex="-1">A little winding way</h1></div>
           <div class="timer-wrap"><span class="timer-label">TIME</span><output id="timer" aria-label="Elapsed time">0:00</output></div>
         </div>
         <p class="play-hint" id="play-hint">Trace from the entrance to the flower. You can lift and continue.</p>

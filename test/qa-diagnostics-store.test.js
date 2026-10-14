@@ -25,6 +25,8 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
   ] };
   const recovered = createQuickSummary(report, { observed: 2, accepted: 1, rejectedByReason: { 'closed-wall-collision': 1 }, canceled: 0, durationMs: 500 });
   assert.match(recovered, /RECOVERED AFTER LAST REJECTION/);
+  assert.match(recovered, /7x7 easy/);
+  assert.match(createQuickSummary({ ...report, maze: { ...report.maze, difficulty: 'medium', dimensions: { width: 10, height: 10 } } }), /10x10 medium/);
   assert.ok(recovered.length < 2000);
   assert.match(createQuickSummary({ ...report, events: [] }), /INSUFFICIENT EVIDENCE/);
 });

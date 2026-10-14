@@ -21,10 +21,23 @@ export function clientToViewBoxPoint(point, rect, viewBox) {
   };
 }
 
-export function svgToMazePoint(point, pad, cellSize) {
-  return { x: (point.x - pad) / cellSize - 0.5, y: (point.y - pad) / cellSize - 0.5 };
+export function getMazeGridGeometry(width, height, viewSize = 400, padding = 24) {
+  if (!Number.isFinite(width) || width < 1 || !Number.isFinite(height) || height < 1
+    || !Number.isFinite(viewSize) || viewSize <= padding * 2 || !Number.isFinite(padding) || padding < 0) {
+    throw new RangeError('Maze grid geometry requires positive dimensions and a usable viewBox.');
+  }
+  const cellSize = (viewSize - padding * 2) / Math.max(width, height);
+  return {
+    cellSize,
+    x: (viewSize - width * cellSize) / 2,
+    y: (viewSize - height * cellSize) / 2,
+  };
 }
 
-export function mazeToSvgPoint(point, pad, cellSize) {
-  return { x: pad + (point.x + 0.5) * cellSize, y: pad + (point.y + 0.5) * cellSize };
+export function svgToMazePoint(point, padX, cellSize, padY = padX) {
+  return { x: (point.x - padX) / cellSize - 0.5, y: (point.y - padY) / cellSize - 0.5 };
+}
+
+export function mazeToSvgPoint(point, padX, cellSize, padY = padX) {
+  return { x: padX + (point.x + 0.5) * cellSize, y: padY + (point.y + 0.5) * cellSize };
 }

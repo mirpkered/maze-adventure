@@ -9,7 +9,7 @@ This roadmap tracks intended phases, current state, priorities, and unresolved c
 - [x] Establish an independent GitHub repository and static web project.
 - [x] Add README, roadmap, and concise game design documentation.
 - [x] Add Mirpworks identity and responsive Home screen.
-- [x] Keep Adventure visible as a future entry; provide Easy Quick Play.
+- [x] Keep Adventure visible as a future entry; provide immediate Easy and Medium Free Play selection.
 - [x] Generate a small solvable maze and support touch, mouse, and pointer tracing.
 - [x] Stop at walls; require route retracing; preserve the endpoint when input lifts.
 - [x] Show elapsed time and pause it when the app is not actively in view.
