@@ -10,6 +10,8 @@ Free Play offers an immediate choice of Easy (7×7) or Medium (10×10), with no 
 
 Adventure is visibly marked Coming Soon. Story chapters, linked mazes, daily challenges, custom setup, cosmetics, and persistent maze progress are not implemented yet.
 
+The title screen and game surfaces use one of two bundled, offline journal themes: **The Traveler's Map** and **Camp at Dusk**. **Settings → Theme** defaults to Auto, which chooses the other theme from the previous launch when local storage is available; a manual choice stays selected between launches. Without writable local storage, Auto consistently falls back to Traveler's Map. Themes alter color, illustrations, and accents only. A paused maze can open Settings and return to the same attempt without losing its route, ink, or timer.
+
 Maze tracing keeps the legal route and the current pencil position authoritative for collision and completion. Every legal pencil mark remains visible when the player reverses, revisits a dead end, pauses, or lifts a finger. Ink never authorizes movement. Blocked excursions stop the pencil and resume without drawing a connector across a wall. The maze also supports arrow-key passage movement. Pause/resume, same-maze restart, new maze, guarded Home navigation, local sound/appearance settings, instructions, and completion replay are available.
 
 The title screen uses an original horizontal Maze Adventure logo and a matching maze medallion, styled as a Mirpworks sibling to Word Search Adventure while retaining this game's paper-and-pencil identity. The approved square app icon is unchanged. The title screen is designed to fit a typical iPhone portrait display without scrolling and uses a compact landscape layout. Very short viewports can scroll to prevent clipping.

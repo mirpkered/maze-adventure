@@ -1,12 +1,13 @@
 import { createMazeForDifficulty, FREE_PLAY_DIFFICULTIES, getWallSegments } from './maze.js';
 import { createTraceSession } from './tracing.js';
-import { DEFAULT_PREFERENCES, readPreferences, writePreferences } from './preferences.js';
+import { DEFAULT_PREFERENCES, PREFERENCES_KEY, readPreferences, writePreferences } from './preferences.js';
 import { clientToViewBoxPoint, getMazeGridGeometry, mazeToSvgPoint, svgToMazePoint, transformPoint } from './coordinates.js';
 import { createTraceRecorder, mazeLayoutId } from './trace-diagnostics.js';
 import { bindEmblemQaTrigger, closeQaSession, startQaSession } from './qa-mode.js';
 import { finalPointerMovement, pointerMovementSamples } from './pointer-samples.js';
 import { APP_BUILD_ID } from './build-info.js';
 import { createQaDiagnosticsStore, createQuickSummary, createRecentIncident } from './qa-diagnostics-store.js';
+import { applyVisualTheme, chooseLaunchTheme, THEME_PREFERENCE_OPTIONS } from './themes.js';
 
 const $ = selector => document.querySelector(selector);
 const screens = ['home', 'play', 'complete', 'settings', 'help', 'about'].map(id => $(`#${id}`));
@@ -20,7 +21,28 @@ let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, time
 let selectedDifficulty = 'easy';
 let paused = false, activeOverlay = null, returnFocus = null, resumeAfterOverlay = false;
 let isolatedPage = [], bodyOverflow = '';
-let preferences = readPreferences();
+function preferenceStorageAvailable() {
+  if (!deviceStorage) return false;
+  const key = `${PREFERENCES_KEY}.availability-check`;
+  try {
+    const prior = deviceStorage.getItem(key);
+    deviceStorage.setItem(key, '1');
+    if (prior === null) deviceStorage.removeItem(key);
+    else deviceStorage.setItem(key, prior);
+    return true;
+  } catch { return false; }
+}
+const canPersistPreferences = preferenceStorageAvailable();
+let preferences = readPreferences(deviceStorage);
+let activeVisualTheme = chooseLaunchTheme(preferences.themePreference, preferences.lastAutoTheme, Math.random, canPersistPreferences);
+if (preferences.themePreference === 'auto') preferences = writePreferences({ ...preferences, lastAutoTheme: activeVisualTheme }, deviceStorage);
+applyVisualTheme(document, activeVisualTheme);
+for (const { value, label } of THEME_PREFERENCE_OPTIONS) {
+  const option = [...$('#visual-theme').options].find(item => item.value === value);
+  if (option) option.textContent = label;
+  else $('#visual-theme').add(new Option(label, value));
+}
+let settingsReturnToPlay = false;
 let qaEnabled = startQaSession(location, history, deviceStorage);
 let lastRawPointer = null, lastClientPointer = null;
 let traceRecorder = qaEnabled ? createTraceRecorder({ limit: 400 }) : null;
@@ -169,10 +191,10 @@ function formatTime(milliseconds) {
   const seconds = Math.floor(milliseconds / 1000);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
-function activeScreen(screen) {
+function activeScreen(screen, { safeToUpdate = true } = {}) {
   document.body.dataset.screen = screen.id;
   for (const item of screens) item.hidden = item !== screen;
-  if (['home', 'settings', 'help', 'about'].includes(screen.id)) window.dispatchEvent(new Event('maze-adventure:safe-to-update'));
+  if (safeToUpdate && ['home', 'settings', 'help', 'about'].includes(screen.id)) window.dispatchEvent(new Event('maze-adventure:safe-to-update'));
   if (screen !== $('#play')) pauseTimer();
   else if (!paused && !activeOverlay) startTimer();
 }
@@ -251,11 +273,39 @@ function setTheme() { document.body.dataset.paperTheme = preferences.paperTheme;
 function updateSettingsControls() {
   $('#sound-effects').checked = preferences.soundEffects;
   $('#paper-theme').value = preferences.paperTheme;
+  $('#visual-theme').value = preferences.themePreference;
   setTheme();
 }
 function savePreferences(update) {
   preferences = writePreferences({ ...preferences, ...update });
   updateSettingsControls();
+}
+function saveThemePreference(themePreference) {
+  if (themePreference === 'auto') {
+    activeVisualTheme = chooseLaunchTheme('auto', activeVisualTheme, Math.random, canPersistPreferences);
+    preferences = writePreferences({ ...preferences, themePreference, lastAutoTheme: activeVisualTheme }, deviceStorage);
+  } else {
+    activeVisualTheme = themePreference;
+    preferences = writePreferences({ ...preferences, themePreference }, deviceStorage);
+  }
+  applyVisualTheme(document, activeVisualTheme);
+  updateSettingsControls();
+}
+function openSettingsFromPause() {
+  settingsReturnToPlay = true;
+  closeOverlay({ restore: false });
+  updateSettingsControls();
+  $('#settings-home').textContent = '← Return to Maze';
+  activeScreen($('#settings'), { safeToUpdate: false });
+  $('#settings-title').focus({ preventScroll: true });
+}
+function returnFromSettings() {
+  if (!settingsReturnToPlay) { showHome(); return; }
+  settingsReturnToPlay = false;
+  paused = false;
+  $('#settings-home').textContent = '← Home';
+  activeScreen($('#play'));
+  $('#pause-game').focus({ preventScroll: true });
 }
 
 function playCompletionSound() {
@@ -431,6 +481,7 @@ $('#back-home').addEventListener('click', openHomeConfirmation);
 $('#brand-home').addEventListener('click', event => { event.preventDefault(); $('#play').hidden ? showHome() : openHomeConfirmation(); });
 $('#complete-home').addEventListener('click', showHome);
 $('#pause-game').addEventListener('click', () => openOverlay($('#pause-dialog'), { pause: true }));
+$('#pause-settings').addEventListener('click', openSettingsFromPause);
 function resumeFromPause() { paused = false; closeOverlay(); startTimer(); }
 $('#resume-game').addEventListener('click', resumeFromPause);
 $('#close-pause').addEventListener('click', resumeFromPause);
@@ -440,8 +491,8 @@ $('#pause-home').addEventListener('click', returnToHome);
 $('#confirm-leave').addEventListener('click', returnToHome);
 $('#cancel-leave').addEventListener('click', () => closeOverlay({ resume: true }));
 
-$('#open-settings').addEventListener('click', () => { updateSettingsControls(); activeScreen($('#settings')); $('#settings-title').focus(); });
-$('#settings-home').addEventListener('click', showHome);
+$('#open-settings').addEventListener('click', () => { settingsReturnToPlay = false; $('#settings-home').textContent = '← Home'; updateSettingsControls(); activeScreen($('#settings')); $('#settings-title').focus({ preventScroll: true }); });
+$('#settings-home').addEventListener('click', returnFromSettings);
 $('#open-help').addEventListener('click', () => { activeScreen($('#help')); $('#help-title').focus({ preventScroll: true }); });
 $('#help-home').addEventListener('click', showHome);
 $('#help-play').addEventListener('click', () => makeMaze());
@@ -450,9 +501,16 @@ $('#about-home').addEventListener('click', showHome);
 $('#open-credits').addEventListener('click', () => { activeScreen($('#about')); $('#about-title').focus({ preventScroll: true }); });
 $('#sound-effects').addEventListener('change', event => savePreferences({ soundEffects: event.currentTarget.checked }));
 $('#paper-theme').addEventListener('change', event => savePreferences({ paperTheme: event.currentTarget.value }));
+$('#visual-theme').addEventListener('change', event => saveThemePreference(event.currentTarget.value));
 $('#reset-settings').addEventListener('click', () => openOverlay($('#reset-dialog')));
 $('#cancel-reset').addEventListener('click', () => closeOverlay());
-$('#confirm-reset').addEventListener('click', () => { preferences = writePreferences({ ...DEFAULT_PREFERENCES }); updateSettingsControls(); closeOverlay(); });
+$('#confirm-reset').addEventListener('click', () => {
+  preferences = writePreferences({ ...DEFAULT_PREFERENCES }, deviceStorage);
+  activeVisualTheme = chooseLaunchTheme('auto', activeVisualTheme, Math.random, canPersistPreferences);
+  preferences = writePreferences({ ...preferences, lastAutoTheme: activeVisualTheme }, deviceStorage);
+  applyVisualTheme(document, activeVisualTheme);
+  updateSettingsControls(); closeOverlay();
+});
 
 async function copyQaText(value, label) {
   const fallback = $('#trace-diagnostic-fallback'), status = $('#trace-diagnostic-status');

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" fill="none">
+  <defs>
+    <linearGradient id="paper" x1="48" y1="34" x2="586" y2="449" gradientUnits="userSpaceOnUse"><stop stop-color="#F5E8C4"/><stop offset="1" stop-color="#D9C596"/></linearGradient>
+    <linearGradient id="hill" x1="176" y1="205" x2="466" y2="402" gradientUnits="userSpaceOnUse"><stop stop-color="#81906A"/><stop offset="1" stop-color="#4F654D"/></linearGradient>
+    <filter id="shadow" x="28" y="24" width="584" height="444" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feGaussianBlur stdDeviation="10"/></filter>
+  </defs>
+  <ellipse cx="323" cy="426" rx="240" ry="22" fill="#544629" opacity=".18" filter="url(#shadow)"/>
+  <path d="M64 81 551 49l31 333-485 44L64 81Z" fill="url(#paper)" stroke="#94794A" stroke-width="3"/>
+  <path d="m91 102 107-7 16 123-103 13-20-129Zm139-9 115-8 17 135-118 8-14-135Zm154-10 130-9 15 136-129 9-16-136ZM119 263l103-13 14 121-100 9-17-117Zm145-17 118-8 12 119-116 10-14-121Zm158-9 128-9 12 111-128 12-12-114Z" fill="#EBDEB9" opacity=".62" stroke="#B29A68" stroke-width="2"/>
+  <path d="m91 102 107-7 16 123-103 13-20-129Zm139-9 115-8 17 135-118 8-14-135Zm154-10 130-9 15 136-129 9-16-136ZM119 263l103-13 14 121-100 9-17-117Zm145-17 118-8 12 119-116 10-14-121Zm158-9 128-9 12 111-128 12-12-114Z" stroke="#9F8759" stroke-width="1.5" stroke-dasharray="3 7"/>
+  <path d="m116 203 30-43 28 28 21-37 24 60m-9 146 42-63 28 25 29-47 35 71m11-167 36-52 27 34 26-40 34 51" stroke="#72805E" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".82"/>
+  <path d="M117 329c42-49 46-2 77-37s30 11 64-12 47-39 69-7 45 8 64-23 41-26 58-2 42-13 67-63" stroke="#B77536" stroke-width="5" stroke-linecap="round" stroke-dasharray="2 13"/>
+  <path d="m505 104 9 25 26 1-21 15 7 25-21-15-21 15 8-25-21-15 26-1 8-25Z" fill="#B27A34" stroke="#7E602D" stroke-width="3"/>
+  <circle cx="117" cy="329" r="9" fill="#B86742" stroke="#F7EDCF" stroke-width="4"/>
+  <path d="M417 351c9-17 23-18 28-3 6-14 20-13 27 1m-55 17c8-12 17-12 22-1 6-10 17-9 21 2" stroke="#667A53" stroke-width="4" stroke-linecap="round"/>
+  <path d="m83 57 18 8m430-17 17 9M570 403l16 10m-500 7 18 11" stroke="#FFF5D8" stroke-width="6" stroke-linecap="round" opacity=".8"/>
+</svg>

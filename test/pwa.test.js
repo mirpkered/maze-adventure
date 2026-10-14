@@ -61,13 +61,16 @@ test('service worker is app-scoped, refreshes from network, and removes obsolete
   assert.match(worker, /name\.startsWith\(CACHE_PREFIX\) && name !== CACHE_NAME/);
   assert.match(worker, /await self\.skipWaiting\(\)/);
   assert.match(worker, /await self\.clients\.claim\(\)/);
-  assert.match(worker, /shell-v19/);
+  assert.match(worker, /shell-v20/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /src\/trace-diagnostics\.js/);
   assert.match(worker, /\.\/src\/coordinates\.js/);
   assert.match(worker, /\.\/src\/pointer-samples\.js/);
   assert.match(worker, /src\/build-info\.js/);
   assert.match(worker, /src\/update-policy\.js/);
+  assert.match(worker, /\.\/src\/themes\.js/);
+  assert.match(worker, /\.\/art\/travelers-map\.svg/);
+  assert.match(worker, /\.\/art\/camp-at-dusk\.svg/);
   const game = await readFile(new URL('../src/game.js', import.meta.url), 'utf8');
   assert.equal(game.match(/serviceWorker\.register/g)?.length ?? 0, 0,
     'the PWA registers and checks for updates from one module only');
