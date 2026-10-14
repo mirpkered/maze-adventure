@@ -60,3 +60,24 @@ test('theme setting is immediate without recreating gameplay; artwork is in the 
   assert.match(css, /prefers-reduced-motion:\s*reduce[\s\S]*?\.theme-artwork\s*\{\s*filter:\s*none/);
   for (const asset of ['./src/themes.js', './art/travelers-map.svg', './art/camp-at-dusk.svg']) assert.ok(worker.includes(asset), `${asset} is cached for offline startup`);
 });
+
+test('themes use distinct environment materials and complete phone-sized artwork compositions', async () => {
+  const css = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const map = await readFile(new URL('../art/travelers-map.svg', import.meta.url), 'utf8');
+  const camp = await readFile(new URL('../art/camp-at-dusk.svg', import.meta.url), 'utf8');
+  const mapStyles = css.slice(css.indexOf('/* Traveler\'s Map:'), css.indexOf('/* Camp at Dusk:'));
+  const campStyles = css.slice(css.indexOf('/* Camp at Dusk:'), css.indexOf('@media (prefers-reduced-motion: no-preference)', css.indexOf('/* Camp at Dusk:')));
+  assert.match(mapStyles, /background:\s*repeating-linear-gradient\(0deg/);
+  assert.match(mapStyles, /0 4px 0 #715232/);
+  assert.match(mapStyles, /0 4px 0 #203729/);
+  assert.match(campStyles, /dashed #f5e2b9/);
+  assert.match(campStyles, /#60472f/);
+  assert.match(campStyles, /#ffbf5488/);
+  assert.doesNotMatch(mapStyles, /border-radius:\s*12px/);
+  assert.doesNotMatch(campStyles, /border-radius:\s*12px/);
+  assert.match(map, /viewBox="0 0 800 340"/);
+  assert.match(camp, /viewBox="0 0 800 340"/);
+  assert.match(css, /\.theme-artwork\s*\{[^}]*z-index:\s*0/);
+  assert.match(css, /\.art-caption\s*\{[^}]*z-index:\s*2/);
+  assert.match(css, /height:\s*clamp\(128px,\s*20dvh,\s*170px\)/);
+});

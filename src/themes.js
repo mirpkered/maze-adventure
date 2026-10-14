@@ -6,7 +6,7 @@ export const VISUAL_THEMES = Object.freeze({
     artCaption: "FIELD NOTES · THE LONG WAY ROUND",
     iconTreatment: "compass",
     chromeColor: "#dfcfaa",
-    backgroundTreatment: "radial-gradient(ellipse at 76% 8%, rgba(255,239,188,.82), transparent 25%), radial-gradient(ellipse at 9% 88%, rgba(93,119,76,.25), transparent 35%), linear-gradient(135deg, #e6d5ad, #d3c194)",
+    backgroundTreatment: "repeating-radial-gradient(ellipse at 58% 44%, transparent 0 47px, rgba(86,103,67,.055) 48px 49px, transparent 50px 76px), radial-gradient(ellipse at 76% 8%, rgba(255,239,188,.82), transparent 25%), radial-gradient(ellipse at 9% 88%, rgba(93,119,76,.25), transparent 35%), linear-gradient(135deg, #e6d5ad, #d3c194)",
     tokens: Object.freeze({
       pageInk: "#344632", ink: "#344632", muted: "#5e654f", surface: "#f7edcf", line: "#c8b27b",
       accent: "#a86629", accentHover: "#89501f", accentText: "#fff9e8", green: "#496344",
@@ -20,7 +20,7 @@ export const VISUAL_THEMES = Object.freeze({
     artCaption: "CAMP NOTES · UNDER THE PINES",
     iconTreatment: "lantern",
     chromeColor: "#1a2c40",
-    backgroundTreatment: "radial-gradient(ellipse at 82% 9%, rgba(225,160,74,.22), transparent 23%), radial-gradient(ellipse at 10% 82%, rgba(57,101,112,.32), transparent 36%), linear-gradient(145deg, #1a2c40, #243b50 65%, #334c5a)",
+    backgroundTreatment: "radial-gradient(circle at 13% 10%, #f4dfbc88 0 1px, transparent 2px), radial-gradient(circle at 57% 6%, #f4dfbc77 0 1px, transparent 2px), radial-gradient(circle at 87% 24%, #f4dfbc88 0 1px, transparent 2px), radial-gradient(ellipse at 82% 9%, rgba(225,160,74,.25), transparent 23%), radial-gradient(ellipse at 10% 82%, rgba(57,101,112,.32), transparent 36%), radial-gradient(ellipse at 50% 112%, rgba(7,18,27,.48), transparent 52%), linear-gradient(145deg, #1a2c40, #243b50 65%, #334c5a)",
     tokens: Object.freeze({
       pageInk: "#f7edcf", ink: "#293f50", muted: "#5e7078", surface: "#fff4dc", line: "#ddcda7",
       accent: "#b96d29", accentHover: "#94511d", accentText: "#fffaf0", green: "#526f68",

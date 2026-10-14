@@ -449,7 +449,8 @@ body[data-visual-theme] .home-art.title-art {
   color: var(--theme-pageInk);
 }
 body[data-visual-theme] .home-art.title-art::after { border-color: color-mix(in srgb, var(--theme-pageInk) 32%, transparent); }
-.theme-artwork { z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 8px 10px rgba(30,35,30,.13)); }
+.theme-artwork { position: relative; z-index: 0; display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 8px 10px rgba(30,35,30,.13)); }
+.art-caption { z-index: 2; width: max-content; max-width: calc(100% - 24px); left: 50%; transform: translateX(-50%); padding: 4px 9px; border: 1px solid color-mix(in srgb, var(--theme-line) 80%, transparent); background: var(--theme-surface); color: var(--theme-ink); font-size: 8px; letter-spacing: .14em; box-shadow: 0 2px 4px var(--theme-shadow); }
 body[data-theme-icon="compass"] .menu-icon { color: var(--theme-accent); }
 body[data-theme-icon="lantern"] .menu-icon { color: var(--theme-accent); filter: drop-shadow(0 0 5px color-mix(in srgb, var(--theme-accent) 42%, transparent)); }
 body[data-visual-theme] .hub-card { border-color: var(--theme-line); background: var(--theme-surface); color: var(--theme-ink); box-shadow: 0 3px 0 color-mix(in srgb, var(--theme-pageInk) 13%, transparent), 0 7px 17px var(--theme-shadow); }
@@ -499,6 +500,61 @@ body[data-visual-theme] .button-primary:hover { background: var(--theme-accent-h
 body[data-visual-theme] .text-button { color: var(--theme-accent); }
 body[data-visual-theme="traveler-map"] .theme-artwork { filter: drop-shadow(0 9px 9px rgba(68,54,27,.2)); }
 body[data-visual-theme="camp-dusk"] .theme-artwork { filter: drop-shadow(0 12px 13px rgba(4,12,20,.28)); }
+
+/* Traveler's Map: a cartographer's table, folded survey sheet, and forest-ink controls. */
+body[data-visual-theme="traveler-map"] .topbar { border-bottom: 1px dashed #977848; }
+body[data-visual-theme="traveler-map"] .site-footer { border-top: 1px dashed #977848; }
+body[data-screen="home"][data-visual-theme="traveler-map"] .home-copy {
+  position: relative; padding: 12px; border: 1px solid #aa8954; border-radius: 3px 12px 3px 3px;
+  background: repeating-linear-gradient(0deg,transparent 0 23px,#72805d10 24px,#72805d10 25px,transparent 26px),linear-gradient(135deg,#fbf1d8,#ead9b1);
+  box-shadow: inset 0 0 0 3px #f7e9c9, inset 0 0 0 4px #c8ad73, 0 4px 0 #715232, 0 11px 24px #46351e40;
+}
+body[data-visual-theme="traveler-map"] .home-art.title-art {
+  height: min(460px, 42vw); min-height: 330px; padding: 8px; overflow: visible; border: 4px solid #72532f; border-radius: 3px;
+  background: repeating-linear-gradient(3deg,#805d37 0 3px,#9d7848 4px 8px,#765431 9px 11px);
+  box-shadow: inset 0 0 0 2px #d3b66e, 0 4px 0 #51381f, 0 14px 26px #39271052;
+}
+body[data-visual-theme="traveler-map"] .home-art.title-art::after { inset: 4px; border: 1px dashed #f6e4b6; border-radius: 0; }
+body[data-visual-theme="traveler-map"] .home-art .art-caption { bottom: 7px; border-color: #997443; background: #f5e6c0; color: #4a5339; }
+body[data-visual-theme="traveler-map"] .hub-card { border-radius: 3px 9px 3px 3px; border-color: #b49358; background: repeating-linear-gradient(0deg,#fff9e7 0 3px,#f8edcf 4px 6px); box-shadow: inset 0 0 0 2px #fff9e8, 0 3px 0 #8a6b3b, 0 6px 12px #54422228; }
+body[data-visual-theme="traveler-map"] .hub-card.primary { border-color: #304b36; background: linear-gradient(150deg,#526d50,#304c39); box-shadow: inset 0 0 0 2px #718567, 0 3px 0 #203729, 0 8px 16px #34281842; }
+body[data-visual-theme="traveler-map"] .hub-card.primary .menu-icon { border: 1px solid #d9c17d; border-radius: 50%; background: radial-gradient(circle,#d8bd78 0 2px,#304b36 3px); color: #fff1c9; }
+body[data-visual-theme="traveler-map"] .hub-card.adventure { border-style: dashed; background: linear-gradient(112deg,#e5d7b1,#f7eccf); color: #45533e; }
+body[data-visual-theme="traveler-map"] .hub-card.secondary { border-color: #c2a66e; background: linear-gradient(135deg,#fff5db,#ead7ac); }
+body[data-visual-theme="traveler-map"] .difficulty-option { border-radius: 3px 8px 3px 3px; background: linear-gradient(135deg,#fff5dc,#eadab5); box-shadow: 0 2px 0 #8c6a3b40; }
+body[data-visual-theme="traveler-map"] .difficulty-option:has(input:checked) { background: linear-gradient(135deg,#f8e9c1,#dfca93); box-shadow: inset 0 0 0 2px #f8e9c1, inset 0 0 0 3px #a97a38, 0 2px 0 #80603c; }
+body[data-visual-theme="traveler-map"] :is(.settings-panel,.complete-card,.dialog-card) { border-radius: 3px 14px 3px 3px; background: repeating-linear-gradient(0deg,transparent 0 24px,#71805d0a 25px,#71805d0a 26px,transparent 27px),linear-gradient(135deg,#fbf1d8,#f0e2bf); box-shadow: inset 0 0 0 3px #fbf1d8, inset 0 0 0 4px #c5a86c, 0 4px 0 #745537, 0 12px 28px #36291738; }
+body[data-visual-theme="traveler-map"] :is(.small-button,.settings-panel select) { border-radius: 2px; border-color: #aa8954; background: linear-gradient(#fff8e5,#ecddb9); color: #354a38; box-shadow: inset 0 1px #fffdf4, 0 2px 0 #a58a5e; }
+body[data-visual-theme="traveler-map"] .button-primary { border: 1px solid #c6a560; border-radius: 3px; background: linear-gradient(#587452,#304c39); box-shadow: inset 0 0 0 2px #76906a, 0 4px 0 #203729, 0 8px 15px #3e302044; }
+body[data-visual-theme="traveler-map"] .maze-paper { border: 5px solid #8a683c; border-radius: 3px; box-shadow: inset 0 0 0 2px #d9bd7a, 0 4px 0 #5b4328, 0 15px 30px #37271552; }
+
+/* Camp at Dusk: pine-shadowed sky, stitched canvas patches, and a lantern-lit trail marker. */
+body[data-visual-theme="camp-dusk"] .topbar { border-bottom: 1px solid #d6ad6b77; }
+body[data-visual-theme="camp-dusk"] .site-footer { border-top: 1px solid #d6ad6b77; color: #f2dfb8; }
+body[data-screen="home"][data-visual-theme="camp-dusk"] .home-copy { position: relative; padding: 0; }
+body[data-visual-theme="camp-dusk"] .home-art.title-art {
+  height: min(460px, 42vw); min-height: 330px; padding: 7px; overflow: visible; border: 5px solid #60472f; border-radius: 9px;
+  background: repeating-linear-gradient(0deg,#a78253 0 2px,#b99768 3px 5px),linear-gradient(145deg,#b8915f,#77583b);
+  box-shadow: inset 0 0 0 2px #e3cb96, inset 0 0 0 4px #70563c, 0 4px 0 #392b20, 0 13px 26px #020b145c;
+}
+body[data-visual-theme="camp-dusk"] .home-art.title-art::after { inset: 4px; border: 1px dashed #f5e2b9; border-radius: 5px; }
+body[data-visual-theme="camp-dusk"] .home-art .art-caption { bottom: 6px; border: 1px dashed #60472f; border-radius: 3px; background: #f5e7c7; color: #34494d; }
+body[data-visual-theme="camp-dusk"] .hub-card { border: 1px dashed #92734c; border-radius: 5px; background: repeating-linear-gradient(0deg,#fff4da 0 3px,#f4e5c5 4px 6px); box-shadow: inset 0 0 0 3px #fff7e6a6, 0 3px 0 #695038, 0 7px 13px #07111d45; color: #293f50; }
+body[data-visual-theme="camp-dusk"] .hub-card.primary { border: 2px solid #edbd69; border-radius: 5px; background: repeating-linear-gradient(0deg,#ffffff0b 0 2px,transparent 3px 7px),linear-gradient(110deg,#8a5433,#593b2a 54%,#344936); box-shadow: inset 0 0 0 2px #e5be7655, 0 4px 0 #34251b, 0 9px 18px #030b13a8; }
+body[data-visual-theme="camp-dusk"] .hub-card.primary .menu-icon { border: 1px solid #f1cf81; border-radius: 50%; background: radial-gradient(circle,#ffda8a 0 22%,#ce873b 25% 40%,#53402d 43%); color: #fff0bf; filter: drop-shadow(0 0 7px #ffbf5488); }
+body[data-visual-theme="camp-dusk"] .hub-card.adventure { border-style: dashed; background: linear-gradient(110deg,#e4d0aa,#c7b18a); color: #34483e; }
+body[data-visual-theme="camp-dusk"] .hub-card.secondary { border: 1px dashed #987951; background: linear-gradient(135deg,#fff3d6,#e8d4aa); }
+body[data-visual-theme="camp-dusk"] .difficulty-option { border: 1px dashed #987951; border-radius: 4px; background: linear-gradient(135deg,#fff4dc,#e8d6b2); box-shadow: inset 0 0 0 3px #fff7e7a8, 0 3px 0 #392c21; }
+body[data-visual-theme="camp-dusk"] .difficulty-option:has(input:checked) { border: 2px solid #d99843; background: linear-gradient(135deg,#ffedc8,#dcbf88); box-shadow: inset 0 0 0 2px #fff4d5, inset 0 0 0 3px #c48339, 0 3px 0 #392c21; }
+body[data-visual-theme="camp-dusk"] :is(.settings-panel,.complete-card,.dialog-card) { border: 2px solid #76563a; border-radius: 6px; background: repeating-linear-gradient(0deg,transparent 0 25px,#95764c12 26px,#95764c12 27px,transparent 28px),linear-gradient(135deg,#fff3d7,#ead8b4); box-shadow: inset 0 0 0 2px #fff7e6, inset 0 0 0 4px #c3a16c, 0 4px 0 #34261c, 0 13px 28px #020a135c; }
+body[data-visual-theme="camp-dusk"] :is(.small-button,.settings-panel select) { border: 1px dashed #92734c; border-radius: 4px; background: linear-gradient(#fff5dc,#ead8b5); color: #293f50; box-shadow: inset 0 0 0 2px #fff8e9, 0 3px 0 #4a3828; }
+body[data-visual-theme="camp-dusk"] .button-primary { border: 1px solid #edbd69; border-radius: 4px; background: repeating-linear-gradient(0deg,#ffffff0b 0 2px,transparent 3px 7px),linear-gradient(110deg,#8a5433,#593b2a 54%,#344936); box-shadow: inset 0 0 0 2px #e5be7655, 0 4px 0 #34251b, 0 8px 15px #07111d66; }
+body[data-visual-theme="camp-dusk"] .maze-paper { border: 5px solid #60472f; border-radius: 7px; box-shadow: inset 0 0 0 2px #e2c992, 0 4px 0 #34261b, 0 15px 28px #020a135c; }
+@media (max-width: 760px) {
+  body[data-visual-theme="traveler-map"] .home-art.title-art,
+  body[data-visual-theme="camp-dusk"] .home-art.title-art { flex: 0 1 auto; width: 100%; height: clamp(128px, 20dvh, 170px); min-height: 128px; max-height: 170px; }
+  .home-art.title-art .art-caption { bottom: 3px; font-size: 7px; }
+}
 @media (prefers-reduced-motion: no-preference) {
   body[data-visual-theme] .hub-card { transition-duration: 180ms; }
 }
