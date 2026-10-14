@@ -563,3 +563,240 @@ body[data-visual-theme="camp-dusk"] .maze-paper { border: 5px solid #60472f; bor
 @media (prefers-reduced-motion: reduce) {
   .theme-artwork { filter: none !important; }
 }
+
+/* Organic journal pass: keep the shared layout, and let each world shape its surfaces. */
+body[data-visual-theme] .home-copy {
+  position: relative;
+  z-index: 1;
+  padding: clamp(10px, 1.6vw, 18px);
+  border: 0;
+  box-shadow: none;
+}
+body[data-visual-theme] .home-art.title-art {
+  position: relative;
+  isolation: isolate;
+  height: 100%;
+  min-height: 300px;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+body[data-visual-theme] .home-art.title-art::after { content: none; }
+body[data-visual-theme] .theme-artwork {
+  position: relative;
+  z-index: 0;
+  width: 112%;
+  max-width: none;
+  height: 100%;
+  object-fit: contain;
+  overflow: visible;
+  filter: none;
+}
+body[data-visual-theme] .home-art .art-caption {
+  z-index: 2;
+  right: auto;
+  bottom: 4%;
+  left: 50%;
+  width: max-content;
+  max-width: 90%;
+  transform: translateX(-50%) rotate(-1.5deg);
+  padding: 2px 8px 4px;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 8px;
+  letter-spacing: .16em;
+}
+body[data-visual-theme] .hub-card,
+body[data-visual-theme] .difficulty-card {
+  transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
+}
+body[data-visual-theme] .hub-card:focus-visible,
+body[data-visual-theme] .difficulty-card:focus-visible { outline-color: var(--theme-focus); }
+body[data-visual-theme] :is(.settings-panel,.complete-card,.dialog-card) {
+  border-color: color-mix(in srgb, var(--theme-line) 70%, transparent);
+  border-radius: 18px 12px 20px 13px;
+  box-shadow: 0 12px 30px var(--theme-shadow);
+}
+body[data-visual-theme] :is(.small-button,.settings-panel select) { border-radius: 11px 8px 12px 8px; }
+
+/* Traveler's Map: worn survey paper, wandering contour lines, and ink-led controls. */
+body[data-screen="home"][data-visual-theme="traveler-map"] {
+  background:
+    radial-gradient(ellipse at 82% 13%, rgba(255,247,214,.7), transparent 25%),
+    repeating-radial-gradient(ellipse at 76% 53%, transparent 0 49px, rgba(97,113,73,.07) 50px 51px, transparent 52px 78px),
+    linear-gradient(135deg,#e9ddbd,#d7c89f 68%,#caba91);
+}
+body[data-screen="home"][data-visual-theme="traveler-map"] .home-copy {
+  padding: clamp(16px, 2vw, 24px);
+  border-radius: 22px 8px 18px 11px;
+  background:
+    linear-gradient(105deg, transparent 0 97%, rgba(158,126,69,.18) 97.2% 97.5%, transparent 97.7%),
+    repeating-linear-gradient(0deg, transparent 0 27px, rgba(91,111,74,.075) 28px, transparent 29px),
+    linear-gradient(145deg,rgba(255,249,229,.78),rgba(242,229,192,.65));
+  box-shadow: 0 12px 32px rgba(73,56,30,.12);
+}
+body[data-visual-theme="traveler-map"] .home-art.title-art { transform: rotate(-1deg); }
+body[data-visual-theme="traveler-map"] .theme-artwork { transform: rotate(-1deg); }
+body[data-visual-theme="traveler-map"] .art-caption { color: #506348; }
+body[data-visual-theme="traveler-map"] .hub-card {
+  border: 0;
+  border-bottom: 1px solid rgba(132,101,51,.35);
+  border-radius: 10px 3px 12px 4px;
+  background: linear-gradient(105deg,rgba(255,250,230,.78),rgba(241,227,190,.62));
+  box-shadow: 0 2px 7px rgba(78,59,32,.07);
+  color: #344632;
+}
+body[data-visual-theme="traveler-map"] .hub-card.primary {
+  border: 0;
+  border-radius: 14px 5px 15px 6px;
+  background: linear-gradient(112deg,#4f684a,#354d3a 76%,#2f4736);
+  box-shadow: 0 3px 0 #263c2e, 0 9px 18px rgba(54,65,42,.2);
+}
+body[data-visual-theme="traveler-map"] .hub-card.primary .menu-icon {
+  border-color: #d8bd78;
+  background: radial-gradient(circle,#d8bd78 0 2px,#304b36 3px);
+  color: #fff1c9;
+}
+body[data-visual-theme="traveler-map"] .hub-card.adventure {
+  border: 1px dashed rgba(105,126,85,.65);
+  border-radius: 8px 14px 7px 13px;
+  background: rgba(234,226,198,.62);
+}
+body[data-visual-theme="traveler-map"] .hub-card.secondary { border-bottom-color: rgba(132,101,51,.24); }
+body[data-visual-theme="traveler-map"] .difficulty-card {
+  border: 0;
+  border-bottom: 2px solid #b59861;
+  border-radius: 19px 7px 18px 9px;
+  background:
+    repeating-linear-gradient(0deg,transparent 0 25px,rgba(91,111,74,.09) 26px,transparent 27px),
+    linear-gradient(145deg,#fff7df,#ecddb8);
+  box-shadow: 0 5px 18px rgba(69,52,29,.12);
+}
+body[data-visual-theme="traveler-map"] .difficulty-card:hover { transform: translateY(-3px) rotate(-.4deg); }
+body[data-visual-theme="traveler-map"] .difficulty-symbol { border-style: dashed; }
+body[data-visual-theme="traveler-map"] .difficulty-card-action { border-color: #c8b27b; }
+body[data-visual-theme="traveler-map"] :is(.settings-panel,.complete-card,.dialog-card) {
+  border: 0;
+  border-left: 3px solid #a9864c;
+  background:
+    repeating-linear-gradient(0deg,transparent 0 25px,rgba(91,111,74,.08) 26px,transparent 27px),
+    linear-gradient(140deg,#fbf3dc,#f0e3c3);
+}
+body[data-visual-theme="traveler-map"] :is(.small-button,.settings-panel select) {
+  border-color: #ad8f5b;
+  background: linear-gradient(#fff8e5,#ecddb9);
+  color: #354a38;
+  box-shadow: 0 2px 0 #a58a5e;
+}
+body[data-visual-theme="traveler-map"] .button-primary {
+  border-radius: 13px 5px 14px 6px;
+  background: linear-gradient(110deg,#526e4e,#304c39);
+  box-shadow: 0 4px 0 #203729, 0 8px 15px #3e302044;
+}
+
+/* Camp at Dusk: open twilight, soft lantern glow, and canvas-note controls. */
+body[data-screen="home"][data-visual-theme="camp-dusk"] {
+  background:
+    radial-gradient(ellipse at 76% 48%,rgba(236,174,91,.2),transparent 28%),
+    radial-gradient(circle at 14% 15%,#f4dfbc88 0 1px,transparent 2px),
+    radial-gradient(circle at 85% 20%,#f4dfbc88 0 1px,transparent 2px),
+    linear-gradient(155deg,#1a2c40,#253c50 67%,#314a51);
+}
+body[data-screen="home"][data-visual-theme="camp-dusk"] .home-copy {
+  padding: clamp(15px, 1.9vw, 22px);
+  border-radius: 10px 22px 9px 19px;
+  background:
+    radial-gradient(ellipse at 100% 0%,rgba(255,217,145,.28),transparent 33%),
+    repeating-linear-gradient(0deg,transparent 0 30px,rgba(118,88,55,.08) 31px,transparent 32px),
+    linear-gradient(135deg,#fff3d8,#eeddb8);
+  box-shadow: 0 10px 26px rgba(3,12,20,.32), 0 0 30px rgba(244,184,94,.09);
+}
+body[data-visual-theme="camp-dusk"] .home-copy h1 { color: #293f50; }
+body[data-visual-theme="camp-dusk"] .home-copy .intro { color: #53646b; }
+body[data-visual-theme="camp-dusk"] .home-art.title-art { transform: translateY(3px); }
+body[data-visual-theme="camp-dusk"] .theme-artwork { transform: scale(1.07); }
+body[data-visual-theme="camp-dusk"] .art-caption { color: #f5dfb4; text-shadow: 0 1px 6px #07141dcc; }
+body[data-visual-theme="camp-dusk"] .hub-card {
+  border: 1px solid rgba(137,105,65,.42);
+  border-radius: 12px 7px 14px 8px;
+  background: linear-gradient(115deg,#fff4dc,#ead7b3);
+  box-shadow: 0 3px 0 rgba(100,72,46,.4), 0 7px 12px rgba(9,21,28,.12);
+  color: #293f50;
+}
+body[data-visual-theme="camp-dusk"] .hub-card.primary {
+  border: 1px solid #e7b963;
+  border-radius: 9px 15px 9px 14px;
+  background: linear-gradient(110deg,#855333,#64432d 54%,#405044);
+  box-shadow: 0 4px 0 #392b20, 0 0 20px rgba(238,178,85,.2);
+}
+body[data-visual-theme="camp-dusk"] .hub-card.primary .menu-icon {
+  border: 1px solid #f0cd83;
+  background: radial-gradient(circle,#ffdc8e 0 24%,#d78d40 27% 45%,#53402d 49%);
+  color: #fff0bf;
+  filter: drop-shadow(0 0 7px #ffbf5488);
+}
+body[data-visual-theme="camp-dusk"] .hub-card.adventure {
+  border: 1px dashed #ac8959;
+  border-radius: 15px 8px 12px 6px;
+  background: linear-gradient(115deg,#e8d4af,#cfbc99);
+}
+body[data-visual-theme="camp-dusk"] .hub-card.secondary { border-style: solid; }
+body[data-visual-theme="camp-dusk"] .difficulty-card {
+  border: 1px solid #ab8655;
+  border-bottom: 3px solid #73543a;
+  border-radius: 13px 20px 11px 18px;
+  background:
+    radial-gradient(ellipse at 100% 0%,rgba(255,215,137,.24),transparent 38%),
+    repeating-linear-gradient(0deg,transparent 0 29px,rgba(125,96,61,.08) 30px,transparent 31px),
+    linear-gradient(140deg,#fff4dc,#ead8b6);
+  box-shadow: 0 10px 22px rgba(2,10,19,.3);
+}
+body[data-visual-theme="camp-dusk"] .difficulty-card:hover { transform: translateY(-3px) rotate(.3deg); }
+body[data-visual-theme="camp-dusk"] .difficulty-symbol { border-color: #c89958; background: rgba(255,220,153,.26); }
+body[data-visual-theme="camp-dusk"] .difficulty-card-heading strong { color: #293f50; }
+body[data-visual-theme="camp-dusk"] .difficulty-card-action { border-color: #c6a773; }
+body[data-visual-theme="camp-dusk"] :is(.settings-panel,.complete-card,.dialog-card) {
+  border: 1px solid #ab8655;
+  border-bottom: 3px solid #73543a;
+  background:
+    radial-gradient(ellipse at 100% 0%,rgba(255,215,137,.2),transparent 38%),
+    repeating-linear-gradient(0deg,transparent 0 29px,rgba(125,96,61,.08) 30px,transparent 31px),
+    linear-gradient(140deg,#fff4dc,#ead8b6);
+}
+body[data-visual-theme="camp-dusk"] :is(.small-button,.settings-panel select) {
+  border-color: #aa8252;
+  background: linear-gradient(#fff5dc,#ead8b5);
+  color: #293f50;
+  box-shadow: 0 3px 0 #695038;
+}
+body[data-visual-theme="camp-dusk"] .button-primary {
+  border-radius: 9px 15px 9px 14px;
+  background: linear-gradient(110deg,#8a5433,#593b2a 54%,#344936);
+  box-shadow: 0 4px 0 #34251b, 0 0 18px rgba(238,178,85,.18);
+}
+@media (max-width: 760px) {
+  body[data-visual-theme] .home-art.title-art {
+    flex: 0 1 auto;
+    height: clamp(128px, 20dvh, 170px);
+    min-height: 128px;
+    max-height: 170px;
+  }
+  body[data-visual-theme] .theme-artwork { width: 108%; }
+  body[data-visual-theme] .home-art .art-caption { bottom: -2px; font-size: 7px; }
+  body[data-screen="home"][data-visual-theme="traveler-map"] .home-copy { padding: 11px 12px; }
+  body[data-screen="home"][data-visual-theme="camp-dusk"] .home-copy { padding: 11px 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-visual-theme] .hub-card,
+  body[data-visual-theme] .difficulty-card { transition: none; }
+  body[data-visual-theme="traveler-map"] .home-art.title-art,
+  body[data-visual-theme="traveler-map"] .theme-artwork,
+  body[data-visual-theme="camp-dusk"] .home-art.title-art,
+  body[data-visual-theme="camp-dusk"] .theme-artwork { transform: none; }
+}
