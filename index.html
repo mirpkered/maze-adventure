@@ -54,14 +54,7 @@
           </div>
           <p class="intro">Find your way through a little maze. Let’s play a game.</p>
           <nav class="hub-menu" aria-label="Main menu">
-            <fieldset class="difficulty-picker">
-              <legend>Choose your Free Play challenge</legend>
-              <div class="difficulty-options">
-                <label class="difficulty-option"><input type="radio" name="free-play-difficulty" value="easy" checked /><span><strong>Easy</strong><small>7×7 · A gentle start</small></span></label>
-                <label class="difficulty-option"><input type="radio" name="free-play-difficulty" value="medium" /><span><strong>Medium</strong><small>10×10 · More to explore</small></span></label>
-              </div>
-            </fieldset>
-            <button class="hub-card primary" id="quick-play"><span class="menu-icon" aria-hidden="true">✎</span><strong>Free Play</strong><span id="quick-play-description">Start Easy · 7×7 maze <b aria-hidden="true">↗</b></span></button>
+            <button class="hub-card primary" id="quick-play"><span class="menu-icon" aria-hidden="true">✎</span><strong>Free Play</strong><span id="quick-play-description">Choose your maze challenge. <b aria-hidden="true">↗</b></span></button>
             <button class="hub-card adventure" disabled aria-describedby="adventure-status"><span class="menu-icon" aria-hidden="true">✿</span><strong>Adventure</strong><span id="adventure-status">Coming Soon · Story levels</span></button>
             <div class="hub-secondary-grid" aria-label="More">
               <button class="hub-card secondary" id="open-settings"><strong>Settings</strong><span>Sound &amp; themes</span></button>
@@ -74,6 +67,23 @@
         <div class="home-art title-art" aria-hidden="true">
           <img id="theme-artwork" class="theme-artwork" src="./art/travelers-map.svg" alt="" draggable="false" />
           <span class="art-caption" id="theme-art-caption">FIELD NOTES · THE LONG WAY ROUND</span>
+        </div>
+      </section>
+
+      <section id="difficulty" class="screen info-screen difficulty-screen" aria-labelledby="difficulty-title" hidden>
+        <header class="view-header"><button class="back-button" id="difficulty-home">← Home</button><div><p class="eyebrow">FREE PLAY <span class="dot">·</span> YOUR CHALLENGE</p><h1 id="difficulty-title" tabindex="-1">Choose a difficulty</h1></div></header>
+        <p class="difficulty-intro">Both trails are open. Pick the kind of winding way you feel like exploring.</p>
+        <div class="difficulty-card-list" aria-label="Available maze difficulties">
+          <button class="difficulty-card" type="button" data-start-difficulty="easy">
+            <span class="difficulty-card-heading"><span class="difficulty-symbol" aria-hidden="true">✎</span><span><strong>Easy</strong><small>7×7 maze</small></span><span class="difficulty-card-arrow" aria-hidden="true">↗</span></span>
+            <span class="difficulty-description">A gentle first trail with room to find your rhythm.</span>
+            <span class="difficulty-card-action">Start Easy</span>
+          </button>
+          <button class="difficulty-card" type="button" data-start-difficulty="medium">
+            <span class="difficulty-card-heading"><span class="difficulty-symbol" aria-hidden="true">✿</span><span><strong>Medium</strong><small>10×10 maze</small></span><span class="difficulty-card-arrow" aria-hidden="true">↗</span></span>
+            <span class="difficulty-description">A longer expedition with more junctions and side paths.</span>
+            <span class="difficulty-card-action">Start Medium</span>
+          </button>
         </div>
       </section>
 
@@ -110,7 +120,7 @@
       <section id="help" class="screen info-screen" aria-labelledby="help-title" hidden>
         <header class="view-header"><button class="back-button" id="help-home">← Home</button><div><p class="eyebrow">A QUICK GUIDE</p><h1 id="help-title" tabindex="-1">How to play</h1></div></header>
         <section class="settings-panel help-panel"><h2>Trace the open path</h2><ol><li>Touch or click the START entrance.</li><li>Drag through the open corridors to the flower.</li><li>Walls stop the pencil. To leave a dead end, trace back along your line.</li><li>Lift your finger whenever you need to. Touch the end of your line to continue.</li></ol><p>Keyboard option: focus the maze and use the arrow keys to move through one passage at a time. There is no countdown and no penalty for taking your time.</p></section>
-        <button class="button button-primary" id="help-play">Start a maze <span aria-hidden="true">↗</span></button>
+        <button class="button button-primary" id="help-play">Choose a difficulty <span aria-hidden="true">↗</span></button>
       </section>
 
       <section id="about" class="screen info-screen" aria-labelledby="about-title" hidden>

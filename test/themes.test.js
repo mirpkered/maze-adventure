@@ -80,4 +80,6 @@ test('themes use distinct environment materials and complete phone-sized artwork
   assert.match(css, /\.theme-artwork\s*\{[^}]*z-index:\s*0/);
   assert.match(css, /\.art-caption\s*\{[^}]*z-index:\s*2/);
   assert.match(css, /height:\s*clamp\(128px,\s*20dvh,\s*170px\)/);
+  assert.match(css, /body\[data-visual-theme="traveler-map"\] \.difficulty-card/);
+  assert.match(css, /body\[data-visual-theme="camp-dusk"\] \.difficulty-card/);
 });

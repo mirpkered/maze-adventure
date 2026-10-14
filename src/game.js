@@ -10,7 +10,7 @@ import { createQaDiagnosticsStore, createQuickSummary, createRecentIncident } fr
 import { applyVisualTheme, chooseLaunchTheme, THEME_PREFERENCE_OPTIONS } from './themes.js';
 
 const $ = selector => document.querySelector(selector);
-const screens = ['home', 'play', 'complete', 'settings', 'help', 'about'].map(id => $(`#${id}`));
+const screens = ['home', 'difficulty', 'play', 'complete', 'settings', 'help', 'about'].map(id => $(`#${id}`));
 const svg = $('#maze');
 let deviceStorage = null;
 try { deviceStorage = window.localStorage; } catch { /* Private or embedded contexts may block storage. */ }
@@ -194,7 +194,7 @@ function formatTime(milliseconds) {
 function activeScreen(screen, { safeToUpdate = true } = {}) {
   document.body.dataset.screen = screen.id;
   for (const item of screens) item.hidden = item !== screen;
-  if (safeToUpdate && ['home', 'settings', 'help', 'about'].includes(screen.id)) window.dispatchEvent(new Event('maze-adventure:safe-to-update'));
+  if (safeToUpdate && ['home', 'difficulty', 'settings', 'help', 'about'].includes(screen.id)) window.dispatchEvent(new Event('maze-adventure:safe-to-update'));
   if (screen !== $('#play')) pauseTimer();
   else if (!paused && !activeOverlay) startTimer();
 }
@@ -331,7 +331,6 @@ function playCompletionSound() {
 function makeMaze(reuse = false) {
   if (!reuse || !maze) maze = createMazeForDifficulty(selectedDifficulty);
   selectedDifficulty = maze.difficulty ?? selectedDifficulty;
-  document.querySelector(`input[name="free-play-difficulty"][value="${selectedDifficulty}"]`).checked = true;
   $('#play-difficulty').textContent = FREE_PLAY_DIFFICULTIES[selectedDifficulty].label.toUpperCase();
   currentLayoutId = mazeLayoutId(maze);
   traceSession = createTraceSession(maze);
@@ -405,6 +404,7 @@ function openOverlay(overlay, { pause = false, resumeOnClose = false } = {}) {
   (overlay.querySelector('button:not(:disabled)') ?? overlay).focus({ preventScroll: true });
 }
 function showHome() { closeOverlay({ restore: false }); paused = false; activeScreen($('#home')); $('#quick-play').focus({ preventScroll: true }); }
+function showDifficultySelection() { activeScreen($('#difficulty')); $('#difficulty-title').focus({ preventScroll: true }); }
 function openHomeConfirmation() {
   clearPointer();
   openOverlay($('#confirm-dialog'), { pause: true, resumeOnClose: true });
@@ -466,13 +466,16 @@ document.addEventListener('visibilitychange', () => document.hidden ? pauseTimer
 window.addEventListener('blur', pauseTimer);
 window.addEventListener('focus', startTimer);
 
-for (const option of document.querySelectorAll('input[name="free-play-difficulty"]')) {
-  option.addEventListener('change', () => {
-    selectedDifficulty = option.value;
-    $('#quick-play-description').textContent = `Start ${FREE_PLAY_DIFFICULTIES[selectedDifficulty].label} · ${FREE_PLAY_DIFFICULTIES[selectedDifficulty].width}×${FREE_PLAY_DIFFICULTIES[selectedDifficulty].height} maze`;
+$('#quick-play').addEventListener('click', showDifficultySelection);
+$('#difficulty-home').addEventListener('click', showHome);
+for (const option of document.querySelectorAll('[data-start-difficulty]')) {
+  option.addEventListener('click', () => {
+    const difficulty = option.dataset.startDifficulty;
+    if (!Object.hasOwn(FREE_PLAY_DIFFICULTIES, difficulty)) return;
+    selectedDifficulty = difficulty;
+    makeMaze();
   });
 }
-$('#quick-play').addEventListener('click', () => makeMaze());
 $('#new-maze').addEventListener('click', () => makeMaze());
 $('#next-maze').addEventListener('click', () => makeMaze());
 $('#restart-maze').addEventListener('click', () => makeMaze(true));
@@ -495,7 +498,7 @@ $('#open-settings').addEventListener('click', () => { settingsReturnToPlay = fal
 $('#settings-home').addEventListener('click', returnFromSettings);
 $('#open-help').addEventListener('click', () => { activeScreen($('#help')); $('#help-title').focus({ preventScroll: true }); });
 $('#help-home').addEventListener('click', showHome);
-$('#help-play').addEventListener('click', () => makeMaze());
+$('#help-play').addEventListener('click', showDifficultySelection);
 $('#open-about').addEventListener('click', () => { activeScreen($('#about')); $('#about-title').focus({ preventScroll: true }); });
 $('#about-home').addEventListener('click', showHome);
 $('#open-credits').addEventListener('click', () => { activeScreen($('#about')); $('#about-title').focus({ preventScroll: true }); });
