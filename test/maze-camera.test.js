@@ -20,7 +20,7 @@ test('close camera stays at 2x magnification and follows each maze boundary with
   }
 });
 
-test('camera recentering changes only the viewBox; gesture mapping uses its captured screen transform', () => {
+test('camera follow changes only the viewBox; gesture mapping uses its captured screen transform', () => {
   const camera = createMazeCamera({ viewSize: 400, zoom: 2 });
   camera.center({ x: 90, y: 90 });
   const capturedScreenToSvg = { a: .5, b: 0, c: 0, d: .5, e: 100, f: 40 };
@@ -31,6 +31,47 @@ test('camera recentering changes only the viewBox; gesture mapping uses its capt
   assert.notEqual(followedView.x, earlierView.x, 'the visual camera follows the pencil');
   assert.deepEqual(transformPoint(fingerBeforeFollow, capturedScreenToSvg), mappedBeforeFollow,
     'the active gesture keeps mapping against the pointerdown transform instead of the newly recentered viewBox');
+});
+
+test('camera follows at the dead-zone edge without a recenter jump or post-stop drift', () => {
+  const camera = createMazeCamera({ viewSize: 400, zoom: 2 });
+  camera.center({ x: 100, y: 100 });
+
+  const before = camera.snapshot();
+  const first = camera.follow({ x: 141, y: 100 });
+  assert.ok(Math.abs(first.x - before.x) <= 1.000001,
+    'crossing the inset by one maze unit moves the camera by at most that amount');
+  assert.ok(Math.abs((141 - first.x) - 140) < 1e-9,
+    'the pencil remains at the same edge of the close-view follow zone');
+
+  const next = camera.follow({ x: 142, y: 100 });
+  assert.ok(Math.abs(next.x - first.x) <= 1.000001,
+    'each immediate update follows only the new endpoint movement');
+  assert.deepEqual(camera.follow({ x: 142, y: 100 }), next,
+    'the camera remains still as soon as the pencil stops');
+});
+
+test('camera follow is symmetric on all four directions and remains clamped at maze bounds', () => {
+  const camera = createMazeCamera({ viewSize: 400, zoom: 2 });
+  const directions = [
+    { origin: { x: 100, y: 100 }, next: { x: 141, y: 100 }, axis: 'x' },
+    { origin: { x: 100, y: 100 }, next: { x: 59, y: 100 }, axis: 'x' },
+    { origin: { x: 100, y: 100 }, next: { x: 100, y: 141 }, axis: 'y' },
+    { origin: { x: 100, y: 100 }, next: { x: 100, y: 59 }, axis: 'y' },
+  ];
+  for (const { origin, next, axis } of directions) {
+    const initial = camera.center(origin);
+    const followed = camera.follow(next);
+    assert.ok(Math.abs(followed[axis] - initial[axis]) <= 1.000001);
+    assert.ok(next[axis] >= followed[axis] && next[axis] <= followed[axis] + followed.width);
+  }
+
+  for (const point of [{ x: 0, y: 200 }, { x: 400, y: 200 }, { x: 200, y: 0 }, { x: 200, y: 400 }]) {
+    camera.center({ x: 200, y: 200 });
+    const followed = camera.follow(point);
+    assert.ok(followed.x >= -26 && followed.x <= 226);
+    assert.ok(followed.y >= -26 && followed.y <= 226);
+  }
 });
 
 test('repeated corner turns do not accumulate camera-relative coordinate drift', () => {
