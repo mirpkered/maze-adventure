@@ -1,27 +1,68 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 340" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" fill="none" role="presentation">
   <defs>
-    <linearGradient id="sheet" x1="160" y1="55" x2="652" y2="301" gradientUnits="userSpaceOnUse"><stop stop-color="#fff5d8"/><stop offset="1" stop-color="#ddc596"/></linearGradient>
-    <radialGradient id="wash" cx="0" cy="0" r="1" gradientTransform="matrix(260 180 -240 347 468 157)" gradientUnits="userSpaceOnUse"><stop stop-color="#fff9e7" stop-opacity=".84"/><stop offset="1" stop-color="#c7ad76" stop-opacity=".1"/></radialGradient>
-    <filter id="soft-shadow" x="64" y="15" width="691" height="323" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feGaussianBlur stdDeviation="12"/></filter>
-    <pattern id="grain" width="18" height="18" patternUnits="userSpaceOnUse"><path d="M3 6h2m8 6h3M5 16h2" stroke="#765b35" stroke-opacity=".12" stroke-width="1"/></pattern>
+    <linearGradient id="paper" x1="170" y1="61" x2="694" y2="533" gradientUnits="userSpaceOnUse"><stop stop-color="#fff7de"/><stop offset=".55" stop-color="#f0dfb6"/><stop offset="1" stop-color="#ddc89a"/></linearGradient>
+    <radialGradient id="sunwash" cx="0" cy="0" r="1" gradientTransform="matrix(232 292 -272 216 516 221)" gradientUnits="userSpaceOnUse"><stop stop-color="#fff9e9" stop-opacity=".86"/><stop offset="1" stop-color="#e3c994" stop-opacity="0"/></radialGradient>
+    <linearGradient id="river" x1="232" y1="409" x2="648" y2="168" gradientUnits="userSpaceOnUse"><stop stop-color="#8ba09a"/><stop offset="1" stop-color="#66847c"/></linearGradient>
+    <filter id="paper-shadow" x="49" y="33" width="827" height="549" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feGaussianBlur stdDeviation="15"/></filter>
+    <pattern id="fibers" width="30" height="27" patternUnits="userSpaceOnUse"><path d="m3 8 6-1m13 12 5-.7M8 25l3-.4m8-21 2-.2" stroke="#836b41" stroke-opacity=".14" stroke-width="1.2" stroke-linecap="round"/></pattern>
   </defs>
-  <path d="M111 294c98 28 458 17 582-17" stroke="#342919" stroke-opacity=".28" stroke-width="19" stroke-linecap="round" filter="url(#soft-shadow)"/>
-  <path d="M100 244c18-69 30-143 82-176 73-47 191 14 282-12 103-30 200 14 245 73 43 57 27 115 2 143-37 43-126 10-199 32-94 29-190 8-263 20-83 14-168-13-149-80Z" fill="url(#sheet)" stroke="#9a7748" stroke-opacity=".55" stroke-width="2"/>
-  <path d="M100 244c18-69 30-143 82-176 73-47 191 14 282-12 103-30 200 14 245 73 43 57 27 115 2 143-37 43-126 10-199 32-94 29-190 8-263 20-83 14-168-13-149-80Z" fill="url(#wash)"/>
-  <path d="M100 244c18-69 30-143 82-176 73-47 191 14 282-12 103-30 200 14 245 73 43 57 27 115 2 143-37 43-126 10-199 32-94 29-190 8-263 20-83 14-168-13-149-80Z" fill="url(#grain)"/>
-  <path d="M139 102c67-32 121 12 188-7 66-18 118 1 176-14 61-16 114 4 152 34M124 120c68-31 126 13 194-6 68-18 123 2 180-14 59-16 116 4 151 31M151 263c68-31 115 11 184-9 75-22 123 1 177-15 45-13 92-7 127 6" stroke="#71805e" stroke-opacity=".31" stroke-width="2"/>
-  <path d="M168 240c33-21 51-57 86-49 31 8 45 36 79 22 33-14 38-67 79-67 43 0 47 45 81 36 31-9 28-47 70-47 32 0 42 19 61 9" stroke="#52694b" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".83"/>
-  <path d="M168 240c33-21 51-57 86-49 31 8 45 36 79 22 33-14 38-67 79-67 43 0 47 45 81 36 31-9 28-47 70-47 32 0 42 19 61 9" stroke="#f7edcf" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 12"/>
-  <path d="M174 244c48-27 55-3 99-29s61 9 104-18 68 8 102-21 65 1 98-26" stroke="#b56037" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="2 11"/>
-  <circle cx="174" cy="244" r="8" fill="#bb6243" stroke="#fff5d8" stroke-width="4"/>
-  <g transform="translate(623 92) rotate(12)">
-    <circle r="42" stroke="#a8854a" stroke-opacity=".65" stroke-width="2"/>
-    <circle r="31" stroke="#a8854a" stroke-opacity=".35" stroke-width="1.5" stroke-dasharray="2 5"/>
-    <path d="m0-32 8 25 24 7-24 7L0 32l-8-25-24-7 24-7 8-25Z" fill="#b88e45" stroke="#775b31" stroke-width="2" stroke-linejoin="round"/>
-    <path d="M0-27v54M-27 0h54" stroke="#f8e8bf" stroke-width="1.5"/>
-    <circle r="4" fill="#f8e8bf"/>
+  <!-- A loose, handled survey sheet rests in a pool of warm light. -->
+  <path d="M87 433c-28-64 20-112 16-174-5-55 36-116 94-125 53-9 93 15 153-22 57-35 103-43 161-17 70 31 133 6 196 33 63 28 94 82 68 133-22 43 7 88-32 127-43 43-112 31-158 57-61 35-116 35-185 23-49-8-98 36-162 28-76-9-126-25-151-63Z" fill="#3f3526" fill-opacity=".17" filter="url(#paper-shadow)"/>
+  <path d="M91 414c-21-58 15-102 13-158-2-58 31-113 86-123 52-10 93 13 151-19 58-31 102-41 158-18 65 27 126 7 189 30 59 22 92 70 74 119-17 46 7 86-31 121-40 38-103 28-149 51-60 31-113 32-177 22-54-9-99 31-158 23-73-9-137-15-156-48Z" fill="url(#paper)" stroke="#a88a56" stroke-opacity=".58" stroke-width="2"/>
+  <path d="M91 414c-21-58 15-102 13-158-2-58 31-113 86-123 52-10 93 13 151-19 58-31 102-41 158-18 65 27 126 7 189 30 59 22 92 70 74 119-17 46 7 86-31 121-40 38-103 28-149 51-60 31-113 32-177 22-54-9-99 31-158 23-73-9-137-15-156-48Z" fill="url(#sunwash)"/>
+  <path d="M91 414c-21-58 15-102 13-158-2-58 31-113 86-123 52-10 93 13 151-19 58-31 102-41 158-18 65 27 126 7 189 30 59 22 92 70 74 119-17 46 7 86-31 121-40 38-103 28-149 51-60 31-113 32-177 22-54-9-99 31-158 23-73-9-137-15-156-48Z" fill="url(#fibers)"/>
+
+  <!-- Curving ridgelines and a stream make the map feel hand-surveyed. -->
+  <g stroke="#748163" stroke-linecap="round" opacity=".42">
+    <path d="M151 229c37-38 87-45 134-20 43 24 74 27 113 5 42-23 77-22 112-1 35 20 74 17 108-3" stroke-width="2.2"/>
+    <path d="M140 242c39-41 91-49 141-23 42 22 74 25 114 3 44-24 82-24 119-2 37 21 79 18 116-5" stroke-width="1.6"/>
+    <path d="M175 369c34-27 74-31 109-10 38 23 64 21 98 1 38-22 73-22 107-2 38 23 75 23 113 6" stroke-width="2"/>
+    <path d="M168 382c37-30 79-34 117-12 38 22 64 20 99 0 39-22 75-22 112 0 40 24 79 24 119 5" stroke-width="1.4"/>
   </g>
-  <path d="m696 207 24 17-26 5 2-22Z" fill="#c5a46c" opacity=".7"/>
-  <path d="m690 227 28-3-3 14" stroke="#9d7846" stroke-width="2" stroke-linecap="round"/>
-  <path d="m260 286 88-4m-7 11 27-3" stroke="#a17b43" stroke-width="2" stroke-linecap="round" opacity=".65"/>
+  <path d="M180 282c31-31 52-46 83-39 30 7 41 33 72 30 32-3 50-35 80-28 31 7 35 39 65 40 28 2 46-29 74-24 26 4 41 21 59 18 19-2 29-19 49-21" stroke="url(#river)" stroke-width="10" stroke-linecap="round"/>
+  <path d="M180 282c31-31 52-46 83-39 30 7 41 33 72 30 32-3 50-35 80-28 31 7 35 39 65 40 28 2 46-29 74-24 26 4 41 21 59 18 19-2 29-19 49-21" stroke="#eaf0d8" stroke-opacity=".8" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 12"/>
+  <path d="M173 309c35-16 58 3 89-10 27-12 49 4 76-6 30-11 47 6 78-4 34-11 49 9 80-4 34-14 57 5 85-6 22-9 40-24 66-22" stroke="#a55f3b" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="1 11"/>
+
+  <!-- Small hill, pine and footpath symbols sit in the land rather than in a frame. -->
+  <g stroke="#4e6346" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m244 191 21-32 22 32m-39-9h34" stroke-width="2.4"/>
+    <path d="m293 183 16-24 17 24m-29-7h24" stroke-width="2"/>
+    <path d="M339 212c9-12 21-12 30 0m-36 7c13-17 29-17 42 0m-22-1v17" stroke-width="2"/>
+    <path d="M495 371c8-11 18-11 26 0m-31 8c12-15 24-15 37 0m-19-1v18" stroke-width="2"/>
+    <path d="M553 360c8-10 18-10 26 0m-31 7c12-14 24-14 37 0m-19-1v18" stroke-width="2"/>
+  </g>
+
+  <!-- The route has a start, a handwritten detour and a brass destination pin. -->
+  <path d="M169 350c30 19 44 1 67 10 22 9 23 31 48 34 24 3 40-22 62-15 24 8 14 35 41 42 25 7 42-15 65-9 22 6 20 31 43 36 23 5 41-13 60-7" stroke="#6b784e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".86"/>
+  <path d="M169 350c30 19 44 1 67 10 22 9 23 31 48 34 24 3 40-22 62-15 24 8 14 35 41 42 25 7 42-15 65-9 22 6 20 31 43 36 23 5 41-13 60-7" stroke="#f7edcf" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="2 12"/>
+  <circle cx="169" cy="350" r="9" fill="#bc6846" stroke="#fff5d8" stroke-width="4"/>
+  <g transform="translate(555 441) rotate(7)">
+    <path d="M0-38c-20 0-34 15-34 33 0 24 34 56 34 56S34 19 34-5C34-23 20-38 0-38Z" fill="#b27e36" stroke="#76582f" stroke-width="2"/>
+    <circle cy="-6" r="13" fill="#f6e5bd" stroke="#76582f" stroke-width="2"/>
+    <path d="m0-16 4 8 9 1-7 6 2 9-8-5-8 5 2-9-7-6 9-1 4-8Z" fill="#71815a"/>
+  </g>
+
+  <!-- Brass compass and a folded corner are small tools on the open sheet. -->
+  <g transform="translate(705 155) rotate(13)">
+    <circle r="48" fill="#ead7a9" fill-opacity=".48" stroke="#a9874e" stroke-width="2"/>
+    <circle r="39" stroke="#9b7945" stroke-opacity=".65" stroke-width="1.2" stroke-dasharray="2 5"/>
+    <path d="m0-34 8 24 25 10-25 8L0 34l-8-26-25-8 25-10 8-24Z" fill="#b28a42" stroke="#6e5734" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="m0-29 4 24 24 5-24 4-4 25-4-25-24-4 24-5 4-24Z" fill="#fbf0ce" opacity=".86"/>
+    <circle r="4" fill="#6b784e"/>
+  </g>
+  <path d="m744 398 52-14c-2 19 6 33 21 42l-52 12c-14-11-21-24-21-40Z" fill="#c8ae79" fill-opacity=".58"/>
+  <path d="M742 393c14 7 25 5 41-1m-29 52c10 6 20 6 32 0" stroke="#92754c" stroke-opacity=".45" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- A pencil, a pressed leaf and quick field-note marks give the sheet a human scale. -->
+  <g transform="translate(125 473) rotate(-17)">
+    <path d="m0 10 77-41 11 19L11 29Z" fill="#c36a49" stroke="#754b37" stroke-width="2" stroke-linejoin="round"/>
+    <path d="m77-31 10 19 12-14-11-18Z" fill="#e7c887" stroke="#754b37" stroke-width="2"/>
+    <path d="m0 10-8 27 19-8" fill="#dfc89d" stroke="#754b37" stroke-width="2" stroke-linejoin="round"/>
+    <path d="m-8 37 10-5-6-6" fill="#443a2b"/>
+  </g>
+  <g transform="translate(642 353) rotate(20)" stroke="#71805e" stroke-linecap="round">
+    <path d="M0 34C9 11 23-7 45-20" stroke-width="2.5"/>
+    <path d="M15 12C0 4-4-5-1-13c12 1 21 7 23 17M25-1c-2-15 3-25 14-30 8 11 8 22-2 32M7 22c-16-2-25 3-31 13 10 8 20 8 31-1" fill="#83916c" fill-opacity=".58" stroke-width="1.6" stroke-linejoin="round"/>
+  </g>
+  <path d="M319 465c21-7 40-6 62 1m-47 12 28-2m-171-81 31 6" stroke="#7f6742" stroke-opacity=".55" stroke-width="2" stroke-linecap="round"/>
 </svg>

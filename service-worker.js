@@ -1,11 +1,12 @@
 const CACHE_PREFIX = 'mirpworks-maze-adventure-';
-const CACHE_NAME = `${CACHE_PREFIX}shell-v23`;
+const CACHE_NAME = `${CACHE_PREFIX}shell-v24`;
 const APP_BASE = new URL('./', self.registration.scope);
 const SHELL_FILES = [
   './',
   './index.html',
   './manifest.webmanifest',
   './src/styles.css',
+  './src/home-art-direction.css',
   './src/game.js',
   './src/build-info.js',
   './src/maze.js',

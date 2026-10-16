@@ -1,0 +1,394 @@
+/* A home-screen field guide: atmosphere belongs to the page, not a picture frame. */
+body[data-visual-theme] {
+  --surface-edge: color-mix(in srgb, var(--theme-pageInk) 22%, transparent);
+  --surface-shadow: 0 11px 28px var(--theme-shadow);
+  color: var(--theme-pageInk);
+  background: var(--theme-background);
+  --ink: var(--theme-ink);
+  --muted: var(--theme-muted);
+  --rust: var(--theme-accent);
+  --green: var(--theme-green);
+  --paper: var(--theme-surface);
+  --line: var(--theme-line);
+}
+
+body[data-visual-theme] .app-shell { position: relative; isolation: isolate; }
+body[data-visual-theme] .app-shell::before {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background-image: radial-gradient(rgba(255,255,255,.17) .55px, transparent .8px);
+  background-size: 5px 5px;
+  opacity: .28;
+}
+body[data-visual-theme] .topbar,
+body[data-visual-theme] .site-footer {
+  border-color: color-mix(in srgb, var(--theme-pageInk) 24%, transparent);
+}
+body[data-visual-theme] .wordmark,
+body[data-visual-theme] .tagline,
+body[data-visual-theme] .site-footer,
+body[data-visual-theme] .eyebrow,
+body[data-visual-theme] .intro,
+body[data-visual-theme] .difficulty-intro,
+body[data-visual-theme] .back-button,
+body[data-visual-theme] .play-hint,
+body[data-visual-theme] .play-footer,
+body[data-visual-theme] .timer-label,
+body[data-visual-theme] .timer-wrap output { color: var(--theme-pageInk); }
+body[data-visual-theme] .mark {
+  background: var(--theme-accent);
+  color: var(--theme-accentText);
+  box-shadow: 0 2px 7px var(--theme-shadow);
+}
+body[data-visual-theme] :is(button,a,select,input):focus-visible {
+  outline: 3px solid var(--theme-focus);
+  outline-offset: 3px;
+}
+
+/* The home screen is one composed spread: the landscape and paper menu share space. */
+body[data-screen="home"] .home-screen {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
+  align-items: center;
+  gap: clamp(18px, 3vw, 46px);
+  padding: clamp(8px, 2vh, 20px) 0;
+  overflow: hidden;
+}
+body[data-screen="home"] .home-copy {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 530px;
+  justify-self: end;
+  padding: clamp(17px, 2.4vw, 30px);
+}
+body[data-screen="home"] .home-copy::before {
+  position: absolute;
+  top: 21px;
+  left: 0;
+  width: 16px;
+  height: 1px;
+  background: var(--theme-accent);
+  content: '';
+  opacity: .72;
+}
+body[data-screen="home"] .title-kicker {
+  margin-bottom: 13px;
+  font-size: 9px;
+  letter-spacing: .17em;
+}
+body[data-screen="home"] .title-branding { align-items: center; gap: 10px; }
+body[data-screen="home"] .qa-emblem-trigger { filter: drop-shadow(0 2px 3px var(--theme-shadow)); }
+body[data-screen="home"] .intro {
+  max-width: 350px;
+  margin: 15px 0 19px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+body[data-screen="home"] .hub-menu {
+  position: relative;
+  max-width: 470px;
+  gap: 9px;
+}
+body[data-screen="home"] .hub-menu::before {
+  display: block;
+  margin: 0 0 1px 3px;
+  color: var(--theme-muted);
+  content: 'CHOOSE A PATH';
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .19em;
+  opacity: .78;
+}
+body[data-screen="home"] .hub-card {
+  min-height: 54px;
+  padding: 9px 14px;
+  color: var(--theme-ink);
+  text-align: left;
+  text-decoration: none;
+  transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+body[data-screen="home"] .hub-card strong { font-size: 13px; }
+body[data-screen="home"] .hub-card span { color: var(--theme-muted); font-size: 10px; }
+body[data-screen="home"] .hub-card.primary {
+  min-height: 68px;
+  padding: 11px 15px;
+  color: var(--theme-accentText);
+}
+body[data-screen="home"] .hub-card.primary span { color: color-mix(in srgb, var(--theme-accentText) 88%, transparent); }
+body[data-screen="home"] .hub-card.adventure { min-height: 55px; }
+body[data-screen="home"] .hub-secondary-grid { gap: 7px; margin-top: 2px; }
+body[data-screen="home"] .hub-card.secondary { min-height: 46px; padding: 7px 11px; }
+body[data-screen="home"] .hub-card:not(:disabled):hover { transform: translateY(-2px); }
+body[data-screen="home"] .home-art.title-art {
+  position: relative;
+  z-index: 0;
+  width: 100%;
+  height: min(100%, 570px);
+  min-height: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+body[data-screen="home"] .home-art.title-art::after { content: none; }
+body[data-screen="home"] .theme-artwork {
+  display: block;
+  width: 112%;
+  max-width: none;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 12px var(--theme-shadow));
+}
+body[data-screen="home"] .art-caption {
+  right: 0;
+  bottom: 3%;
+  left: auto;
+  width: max-content;
+  max-width: 100%;
+  padding: 4px 0 4px 11px;
+  border: 0;
+  border-left: 1px solid currentColor;
+  background: transparent;
+  color: var(--theme-pageInk);
+  font-size: 8px;
+  letter-spacing: .15em;
+  text-align: left;
+  box-shadow: none;
+}
+
+/* Traveler: worn survey leaf, pencilled route notes, forest ink and brass details. */
+body[data-visual-theme="traveler-map"] {
+  background:
+    radial-gradient(ellipse at 83% 18%, rgba(255,248,214,.55), transparent 30%),
+    repeating-radial-gradient(ellipse at 80% 45%, transparent 0 48px, rgba(77,99,62,.07) 49px 50px, transparent 51px 76px),
+    linear-gradient(135deg,#e8ddc2 0%,#d8c79f 56%,#d2c49f 100%);
+}
+body[data-screen="home"][data-visual-theme="traveler-map"] .home-copy {
+  border-left: 1px solid rgba(126,99,53,.38);
+  background:
+    linear-gradient(90deg,rgba(180,148,88,.1) 1px,transparent 1px) 0 0/24px 100%,
+    repeating-linear-gradient(0deg,transparent 0 27px,rgba(79,101,69,.075) 28px,transparent 29px),
+    linear-gradient(122deg,rgba(255,249,230,.94),rgba(245,232,199,.88));
+  box-shadow: -13px 15px 28px rgba(67,53,30,.09), inset 0 1px rgba(255,255,255,.76);
+  clip-path: polygon(1% 0,100% 1.2%,99.4% 99%,0 100%);
+}
+body[data-visual-theme="traveler-map"] .title-kicker,
+body[data-visual-theme="traveler-map"] .hub-menu::before { color: #74603c; }
+body[data-screen="home"][data-visual-theme="traveler-map"] .hub-card {
+  border: 0;
+  border-bottom: 1px solid rgba(127,100,55,.34);
+  border-radius: 3px 13px 2px 8px;
+  background: linear-gradient(100deg,rgba(255,252,235,.88),rgba(243,230,195,.76));
+  box-shadow: inset 0 1px rgba(255,255,255,.78), 0 2px 4px rgba(73,58,31,.07);
+}
+body[data-screen="home"][data-visual-theme="traveler-map"] .hub-card.primary {
+  border: 1px solid #273e30;
+  border-radius: 4px 15px 4px 10px;
+  background: linear-gradient(105deg,#526d4d,#344e39 79%,#2a4433);
+  box-shadow: inset 0 1px rgba(255,255,255,.19), 0 3px 0 #273b2e, 0 9px 16px rgba(48,58,39,.18);
+}
+body[data-screen="home"][data-visual-theme="traveler-map"] .hub-card.primary .menu-icon {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d8bd78;
+  border-radius: 50%;
+  color: #f7e6b5;
+  box-shadow: inset 0 0 0 3px rgba(216,189,120,.14);
+}
+body[data-screen="home"][data-visual-theme="traveler-map"] .hub-card.adventure {
+  border: 1px dashed rgba(102,122,77,.58);
+  background: rgba(237,229,203,.74);
+}
+body[data-screen="home"][data-visual-theme="traveler-map"] .hub-card.secondary {
+  border-bottom-color: rgba(127,100,55,.25);
+  border-radius: 3px 10px 2px 8px;
+  background: rgba(255,249,225,.65);
+}
+body[data-screen="home"][data-visual-theme="traveler-map"] .art-caption { color: #45583c; }
+
+/* Dusk: dark pine air around a softly lit canvas page and ember-toned controls. */
+body[data-visual-theme="camp-dusk"] {
+  background:
+    radial-gradient(ellipse at 76% 31%,rgba(236,174,91,.25),transparent 28%),
+    radial-gradient(circle at 15% 16%,#f5e2c177 0 1px,transparent 2px),
+    radial-gradient(circle at 88% 21%,#f5e2c177 0 1px,transparent 2px),
+    radial-gradient(circle at 57% 8%,#f5e2c177 0 1px,transparent 2px),
+    linear-gradient(155deg,#17283b 0%,#243b50 58%,#30494e 100%);
+}
+body[data-screen="home"][data-visual-theme="camp-dusk"] .home-copy {
+  border: 1px solid rgba(205,166,104,.66);
+  border-radius: 16px 8px 14px 8px;
+  background:
+    radial-gradient(ellipse at 100% 0%,rgba(255,218,152,.32),transparent 36%),
+    repeating-linear-gradient(0deg,transparent 0 31px,rgba(104,85,59,.1) 32px,transparent 33px),
+    linear-gradient(136deg,#fff3d9 0%,#f0dfbc 100%);
+  box-shadow: 0 14px 28px rgba(3,12,20,.3), 0 0 30px rgba(243,181,91,.1), inset 0 1px rgba(255,255,255,.85);
+}
+body[data-screen="home"][data-visual-theme="camp-dusk"] .home-copy::before {
+  top: -7px;
+  left: 25px;
+  width: 38px;
+  height: 17px;
+  background: rgba(215,184,124,.8);
+  clip-path: polygon(4% 8%,96% 0,100% 88%,0 100%);
+  transform: rotate(-4deg);
+}
+body[data-visual-theme="camp-dusk"] .home-copy :is(.title-kicker,.intro) { color: #4f6268; }
+body[data-screen="home"][data-visual-theme="camp-dusk"] .hub-menu::before { color: #6b685c; }
+body[data-screen="home"][data-visual-theme="camp-dusk"] .hub-card {
+  border: 1px solid #b79b6a;
+  border-bottom: 3px solid #85603e;
+  border-radius: 12px 7px 14px 8px;
+  background: linear-gradient(112deg,#fff7e4,#eddbb7);
+  box-shadow: 0 4px 9px rgba(41,39,33,.12), inset 0 1px rgba(255,255,255,.82);
+}
+body[data-screen="home"][data-visual-theme="camp-dusk"] .hub-card.primary {
+  border: 1px solid #efc36f;
+  border-bottom: 3px solid #513722;
+  border-radius: 9px 15px 10px 14px;
+  background: linear-gradient(110deg,#895437,#66432e 55%,#3d5147);
+  box-shadow: 0 0 20px rgba(239,187,93,.16), inset 0 1px rgba(255,255,255,.18);
+}
+body[data-screen="home"][data-visual-theme="camp-dusk"] .hub-card.primary .menu-icon {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #f2d38f;
+  border-radius: 50%;
+  background: radial-gradient(circle,#ffe09b 0 17%,#d28a42 19% 38%,#66452d 42%);
+  color: #fff0c5;
+  filter: drop-shadow(0 0 6px rgba(255,189,84,.65));
+}
+body[data-screen="home"][data-visual-theme="camp-dusk"] .hub-card.adventure {
+  border-style: dashed;
+  border-bottom-width: 2px;
+  background: linear-gradient(110deg,#e7d3ae,#cfbd99);
+}
+body[data-screen="home"][data-visual-theme="camp-dusk"] .hub-card.secondary {
+  border-style: dashed;
+  border-bottom-width: 2px;
+  background: rgba(255,243,216,.94);
+}
+body[data-screen="home"][data-visual-theme="camp-dusk"] .art-caption {
+  color: #f7dfb5;
+  text-shadow: 0 1px 7px #07141dcc;
+}
+
+/* Shared visual grammar extends to adjacent screens without changing layout or behavior. */
+body[data-visual-theme] .difficulty-card,
+body[data-visual-theme] .settings-panel,
+body[data-visual-theme] .complete-card,
+body[data-visual-theme] .dialog-card {
+  border-color: var(--theme-line);
+  background-color: var(--theme-surface);
+  color: var(--theme-ink);
+  box-shadow: var(--surface-shadow);
+}
+body[data-visual-theme="traveler-map"] :is(.difficulty-card,.settings-panel,.complete-card,.dialog-card) {
+  border-radius: 4px 16px 5px 13px;
+  background-image:
+    repeating-linear-gradient(0deg,transparent 0 26px,rgba(83,104,70,.07) 27px,transparent 28px),
+    linear-gradient(135deg,#fff7df,#efe0bb);
+}
+body[data-visual-theme="camp-dusk"] :is(.difficulty-card,.settings-panel,.complete-card,.dialog-card) {
+  border-radius: 13px 8px 16px 9px;
+  border-bottom-width: 3px;
+  background-image:
+    radial-gradient(ellipse at 100% 0%,rgba(255,215,137,.23),transparent 40%),
+    repeating-linear-gradient(0deg,transparent 0 29px,rgba(125,96,61,.08) 30px,transparent 31px),
+    linear-gradient(140deg,#fff4dc,#ead8b6);
+}
+body[data-visual-theme] .difficulty-card-heading strong,
+body[data-visual-theme] .settings-panel h2,
+body[data-visual-theme] .dialog-card h2 { color: var(--theme-ink); }
+body[data-visual-theme] .difficulty-card-action { border-color: var(--theme-line); color: var(--theme-green); }
+body[data-visual-theme] :is(.small-button,.settings-panel select) {
+  border-color: var(--theme-line);
+  background: var(--theme-surface);
+  color: var(--theme-ink);
+}
+body[data-visual-theme="traveler-map"] :is(.small-button,.settings-panel select,.button-primary) { border-radius: 4px 12px 4px 10px; }
+body[data-visual-theme="camp-dusk"] :is(.small-button,.settings-panel select,.button-primary) { border-radius: 11px 7px 13px 8px; }
+body[data-visual-theme] .button-primary { color: var(--theme-accentText); }
+body[data-visual-theme] .play-heading h1,
+body[data-visual-theme] .view-header h1 { color: var(--theme-pageInk); }
+body[data-visual-theme] .timer-wrap { border-color: var(--surface-edge); background: color-mix(in srgb,var(--theme-surface) 16%,transparent); }
+body[data-visual-theme] .maze-paper { border-color: var(--theme-line); background-color: var(--paper); box-shadow: 0 16px 38px var(--theme-shadow), inset 0 1px rgba(255,255,255,.8); }
+body[data-visual-theme] .wall { stroke: var(--theme-ink); }
+body[data-visual-theme] .trail,
+body[data-visual-theme] .player,
+body[data-visual-theme] .marker-end { stroke: var(--theme-accent); fill: var(--theme-accent); }
+body[data-visual-theme] .marker-start { fill: var(--theme-green); }
+body[data-visual-theme] .site-footer { color: var(--theme-pageInk); }
+
+@media (max-width: 760px) {
+  body[data-screen="home"] .app-shell { min-width: 0; }
+  body[data-screen="home"] .topbar { min-width: 0; gap: 10px; }
+  body[data-screen="home"] .tagline { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  body[data-screen="home"] .home-screen { width: 100%; min-width: 0; }
+  body[data-screen="home"] .home-copy,
+  body[data-screen="home"] .home-art.title-art { min-width: 0; max-width: 100%; }
+  body[data-screen="home"] .title-branding { min-width: 0; }
+  body[data-screen="home"] .topbar { height: 48px; flex-basis: 48px; }
+  body[data-screen="home"] .site-footer { height: 27px; flex-basis: 27px; }
+  body[data-screen="home"] .home-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 0;
+  }
+  body[data-screen="home"] .home-art.title-art {
+    order: -1;
+    flex: 0 0 clamp(160px,27vh,215px);
+    width: 100%;
+    height: clamp(160px,27vh,215px);
+    min-height: 0;
+    max-height: none;
+    margin: 0 auto -6px;
+  }
+  body[data-screen="home"] .theme-artwork { width: 100%; height: 100%; object-fit: contain; }
+  body[data-screen="home"] .art-caption { bottom: 2px; font-size: 7px; }
+  body[data-screen="home"] .home-copy { max-width: none; padding: 12px 14px; }
+  body[data-screen="home"] .title-kicker { margin-bottom: 7px; font-size: 8px; }
+  body[data-screen="home"] .home-copy h1 { font-size: clamp(36px,9vw,49px); line-height: .9; }
+  body[data-screen="home"] .qa-emblem-trigger { width: 34px; height: 34px; }
+  body[data-screen="home"] .intro { margin: 8px 0 10px; font-size: 12px; line-height: 1.4; }
+  body[data-screen="home"] .hub-menu { gap: 6px; }
+  body[data-screen="home"] .hub-menu::before { font-size: 7px; }
+  body[data-screen="home"] .hub-card.primary { min-height: 58px; }
+  body[data-screen="home"] .hub-card.adventure { min-height: 47px; }
+  body[data-screen="home"] .hub-secondary-grid { gap: 5px; }
+  body[data-screen="home"] .hub-card.secondary { min-height: 43px; padding: 6px 9px; }
+  body[data-screen="home"] .hub-card strong { font-size: 11px; }
+  body[data-screen="home"] .hub-card span { font-size: 8px; }
+}
+@media (max-width: 380px) {
+  body[data-screen="home"] .home-art.title-art { flex-basis: 145px; height: 145px; }
+  body[data-screen="home"] .home-copy { padding: 9px 10px; }
+  body[data-screen="home"] .home-copy h1 { font-size: 34px; }
+  body[data-screen="home"] .hub-menu { gap: 4px; }
+  body[data-screen="home"] .hub-card.secondary { min-height: 41px; }
+}
+@media (max-height: 700px) and (max-width: 760px) {
+  body[data-screen="home"] .home-art.title-art { flex-basis: 132px; height: 132px; }
+  body[data-screen="home"] .home-copy { padding-top: 8px; padding-bottom: 8px; }
+}
+@media (orientation: landscape) and (max-height: 570px) {
+  body[data-screen="home"] .home-screen { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  body[data-screen="home"] .home-art.title-art { order: 0; width: 100%; height: 100%; flex: initial; margin: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-visual-theme] .theme-artwork { filter: none; }
+  body[data-screen="home"] .hub-card { transition: none; }
+}

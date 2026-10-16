@@ -61,29 +61,23 @@ test('theme setting is immediate without recreating gameplay; artwork is in the 
   for (const asset of ['./src/themes.js', './art/travelers-map.svg', './art/camp-at-dusk.svg']) assert.ok(worker.includes(asset), `${asset} is cached for offline startup`);
 });
 
-test('themes use organic shared surfaces and complete phone-sized local artwork compositions', async () => {
-  const css = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8');
+test('themes use screen-wide materials and organic scenes in the shared home composition', async () => {
+  const css = await readFile(new URL('../src/home-art-direction.css', import.meta.url), 'utf8');
   const map = await readFile(new URL('../art/travelers-map.svg', import.meta.url), 'utf8');
   const camp = await readFile(new URL('../art/camp-at-dusk.svg', import.meta.url), 'utf8');
-  const mapStyles = css.slice(css.lastIndexOf('/* Traveler\'s Map:'), css.lastIndexOf('/* Camp at Dusk:'));
-  const campStyles = css.slice(css.lastIndexOf('/* Camp at Dusk:'));
-  assert.match(mapStyles, /repeating-linear-gradient\(0deg, transparent 0 27px/);
-  assert.match(mapStyles, /border-radius: 22px 8px 18px 11px/);
-  assert.match(mapStyles, /border-bottom: 2px solid #b59861/);
-  assert.match(campStyles, /radial-gradient\(ellipse at 76% 48%/);
-  assert.match(campStyles, /border-radius: 10px 22px 9px 19px/);
-  assert.match(campStyles, /#ffbf5488/);
-  assert.match(css, /body\[data-visual-theme\] \.home-art\.title-art::after \{ content: none; \}/);
-  assert.match(css, /body\[data-visual-theme\] \.theme-artwork\s*\{[^}]*overflow: visible/s);
-  assert.match(map, /<path d="M100 244c18-69/);
-  assert.match(camp, /<path d="M112 251c-21-44/);
-  assert.doesNotMatch(map, /<rect\b/);
-  assert.doesNotMatch(camp, /<rect\b/);
-  assert.match(map, /viewBox="0 0 800 340"/);
-  assert.match(camp, /viewBox="0 0 800 340"/);
-  assert.match(css, /\.theme-artwork\s*\{[^}]*z-index:\s*0/);
-  assert.match(css, /\.art-caption\s*\{[^}]*z-index:\s*2/);
-  assert.match(css, /height:\s*clamp\(128px,\s*20dvh,\s*170px\)/);
-  assert.match(css, /body\[data-visual-theme="traveler-map"\] \.difficulty-card/);
-  assert.match(css, /body\[data-visual-theme="camp-dusk"\] \.difficulty-card/);
+  assert.match(css, /repeating-radial-gradient\(ellipse at 80% 45%/);
+  assert.match(css, /linear-gradient\(136deg,#fff3d9 0%,#f0dfbc 100%\)/);
+  assert.match(css, /body\[data-screen="home"\]\[data-visual-theme="traveler-map"\] \.hub-card\.primary/);
+  assert.match(css, /body\[data-screen="home"\]\[data-visual-theme="camp-dusk"\] \.hub-card\.primary/);
+  assert.match(css, /body\[data-screen="home"\] \.home-art\.title-art\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent/s);
+  assert.match(css, /@media \(max-width: 760px\)[\s\S]*?order:\s*-1/);
+  assert.match(css, /height: clamp\(160px,27vh,215px\)/);
+  assert.match(css, /body\[data-visual-theme="traveler-map"\] :is\(\.difficulty-card/);
+  assert.match(css, /body\[data-visual-theme="camp-dusk"\] :is\(\.difficulty-card/);
+  assert.match(map, /viewBox="0 0 900 600"/);
+  assert.match(camp, /viewBox="0 0 900 600"/);
+  assert.match(map, /id="river"/);
+  assert.match(map, /id="fibers"/);
+  assert.match(camp, /id="lantern-glow"/);
+  assert.match(camp, /id="canvas-weave"/);
 });
