@@ -14,7 +14,7 @@ test('the home art direction remains a shared offline-ready screen system', asyn
   assert.match(css, /body\[data-visual-theme="camp-dusk"\]/);
   assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.home-art\.title-art\s*\{[^}]*order:\s*-1/s);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.match(worker, /shell-v26/);
+  assert.match(worker, /shell-v27/);
   assert.match(worker, /\.\/src\/home-art-direction\.css/);
 });
 
@@ -27,7 +27,7 @@ test('theme trail styling keeps accepted ink unfilled while coloring only its st
   assert.match(trailRule, /fill:\s*none/);
   assert.doesNotMatch(trailRule, /fill:\s*var\(--theme-accent\)/);
   assert.match(baseCss, /\.trail\s*\{[^}]*fill:\s*none/s);
-  assert.match(game, /create\('path', \{ id: 'trail', class: 'trail', fill: 'none', d: '' \}\)/);
+  assert.match(game, /create\('path', \{ id: trailId, class: 'trail', fill: 'none', d: '' \}\)/);
   assert.doesNotMatch(html, /<div class="play-footer"><span><i class="legend-start"><\/i> START/,
     'the dynamic in-maze START marker is the only start label during play');
 });
