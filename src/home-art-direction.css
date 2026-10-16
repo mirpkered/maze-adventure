@@ -324,7 +324,7 @@ body[data-visual-theme] .view-header h1 { color: var(--theme-pageInk); }
 body[data-visual-theme] .timer-wrap { border-color: var(--surface-edge); background: color-mix(in srgb,var(--theme-surface) 16%,transparent); }
 body[data-visual-theme] .maze-paper { border-color: var(--theme-line); background-color: var(--paper); box-shadow: 0 16px 38px var(--theme-shadow), inset 0 1px rgba(255,255,255,.8); }
 body[data-visual-theme] .wall { stroke: var(--theme-ink); }
-body[data-visual-theme] .trail,
+body[data-visual-theme] .trail { fill: none; stroke: var(--theme-accent); }
 body[data-visual-theme] .player,
 body[data-visual-theme] .marker-end { stroke: var(--theme-accent); fill: var(--theme-accent); }
 body[data-visual-theme] .marker-start { fill: var(--theme-green); }

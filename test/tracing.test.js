@@ -5,6 +5,8 @@ import { createTraceSession, traceSegment } from '../src/tracing.js';
 import { createTraceRecorder, mazeLayoutId } from '../src/trace-diagnostics.js';
 import { advancePath, canMove, createMaze, createMazeForDifficulty, getShortestPath, validateMaze } from '../src/maze.js';
 import { finalPointerMovement, pointerMovementSamples } from '../src/pointer-samples.js';
+import { tracePathData } from '../src/trace-rendering.js';
+import { getMazeGridGeometry, mazeToSvgPoint } from '../src/coordinates.js';
 
 function mazeWithRoute(route, width = Math.max(...route.map(p => p.x)) + 1, height = Math.max(...route.map(p => p.y)) + 1) {
   const cells = Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => ({ x, y, walls: { N: true, E: true, S: true, W: true } })));
@@ -898,6 +900,86 @@ test('dynamic perimeter starts accept the marked opening and finish legally at e
   }
   assert.deepEqual([...foundStarts].sort(), ['E', 'N', 'S', 'W']);
   assert.deepEqual([...foundFinishes].sort(), ['E', 'N', 'S', 'W']);
+});
+
+test('top-to-left Medium trace stays a thin open path through turns, collision, retap, and backtracking', () => {
+  let maze, solution, turns = 0;
+  for (let seed = 0; seed < 300; seed++) {
+    const candidate = createMazeForDifficulty('medium', seeded(seed));
+    const path = getShortestPath(candidate);
+    let turnCount = 0;
+    for (let i = 2; i < path.length; i++) {
+      const incoming = { x: path[i - 1].x - path[i - 2].x, y: path[i - 1].y - path[i - 2].y };
+      const outgoing = { x: path[i].x - path[i - 1].x, y: path[i].y - path[i - 1].y };
+      if (incoming.x !== outgoing.x || incoming.y !== outgoing.y) turnCount++;
+    }
+    if (candidate.entrance.side === 'N' && candidate.entrance.cell.x >= 2
+      && candidate.exit.side === 'W' && turnCount >= 3) {
+      maze = candidate; solution = path; turns = turnCount; break;
+    }
+  }
+  assert.ok(maze, 'the deterministic generator sample contains a top-to-left route with multiple turns');
+  assert.ok(turns >= 3);
+  const session = createTraceSession(maze), pointer = 811;
+  assert.equal(session.begin(pointer, maze.start), true);
+
+  let collisionIndex = -1, blockedNeighbor;
+  for (let index = 1; index < solution.length - 2; index++) {
+    const cell = solution[index];
+    blockedNeighbor = [
+      { x: cell.x + 1, y: cell.y }, { x: cell.x - 1, y: cell.y },
+      { x: cell.x, y: cell.y + 1 }, { x: cell.x, y: cell.y - 1 },
+    ].find(next => next.x >= 0 && next.y >= 0 && next.x < maze.width && next.y < maze.height && !canMove(maze, cell, next));
+    if (blockedNeighbor) { collisionIndex = index; break; }
+  }
+  assert.ok(collisionIndex > 0, 'the replay route has a closed wall available for collision');
+  for (let index = 1; index <= collisionIndex; index++) assert.equal(session.move(pointer, solution[index]).moved, true);
+  const routeBeforeWall = session.path.map(cell => ({ ...cell }));
+  const marksBeforeWall = session.stroke.map(point => ({ ...point }));
+  const collision = session.move(pointer, blockedNeighbor);
+  assert.equal(collision.wallCollision, true);
+  assert.deepEqual(session.path, routeBeforeWall, 'wall contact does not advance the logical route');
+  assert.deepEqual(session.position, session.stroke.at(-1), 'the visible pencil and accepted ink endpoint stay synchronized');
+  assert.ok(Math.abs(session.position.x - solution[collisionIndex].x) <= .46
+    && Math.abs(session.position.y - solution[collisionIndex].y) <= .46,
+  'the final accepted point remains on the legal side of the wall');
+  assert.deepEqual(session.stroke.slice(0, marksBeforeWall.length), marksBeforeWall, 'collision preserves all earlier permanent marks');
+  const tip = { ...session.position };
+  assert.equal(session.diagnostics.lockedOut, true);
+
+  assert.equal(session.end(pointer), true);
+  assert.equal(session.begin(pointer + 1, tip), true, 'a physical lift and endpoint re-tap reacquires the pencil');
+  assert.deepEqual(session.position, tip, 'reacquisition does not teleport or draw');
+  assert.equal(session.move(pointer + 1, solution[collisionIndex - 1]).moved, true, 'legal backtracking remains available');
+  assert.deepEqual(session.path, solution.slice(0, collisionIndex));
+  assert.ok(session.stroke.length > marksBeforeWall.length, 'backtracking adds ink instead of erasing old marks');
+  assert.deepEqual(session.stroke.slice(0, marksBeforeWall.length), marksBeforeWall);
+  assert.equal(session.move(pointer + 1, solution[collisionIndex]).moved, true);
+
+  let completions = 0;
+  for (let index = collisionIndex + 1; index < solution.length; index++) {
+    const result = session.move(pointer + 1, solution[index]);
+    assert.equal(result.moved, true, `legal route step ${index} remains traceable`);
+    if (result.complete) completions++;
+  }
+  assert.equal(completions, 1);
+  assert.deepEqual(session.path.at(-1), maze.end);
+  assert.deepEqual(maze.entrance, { cell: maze.start, side: 'N' });
+  assert.deepEqual(maze.exit, { cell: maze.end, side: 'W' });
+
+  const geometry = getMazeGridGeometry(maze.width, maze.height);
+  const svgPoints = session.stroke.map(point => mazeToSvgPoint(point, geometry.x, geometry.cellSize, geometry.y));
+  const pathData = tracePathData(svgPoints, session.strokeBreaks);
+  assert.doesNotMatch(pathData, /\bZ\b/i, 'ink remains an open stroke path and is never closed into a polygon');
+  assert.equal((pathData.match(/\bM/g) ?? []).length, session.strokeBreaks.length + 1, 'only explicit stroke breaks begin a new subpath');
+  const strokeCells = session.diagnostics.strokeCells;
+  for (let index = 1; index < strokeCells.length; index++) {
+    if (session.strokeBreaks.includes(index)) continue;
+    const previous = strokeCells[index - 1], current = strokeCells[index];
+    const distance = Math.abs(previous.x - current.x) + Math.abs(previous.y - current.y);
+    assert.ok(distance === 0 || distance === 1 && canMove(maze, previous, current),
+      `ink sample ${index} cannot connect across a wall`);
+  }
 });
 
 test('dead-end recovery works across all four movement directions', () => {

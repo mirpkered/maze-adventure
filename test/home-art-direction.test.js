@@ -14,8 +14,22 @@ test('the home art direction remains a shared offline-ready screen system', asyn
   assert.match(css, /body\[data-visual-theme="camp-dusk"\]/);
   assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.home-art\.title-art\s*\{[^}]*order:\s*-1/s);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.match(worker, /shell-v25/);
+  assert.match(worker, /shell-v26/);
   assert.match(worker, /\.\/src\/home-art-direction\.css/);
+});
+
+test('theme trail styling keeps accepted ink unfilled while coloring only its stroke', async () => {
+  const css = await readFile(new URL('../src/home-art-direction.css', import.meta.url), 'utf8');
+  const baseCss = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  const game = await readFile(new URL('../src/game.js', import.meta.url), 'utf8');
+  const trailRule = css.match(/body\[data-visual-theme\]\s+\.trail\s*\{([^}]*)\}/)?.[1] ?? '';
+  assert.match(trailRule, /fill:\s*none/);
+  assert.doesNotMatch(trailRule, /fill:\s*var\(--theme-accent\)/);
+  assert.match(baseCss, /\.trail\s*\{[^}]*fill:\s*none/s);
+  assert.match(game, /create\('path', \{ id: 'trail', class: 'trail', fill: 'none', d: '' \}\)/);
+  assert.doesNotMatch(html, /<div class="play-footer"><span><i class="legend-start"><\/i> START/,
+    'the dynamic in-maze START marker is the only start label during play');
 });
 
 test('theme scenes are locally bundled, organic compositions rather than framed panels', async () => {

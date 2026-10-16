@@ -94,9 +94,7 @@ h1 em { color: var(--rust); font-weight: 400; }
 .marker { font-family: 'DM Sans', Arial, sans-serif; font-weight: 700; letter-spacing: 1.2px; pointer-events: none; }
 .marker-start { fill: #637d65; font-size: 9px; }
 .marker-end { fill: #bd6243; font-size: 16px; }
-.play-footer { max-width: 670px; margin: 9px auto 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #88877d; font-size: 9px; letter-spacing: .1em; }
-.play-footer > span { white-space: nowrap; }
-.legend-start { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: var(--green); }
+.play-footer { max-width: 670px; margin: 9px auto 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; color: #88877d; font-size: 9px; letter-spacing: .1em; }
 .game-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .small-button { min-height: 44px; padding: 8px 12px; border: 1px solid #d2cbb9; border-radius: 4px; background: transparent; color: #555b50; font-size: 11px; cursor: pointer; }
 .small-button:hover { border-color: var(--green); background: rgba(255,253,245,.7); }

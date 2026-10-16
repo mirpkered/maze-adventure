@@ -2,6 +2,7 @@ import { createMazeForDifficulty, FREE_PLAY_DIFFICULTIES, getShortestPath, getWa
 import { createTraceSession } from './tracing.js';
 import { DEFAULT_PREFERENCES, PREFERENCES_KEY, readPreferences, writePreferences } from './preferences.js';
 import { clientToViewBoxPoint, getMazeGridGeometry, mazeToSvgPoint, svgToMazePoint, transformPoint } from './coordinates.js';
+import { tracePathData } from './trace-rendering.js';
 import { createTraceRecorder, mazeLayoutId } from './trace-diagnostics.js';
 import { bindEmblemQaTrigger, closeQaSession, startQaSession } from './qa-mode.js';
 import { finalPointerMovement, pointerMovementSamples } from './pointer-samples.js';
@@ -237,8 +238,7 @@ function renderTrace() {
   if (!traceSession) return;
   const points = traceSession.stroke.map(svgPoint);
   const trail = $('#trail');
-  const breaks = new Set(traceSession.strokeBreaks);
-  trail.setAttribute('d', points.map((point, index) => `${index === 0 || breaks.has(index) ? 'M' : 'L'}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' '));
+  trail.setAttribute('d', tracePathData(points, traceSession.strokeBreaks));
   const endpoint = svgPoint(traceSession.position);
   $('#player').setAttribute('cx', endpoint.x);
   $('#player').setAttribute('cy', endpoint.y);
@@ -255,7 +255,7 @@ function renderMaze() {
     if (text) element.textContent = text;
     return element;
   };
-  const trail = create('path', { id: 'trail', class: 'trail', d: '' });
+  const trail = create('path', { id: 'trail', class: 'trail', fill: 'none', d: '' });
   svg.append(trail);
   const walls = create('g', { class: 'walls', 'aria-hidden': 'true' });
   const line = (x1, y1, x2, y2) => walls.append(create('line', { x1, y1, x2, y2, class: 'wall' }));
