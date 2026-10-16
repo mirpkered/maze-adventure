@@ -1,4 +1,4 @@
-/** Keep a live pencil attempt and its completion screen intact while updating. */
+/** Keep the live maze, including its inline completion, intact while updating. */
 export function canReloadForUpdate(screenId) {
-  return screenId !== 'play' && screenId !== 'complete';
+  return screenId !== 'play';
 }

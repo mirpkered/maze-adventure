@@ -286,20 +286,20 @@ body[data-screen="home"][data-visual-theme="camp-dusk"] .art-caption {
 /* Shared visual grammar extends to adjacent screens without changing layout or behavior. */
 body[data-visual-theme] .difficulty-card,
 body[data-visual-theme] .settings-panel,
-body[data-visual-theme] .complete-card,
+body[data-visual-theme] .completion-panel,
 body[data-visual-theme] .dialog-card {
   border-color: var(--theme-line);
   background-color: var(--theme-surface);
   color: var(--theme-ink);
   box-shadow: var(--surface-shadow);
 }
-body[data-visual-theme="traveler-map"] :is(.difficulty-card,.settings-panel,.complete-card,.dialog-card) {
+body[data-visual-theme="traveler-map"] :is(.difficulty-card,.settings-panel,.completion-panel,.dialog-card) {
   border-radius: 4px 16px 5px 13px;
   background-image:
     repeating-linear-gradient(0deg,transparent 0 26px,rgba(83,104,70,.07) 27px,transparent 28px),
     linear-gradient(135deg,#fff7df,#efe0bb);
 }
-body[data-visual-theme="camp-dusk"] :is(.difficulty-card,.settings-panel,.complete-card,.dialog-card) {
+body[data-visual-theme="camp-dusk"] :is(.difficulty-card,.settings-panel,.completion-panel,.dialog-card) {
   border-radius: 13px 8px 16px 9px;
   border-bottom-width: 3px;
   background-image:

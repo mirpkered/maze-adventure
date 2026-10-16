@@ -103,6 +103,14 @@
             <span class="maze-panel-label">CLOSE VIEW <span id="zoom-factor-label">· 2×</span></span>
             <svg id="maze" draggable="false" tabindex="0" role="application" aria-label="Close View. Trace from the entrance to the exit. Focus the maze and use arrow keys to move one passage at a time." viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg>
           </section>
+          <section id="completion-panel" class="completion-panel maze-paper" aria-labelledby="completion-title" aria-live="polite" aria-atomic="true" hidden>
+            <span class="completion-flower" aria-hidden="true">✿</span>
+            <div class="completion-message">
+              <p class="eyebrow">MAZE COMPLETE</p>
+              <h2 id="completion-title" tabindex="-1">You found your way!</h2>
+              <p class="completion-copy">Another little journey complete.</p>
+            </div>
+          </section>
         </div>
         <output id="trace-diagnostics" class="trace-diagnostics" hidden aria-live="off"></output>
         <section id="trace-diagnostic-tools" class="trace-diagnostic-tools" hidden aria-label="QA tracing diagnostics">
@@ -136,10 +144,6 @@
       <section id="about" class="screen info-screen" aria-labelledby="about-title" hidden>
         <header class="view-header"><button class="back-button" id="about-home">← Home</button><div><p class="eyebrow">MIRPWORKS</p><h1 id="about-title" tabindex="-1">Let’s play a game.</h1></div></header>
         <section class="settings-panel"><h2>Maze Adventure</h2><p>A quiet puzzle-book maze with a little digital magic.</p><p>Made by Mirpworks.</p><a href="mailto:contact@mirpworks.com?subject=Maze%20Adventure%20%E2%80%94%20Feedback&amp;body=Sent%20from%3A%20Maze%20Adventure%0A%0A%5BYour%20message%20here%5D">Questions or feedback? Contact Mirpworks</a></section>
-      </section>
-
-      <section id="complete" class="screen complete-screen" aria-labelledby="complete-title" hidden>
-        <div class="complete-card"><div class="complete-flower" aria-hidden="true">✿</div><p class="eyebrow">MAZE COMPLETE</p><h1 id="complete-title" tabindex="-1">You found<br /><em>your way.</em></h1><p class="complete-copy">A lovely little journey, at your own pace.</p><div class="time-result"><span>YOUR TIME</span><strong id="final-time">0:00</strong></div><button class="button button-primary" id="next-maze">Next Maze <span aria-hidden="true">↗</span></button><button class="small-button replay-button" id="replay-maze">Replay this maze</button><button class="text-button home-link" id="complete-home">Main Menu</button></div>
       </section>
 
       <section class="overlay" id="pause-dialog" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden><div class="dialog-card"><p class="eyebrow">TAKE YOUR TIME</p><h2 id="pause-title">Maze paused</h2><p>Your path is saved right where you left it.</p><button class="button button-primary" id="resume-game">Resume maze</button><button class="small-button" id="pause-settings">Settings</button><button class="small-button" id="pause-restart">Restart this maze</button><button class="small-button" id="pause-new">New maze</button><button class="text-button" id="pause-home">Return home</button><button class="dialog-close" id="close-pause" aria-label="Close pause menu">×</button></div></section>

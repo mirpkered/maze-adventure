@@ -12,7 +12,7 @@ import { createQaDiagnosticsStore, createQuickSummary, createRecentIncident } fr
 import { applyVisualTheme, chooseLaunchTheme, THEME_PREFERENCE_OPTIONS } from './themes.js';
 
 const $ = selector => document.querySelector(selector);
-const screens = ['home', 'difficulty', 'play', 'complete', 'settings', 'help', 'about'].map(id => $(`#${id}`));
+const screens = ['home', 'difficulty', 'play', 'settings', 'help', 'about'].map(id => $(`#${id}`));
 const svg = $('#maze');
 const overviewSvg = $('#maze-overview');
 let deviceStorage = null;
@@ -22,7 +22,7 @@ let gridGeometry = getMazeGridGeometry(7, 7, SIZE, PAD);
 const mazeCamera = createMazeCamera({ viewSize: SIZE, zoom: 2 });
 let cameraPosition = mazeCamera.snapshot();
 const PENCIL_ACQUISITION_RADIUS_PX = 24;
-let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, timerId;
+let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, timerId, mazeCompleted = false;
 let selectedDifficulty = 'easy';
 let paused = false, activeOverlay = null, returnFocus = null, resumeAfterOverlay = false;
 let isolatedPage = [], bodyOverflow = '';
@@ -217,7 +217,7 @@ function activeScreen(screen, { safeToUpdate = true } = {}) {
 }
 function displayTime() { $('#timer').value = formatTime(elapsed); }
 function startTimer() {
-  if (timerId || $('#play').hidden || document.hidden || paused || activeOverlay) return;
+  if (mazeCompleted || timerId || $('#play').hidden || document.hidden || paused || activeOverlay) return;
   startedAt = Date.now() - elapsed;
   timerId = setInterval(() => { elapsed = Date.now() - startedAt; displayTime(); }, 200);
 }
@@ -337,7 +337,11 @@ function savePreferences(update) {
   updateSettingsControls();
   if (zoomChanged) {
     document.body.dataset.zoomAssist = String(preferences.zoomAssist);
+    if (mazeCompleted) $('#maze-paper').hidden = preferences.zoomAssist;
     if (preferences.zoomAssist && traceSession) cameraPosition = mazeCamera.center(svgPoint(traceSession.position));
+    if (!mazeCompleted && !$('#play').hidden) $('#play-hint').textContent = preferences.zoomAssist
+      ? 'Follow the full maze above; trace in the Close View below.'
+      : 'Trace from the entrance to the flower. Lift and tap the pencil tip to continue.';
     if (traceSession) renderTrace();
   }
 }
@@ -391,12 +395,15 @@ function playCompletionSound() {
 
 function makeMaze(reuse = false) {
   if (!reuse || !maze) maze = createMazeForDifficulty(selectedDifficulty);
+  mazeCompleted = false;
+  delete document.body.dataset.completed;
+  $('#completion-panel').hidden = true;
+  $('#maze-paper').hidden = false;
   selectedDifficulty = maze.difficulty ?? selectedDifficulty;
   $('#play-difficulty').textContent = FREE_PLAY_DIFFICULTIES[selectedDifficulty].label.toUpperCase();
   currentLayoutId = mazeLayoutId(maze);
   traceSession = createTraceSession(maze);
   activePointerId = null; elapsed = 0; paused = false; displayTime();
-  $('#final-time').textContent = '0:00';
   $('#play-hint').textContent = preferences.zoomAssist
     ? 'Follow the full maze above; trace in the Close View below.'
     : 'Trace from the entrance to the flower. Lift and tap the pencil tip to continue.';
@@ -434,8 +441,17 @@ function finishPointer(event, cancel = false) {
   return Boolean(finalMove?.complete);
 }
 function completeMaze() {
-  pauseTimer(); $('#final-time').textContent = formatTime(elapsed);
-  activeScreen($('#complete')); $('#complete-title').focus({ preventScroll: true }); playCompletionSound();
+  if (mazeCompleted) return;
+  mazeCompleted = true;
+  pauseTimer(); displayTime();
+  document.body.dataset.completed = 'true';
+  $('#maze-paper').hidden = preferences.zoomAssist;
+  $('#completion-panel').hidden = false;
+  $('#play-hint').textContent = preferences.zoomAssist
+    ? 'Your finished route stays visible in the map above.'
+    : 'Your finished drawing stays here on the paper.';
+  $('#completion-title').focus({ preventScroll: true });
+  playCompletionSound();
 }
 
 function closeOverlay({ resume = false, restore = true } = {}) {
@@ -482,6 +498,7 @@ svg.addEventListener('pointerdown', event => {
   if ($('#play').hidden || !traceSession) return;
   lastClientPointer = { x: event.clientX, y: event.clientY };
   lastRawPointer = pointInMaze(event);
+  if (mazeCompleted) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'attempt-already-completed'); return; }
   if (paused || activeOverlay) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'game-not-interactive'); return; }
   if (!event.isPrimary) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'non-primary-pointer'); return; }
   if (activePointerId !== null) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'another-pointer-owns-gesture'); return; }
@@ -497,7 +514,7 @@ svg.addEventListener('pointerdown', event => {
   recordTraceEvent('pointerdown', event, lastRawPointer, began, began ? null : traceSession.diagnostics.reason);
 });
 window.addEventListener('pointermove', event => {
-  if (activePointerId !== event.pointerId || $('#play').hidden || paused) return;
+  if (mazeCompleted || activePointerId !== event.pointerId || $('#play').hidden || paused) return;
   event.preventDefault();
   let moved = false, complete = false;
   const samples = pointerMovementSamples(event);
@@ -522,7 +539,7 @@ window.addEventListener('pointermove', event => {
 window.addEventListener('resize', clearPointer);
 svg.addEventListener('keydown', event => {
   const direction = { ArrowUp: { x: 0, y: -1 }, ArrowRight: { x: 1, y: 0 }, ArrowDown: { x: 0, y: 1 }, ArrowLeft: { x: -1, y: 0 } }[event.key];
-  if (!direction || $('#play').hidden || paused || activeOverlay) return;
+  if (!direction || mazeCompleted || $('#play').hidden || paused || activeOverlay) return;
   event.preventDefault();
   const result = traceSession.step(direction);
   if (result.moved) renderTrace();
@@ -546,12 +563,9 @@ for (const option of document.querySelectorAll('[data-start-difficulty]')) {
   });
 }
 $('#new-maze').addEventListener('click', () => makeMaze());
-$('#next-maze').addEventListener('click', () => makeMaze());
 $('#restart-maze').addEventListener('click', () => makeMaze(true));
-$('#replay-maze').addEventListener('click', () => makeMaze(true));
 $('#back-home').addEventListener('click', () => { clearPointer(); showDifficultySelection(); });
 $('#brand-home').addEventListener('click', event => { event.preventDefault(); $('#play').hidden ? showHome() : openHomeConfirmation(); });
-$('#complete-home').addEventListener('click', showHome);
 $('#pause-game').addEventListener('click', () => openOverlay($('#pause-dialog'), { pause: true }));
 $('#pause-settings').addEventListener('click', openSettingsFromPause);
 function resumeFromPause() { paused = false; closeOverlay(); startTimer(); }

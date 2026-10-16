@@ -61,7 +61,7 @@ test('service worker is app-scoped, refreshes from network, and removes obsolete
   assert.match(worker, /name\.startsWith\(CACHE_PREFIX\) && name !== CACHE_NAME/);
   assert.match(worker, /await self\.skipWaiting\(\)/);
   assert.match(worker, /await self\.clients\.claim\(\)/);
-  assert.match(worker, /shell-v28/);
+  assert.match(worker, /shell-v29/);
   assert.match(worker, /src\/trace-rendering\.js/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /src\/trace-diagnostics\.js/);
@@ -83,8 +83,8 @@ test('service worker is app-scoped, refreshes from network, and removes obsolete
   assert.match(updater, /maze-adventure:safe-to-update/);
   assert.match(updater, /visibilitychange/);
   assert.equal(canReloadForUpdate('play'), false, 'a live attempt is not discarded for an update');
-  assert.equal(canReloadForUpdate('complete'), false, 'the finished maze remains visible until the player leaves');
-  for (const screen of ['home', 'settings', 'help', 'about']) assert.equal(canReloadForUpdate(screen), true);
+  assert.equal(canReloadForUpdate('difficulty'), true, 'the inline completion can be safely left through the regular difficulty navigation');
+  for (const screen of ['home', 'difficulty', 'settings', 'help', 'about']) assert.equal(canReloadForUpdate(screen), true);
   for (const icon of ['maze-adventure-icon-180.png', 'maze-adventure-icon-192.png', 'maze-adventure-icon-512.png']) {
     assert.ok(worker.includes(icon), `Service worker should cache ${icon}`);
   }

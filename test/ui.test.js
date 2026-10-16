@@ -41,7 +41,7 @@ test('canonical Mirpworks launch splash covers startup, then reveals the title o
   assert.equal((html.match(/id="launch-splash"/g) || []).length, 1, 'the initial document must contain one splash layer');
   assert.ok(html.indexOf("querySelector('#launch-splash')") < html.indexOf('src="./src/game.js"'), 'splash startup must be initialized before the game module');
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.launch-splash \{ transition: opacity 100ms ease !important/);
-  assert.match(worker, /shell-v28/);
+  assert.match(worker, /shell-v29/);
   assert.match(worker, /\.\/branding\/mirpworks-logo\.jpg/);
   assert.match(styles, /body\[data-screen="home"\]/);
 });
@@ -88,7 +88,7 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v28/);
+  assert.match(worker, /shell-v29/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);
@@ -112,11 +112,23 @@ test('Contact links prefill Maze Adventure feedback email details', async () => 
 
 test('gameplay actions keep restart, new maze, pause, and guarded Home behavior distinct', async () => {
   const html = await read('index.html'), game = await read('src/game.js');
-  for (const id of ['pause-game', 'restart-maze', 'new-maze', 'next-maze', 'replay-maze', 'back-home', 'pause-dialog', 'confirm-dialog']) {
+  for (const id of ['pause-game', 'restart-maze', 'new-maze', 'back-home', 'completion-panel', 'pause-dialog', 'confirm-dialog']) {
     assert.ok(html.includes(`id="${id}"`), `Missing ${id} control`);
   }
+  for (const obsolete of ['next-maze', 'replay-maze', 'complete-home', 'final-time']) assert.ok(!html.includes(`id="${obsolete}"`), `${obsolete} belongs to the retired full-screen results flow`);
   assert.match(game, /#restart-maze'\)\.addEventListener\('click', \(\) => makeMaze\(true\)/);
   assert.match(game, /#new-maze'\)\.addEventListener\('click', \(\) => makeMaze\(\)/);
+  assert.match(game, /function completeMaze\(\) \{\s*if \(mazeCompleted\) return;[\s\S]*?document\.body\.dataset\.completed = 'true';[\s\S]*?\$\('#completion-panel'\)\.hidden = false;[\s\S]*?playCompletionSound\(\);\s*\}/);
+  assert.match(game, /if \(mazeCompleted \|\| timerId \|\|/);
+  assert.match(game, /if \(mazeCompleted \|\| activePointerId !== event\.pointerId/);
+  assert.match(game, /if \(!direction \|\| mazeCompleted \|\|/);
+  assert.match(game, /mazeCompleted = false;[\s\S]*?\$\('#completion-panel'\)\.hidden = true/);
+  assert.match(html, /id="completion-panel"[^>]*aria-live="polite"[^>]*hidden/);
+  assert.match(html, /id="maze-overview"/);
+  assert.match(html, /id="timer" aria-label="Elapsed time"/);
+  assert.match(game, /\$\('#maze-paper'\)\.hidden = preferences\.zoomAssist/);
+  assert.match(game, /if \(mazeCompleted\) \$\('#maze-paper'\)\.hidden = preferences\.zoomAssist/);
+  assert.match(game, /#back-home'\)\.addEventListener\('click', \(\) => \{ clearPointer\(\); showDifficultySelection\(\); \}\)/);
   assert.match(game, /createMazeForDifficulty\(selectedDifficulty\)/);
   assert.match(game, /const screens = \['home', 'difficulty', 'play'/);
   assert.match(game, /#quick-play'\)\.addEventListener\('click', showDifficultySelection\)/);
