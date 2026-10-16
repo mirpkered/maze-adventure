@@ -19,13 +19,14 @@ test('QA session storage expires reports after 24 hours and keeps a bounded newe
 });
 
 test('quick summary distinguishes observed recovery from insufficient evidence and stays compact', () => {
-  const report = { buildId: 'build-test', maze: { layoutId: 'maze-x', dimensions: { width: 7, height: 7 } }, current: { state: { authoritativePosition: { x: 1.234, y: 5.42 }, logicalCell: { x: 1, y: 5 }, active: false } }, events: [
+  const report = { buildId: 'build-test', maze: { layoutId: 'maze-x', dimensions: { width: 7, height: 7 }, start: { cell: { x: 2, y: 0 }, edge: 'N' }, finish: { cell: { x: 6, y: 4 }, edge: 'E' }, shortestSolutionLength: 24 }, current: { state: { authoritativePosition: { x: 1.234, y: 5.42 }, logicalCell: { x: 1, y: 5 }, active: false } }, events: [
     { t: 1, accepted: false, rejectedReason: 'closed-wall-collision' },
     { t: 2, accepted: true, movementAccepted: true },
   ] };
   const recovered = createQuickSummary(report, { observed: 2, accepted: 1, rejectedByReason: { 'closed-wall-collision': 1 }, canceled: 0, durationMs: 500 });
   assert.match(recovered, /RECOVERED AFTER LAST REJECTION/);
   assert.match(recovered, /7x7 easy/);
+  assert.match(recovered, /start 2,0 N → finish 6,4 E \| solution 24 steps/);
   assert.match(createQuickSummary({ ...report, maze: { ...report.maze, difficulty: 'medium', dimensions: { width: 10, height: 10 } } }), /10x10 medium/);
   assert.ok(recovered.length < 2000);
   assert.match(createQuickSummary({ ...report, events: [] }), /INSUFFICIENT EVIDENCE/);

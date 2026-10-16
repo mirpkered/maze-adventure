@@ -1,4 +1,4 @@
-import { createMazeForDifficulty, FREE_PLAY_DIFFICULTIES, getWallSegments } from './maze.js';
+import { createMazeForDifficulty, FREE_PLAY_DIFFICULTIES, getShortestPath, getWallSegments } from './maze.js';
 import { createTraceSession } from './tracing.js';
 import { DEFAULT_PREFERENCES, PREFERENCES_KEY, readPreferences, writePreferences } from './preferences.js';
 import { clientToViewBoxPoint, getMazeGridGeometry, mazeToSvgPoint, svgToMazePoint, transformPoint } from './coordinates.js';
@@ -151,6 +151,9 @@ function diagnosticReportObject() {
     layoutId: currentLayoutId,
     dimensions: maze ? { width: maze.width, height: maze.height } : null,
     difficulty: maze?.difficulty ?? selectedDifficulty,
+    start: maze?.entrance ? { cell: { ...maze.start }, edge: maze.entrance.side } : null,
+    finish: maze?.exit ? { cell: { ...maze.end }, edge: maze.exit.side } : null,
+    shortestSolutionLength: maze ? (getShortestPath(maze)?.length ?? 0) - 1 : null,
     mazeDefinition: maze ? {
       start: { ...maze.start }, end: { ...maze.end },
       entrance: maze.entrance ? { cell: { ...maze.entrance.cell }, side: maze.entrance.side } : null,
@@ -263,8 +266,21 @@ function renderMaze() {
   }
   svg.append(walls);
   const start = svgPoint(maze.start), end = svgPoint(maze.end);
-  svg.append(create('text', { x: start.x, y: gridGeometry.y - 7, 'text-anchor': 'middle', class: 'marker marker-start' }, 'START'));
-  svg.append(create('text', { x: end.x, y: gridGeometry.y + maze.height * gridGeometry.cellSize + 17, 'text-anchor': 'middle', class: 'marker marker-end' }, '✿'));
+  const markerPosition = (opening, isStart) => {
+    const cell = opening.cell, x = gridGeometry.x + (cell.x + .5) * gridGeometry.cellSize;
+    const y = gridGeometry.y + (cell.y + .5) * gridGeometry.cellSize;
+    if (opening.side === 'N') return { x, y: gridGeometry.y - (isStart ? 7 : 8) };
+    if (opening.side === 'S') return { x, y: gridGeometry.y + maze.height * gridGeometry.cellSize + (isStart ? 16 : 16) };
+    if (opening.side === 'W') return { x: gridGeometry.x - 8, y, rotate: -90 };
+    return { x: SIZE - 8, y, rotate: 90 };
+  };
+  const startMarker = markerPosition(maze.entrance, true), endMarker = markerPosition(maze.exit, false);
+  const marker = (position, className, text) => create('text', {
+    x: position.x, y: position.y, 'text-anchor': 'middle', class: `marker ${className}`,
+    ...(position.rotate ? { transform: `rotate(${position.rotate} ${position.x} ${position.y})` } : {}),
+  }, text);
+  svg.append(marker(startMarker, 'marker-start', 'START'));
+  svg.append(marker(endMarker, 'marker-end', '✿'));
   svg.append(create('circle', { id: 'player', cx: start.x, cy: start.y, r: gridGeometry.cellSize * .19, class: 'player' }));
   renderTrace();
 }

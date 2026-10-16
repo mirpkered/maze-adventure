@@ -17,10 +17,19 @@ function nearestCell(point, maze) {
 function sameCell(a, b) { return a.x === b.x && a.y === b.y; }
 function copyPoint(point) { return { x: point.x, y: point.y }; }
 
+function outsideEntrance(point, maze) {
+  const entrance = maze.entrance;
+  if (!entrance || !sameCell(entrance.cell, maze.start)) return false;
+  const dx = point.x - entrance.cell.x, dy = point.y - entrance.cell.y;
+  const outward = entrance.side === 'N' ? -dy : entrance.side === 'S' ? dy : entrance.side === 'E' ? dx : -dx;
+  const tangent = entrance.side === 'N' || entrance.side === 'S' ? Math.abs(dx) : Math.abs(dy);
+  return outward > CORRIDOR_MARGIN && outward <= ENTRANCE_TOLERANCE && tangent <= CORRIDOR_MARGIN;
+}
+
 function insideCell(point, cell, maze) {
   const dx = point.x - cell.x, dy = point.y - cell.y;
   const ax = Math.abs(dx), ay = Math.abs(dy);
-  if (sameCell(cell, maze.start) && cell.y === 0 && dy < -CORRIDOR_MARGIN && ay <= ENTRANCE_TOLERANCE && ax <= CORRIDOR_MARGIN) return true;
+  if (sameCell(cell, maze.start) && outsideEntrance(point, maze)) return true;
   if (ax <= CORRIDOR_MARGIN && ay <= CORRIDOR_MARGIN) return true;
   if (ax <= 0.5 && ay <= CORRIDOR_MARGIN && dx !== 0 && canMove(maze, cell, { x: cell.x + Math.sign(dx), y: cell.y })) return true;
   if (ay <= 0.5 && ax <= CORRIDOR_MARGIN && dy !== 0 && canMove(maze, cell, { x: cell.x, y: cell.y + Math.sign(dy) })) return true;
@@ -29,10 +38,10 @@ function insideCell(point, cell, maze) {
 
 function constrainStrokePoint(point, cell, maze) {
   const dx = point.x - cell.x, dy = point.y - cell.y;
-  const entrance = sameCell(cell, maze.start) && cell.y === 0 && dy < -CORRIDOR_MARGIN;
+  const entranceSide = sameCell(cell, maze.start) && outsideEntrance(point, maze) ? maze.entrance.side : null;
   return {
-    x: cell.x + Math.max(-STROKE_WALL_SAFE_OFFSET, Math.min(STROKE_WALL_SAFE_OFFSET, dx)),
-    y: entrance ? point.y : cell.y + Math.max(-STROKE_WALL_SAFE_OFFSET, Math.min(STROKE_WALL_SAFE_OFFSET, dy)),
+    x: entranceSide === 'W' || entranceSide === 'E' ? point.x : cell.x + Math.max(-STROKE_WALL_SAFE_OFFSET, Math.min(STROKE_WALL_SAFE_OFFSET, dx)),
+    y: entranceSide === 'N' || entranceSide === 'S' ? point.y : cell.y + Math.max(-STROKE_WALL_SAFE_OFFSET, Math.min(STROKE_WALL_SAFE_OFFSET, dy)),
   };
 }
 
@@ -239,9 +248,7 @@ export function createTraceSession(maze) {
       if (pointerId !== null) { lastReason = 'gesture-already-active'; return false; }
       const cell = nearestCell(point, maze);
       const entranceStart = path.length === 1 && stroke.length === 1;
-      const atEntrance = entranceStart && cell && sameCell(cell, maze.start) && cell.y === 0
-        && point.y - cell.y < -CORRIDOR_MARGIN && Math.abs(point.y - cell.y) <= ENTRANCE_TOLERANCE
-        && Math.abs(point.x - cell.x) <= CORRIDOR_MARGIN;
+      const atEntrance = entranceStart && cell && sameCell(cell, maze.start) && outsideEntrance(point, maze);
       lastResumeDistance = Math.hypot(point.x - position.x, point.y - position.y);
       lastResumeThreshold = Number.isFinite(radius) && radius >= 0 ? radius : DEFAULT_ACQUISITION_RADIUS;
       lastResumeDistancePixels = Number.isFinite(pixelsPerMazeUnit) && pixelsPerMazeUnit > 0

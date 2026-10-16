@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { advancePath, canMove, createMaze, createMazeForDifficulty, getWallSegments, isConnected, validateMaze, validatePath } from '../src/maze.js';
+import { advancePath, canMove, createMaze, createMazeForDifficulty, getShortestPath, getWallSegments, isConnected, validateMaze, validatePath } from '../src/maze.js';
 import { mazeLayoutId } from '../src/trace-diagnostics.js';
 
 function seeded(seed) {
@@ -37,28 +37,42 @@ function navigationStats(maze) {
 }
 
 test('generated Easy mazes are connected and every wall has a matching neighbor', () => {
+  const startEdges = new Map(), finishEdges = new Map();
   for (let seed = 0; seed < 500; seed++) {
     const maze = createMaze(7, 7, seeded(seed));
     assert.equal(isConnected(maze), true);
     assert.equal(validateMaze(maze), true);
-    assert.deepEqual(maze.entrance, { cell: { x: 0, y: 0 }, side: 'N' });
-    assert.deepEqual(maze.exit, { cell: { x: 6, y: 6 }, side: 'S' });
-    assert.equal(maze.cells[0][0].walls.N, false);
-    assert.equal(maze.cells[6][6].walls.S, false);
+    assert.deepEqual(maze.start, maze.entrance.cell);
+    assert.deepEqual(maze.end, maze.exit.cell);
+    assert.notDeepEqual(maze.start, maze.end);
+    startEdges.set(maze.entrance.side, (startEdges.get(maze.entrance.side) ?? 0) + 1);
+    finishEdges.set(maze.exit.side, (finishEdges.get(maze.exit.side) ?? 0) + 1);
+    const solutionLength = getShortestPath(maze).length - 1;
+    assert.ok(solutionLength >= 18, `seed ${seed}: Easy solution is meaningfully long`);
     for (let y = 0; y < maze.height; y++) for (let x = 0; x < maze.width; x++) {
       const cell = maze.cells[y][x];
       if (x + 1 < maze.width) assert.equal(cell.walls.E, maze.cells[y][x + 1].walls.W);
       if (y + 1 < maze.height) assert.equal(cell.walls.S, maze.cells[y + 1][x].walls.N);
-      if (x === 0) assert.equal(cell.walls.W, true, `seed ${seed}: west boundary`);
-      if (x === 6) assert.equal(cell.walls.E, true, `seed ${seed}: east boundary`);
-      if (y === 0 && !(x === 0)) assert.equal(cell.walls.N, true, `seed ${seed}: north boundary`);
-      if (y === 6 && !(x === 6)) assert.equal(cell.walls.S, true, `seed ${seed}: south boundary`);
+      for (const side of ['N', 'E', 'S', 'W']) {
+        const onBoundary = side === 'N' ? y === 0 : side === 'S' ? y === 6 : side === 'W' ? x === 0 : x === 6;
+        if (!onBoundary) continue;
+        const isOpening = [maze.entrance, maze.exit].some(opening => opening.side === side && opening.cell.x === x && opening.cell.y === y);
+        assert.equal(cell.walls[side], !isOpening, `seed ${seed}: ${side} boundary agrees with declared openings`);
+      }
     }
     const segments = getWallSegments(maze);
-    assert.equal(segments.some(edge => edge.orientation === 'vertical' && edge.x === 0 && edge.y === 0), true, `seed ${seed}: left wall rendered`);
-    assert.equal(segments.some(edge => edge.orientation === 'horizontal' && edge.x === 0 && edge.y === 0), false, `seed ${seed}: entrance opening`);
-    assert.equal(segments.some(edge => edge.orientation === 'horizontal' && edge.x === 6 && edge.y === 7), false, `seed ${seed}: exit opening`);
+    for (const opening of [maze.entrance, maze.exit]) {
+      const key = opening.side === 'N' ? { orientation: 'horizontal', x: opening.cell.x, y: 0 }
+        : opening.side === 'S' ? { orientation: 'horizontal', x: opening.cell.x, y: 7 }
+          : opening.side === 'W' ? { orientation: 'vertical', x: 0, y: opening.cell.y }
+            : { orientation: 'vertical', x: 7, y: opening.cell.y };
+      assert.equal(segments.some(segment => segment.orientation === key.orientation && segment.x === key.x && segment.y === key.y), false, `seed ${seed}: ${opening.side} opening is absent from rendered walls`);
+    }
     assert.equal(segments.length, new Set(segments.map(edge => `${edge.orientation}:${edge.x},${edge.y}`)).size, `seed ${seed}: wall segments unique`);
+  }
+  for (const side of ['N', 'E', 'S', 'W']) {
+    assert.ok(startEdges.get(side) > 50, `starts use the ${side} edge throughout the sample`);
+    assert.ok(finishEdges.get(side) > 50, `finishes use the ${side} edge throughout the sample`);
   }
 });
 
@@ -72,8 +86,9 @@ test('Easy and Medium Free Play sizes stay stable and Medium offers more varied 
     assert.equal(easy.difficulty, 'easy'); assert.equal(medium.difficulty, 'medium');
     assert.equal(isConnected(medium), true, `medium seed ${seed} remains solvable`);
     assert.equal(validateMaze(medium), true, `medium seed ${seed} has reciprocal walls and valid boundaries`);
-    assert.deepEqual(medium.entrance, { cell: { x: 0, y: 0 }, side: 'N' });
-    assert.deepEqual(medium.exit, { cell: { x: 9, y: 9 }, side: 'S' });
+    assert.deepEqual(medium.start, medium.entrance.cell);
+    assert.deepEqual(medium.end, medium.exit.cell);
+    assert.ok(getShortestPath(medium).length - 1 >= 28, `medium seed ${seed}: solution length meets its difficulty floor`);
     for (let y = 0; y < 10; y++) for (let x = 0; x < 10; x++) {
       const cell = medium.cells[y][x];
       if (x < 9) assert.equal(cell.walls.E, medium.cells[y][x + 1].walls.W);
@@ -81,13 +96,16 @@ test('Easy and Medium Free Play sizes stay stable and Medium offers more varied 
     }
     const walls = getWallSegments(medium);
     for (let y = 0; y < 10; y++) {
-      assert.ok(walls.some(edge => edge.orientation === 'vertical' && edge.x === 0 && edge.y === y));
-      assert.ok(walls.some(edge => edge.orientation === 'vertical' && edge.x === 10 && edge.y === y));
+      assert.equal(walls.some(edge => edge.orientation === 'vertical' && edge.x === 0 && edge.y === y), ![medium.entrance, medium.exit].some(port => port.side === 'W' && port.cell.y === y));
+      assert.equal(walls.some(edge => edge.orientation === 'vertical' && edge.x === 10 && edge.y === y), ![medium.entrance, medium.exit].some(port => port.side === 'E' && port.cell.y === y));
     }
-    for (let x = 1; x < 10; x++) assert.ok(walls.some(edge => edge.orientation === 'horizontal' && edge.x === x && edge.y === 0));
-    for (let x = 0; x < 9; x++) assert.ok(walls.some(edge => edge.orientation === 'horizontal' && edge.x === x && edge.y === 10));
-    assert.ok(!walls.some(edge => edge.orientation === 'horizontal' && edge.x === 0 && edge.y === 0), `medium seed ${seed}: entrance opening`);
-    assert.ok(!walls.some(edge => edge.orientation === 'horizontal' && edge.x === 9 && edge.y === 10), `medium seed ${seed}: exit opening`);
+    for (const opening of [medium.entrance, medium.exit]) {
+      const key = opening.side === 'N' ? { orientation: 'horizontal', x: opening.cell.x, y: 0 }
+        : opening.side === 'S' ? { orientation: 'horizontal', x: opening.cell.x, y: 10 }
+          : opening.side === 'W' ? { orientation: 'vertical', x: 0, y: opening.cell.y }
+            : { orientation: 'vertical', x: 10, y: opening.cell.y };
+      assert.ok(!walls.some(edge => edge.orientation === key.orientation && edge.x === key.x && edge.y === key.y), `medium seed ${seed}: declared opening is absent from rendered walls`);
+    }
     const stats = navigationStats(medium);
     assert.ok(stats.junctions >= 4, `medium seed ${seed}: has multiple decision junctions`);
     assert.ok(stats.deadEnds >= 6, `medium seed ${seed}: offers believable wrong turns`);
@@ -107,17 +125,58 @@ test('Easy and Medium Free Play sizes stay stable and Medium offers more varied 
   assert.throws(() => createMazeForDifficulty('hard'), RangeError, 'Hard is not enabled');
 });
 
+test('endpoint arrangements vary across every edge while staying distinct, non-cornered, and graph-distant', () => {
+  const edgeNames = ['N', 'E', 'S', 'W'], startCounts = Object.fromEntries(edgeNames.map(side => [side, 0]));
+  const finishCounts = Object.fromEntries(edgeNames.map(side => [side, 0]));
+  const arrangements = new Set();
+  for (let seed = 0; seed < 1000; seed++) {
+    const difficulty = seed % 2 ? 'easy' : 'medium';
+    const maze = createMazeForDifficulty(difficulty, seeded(seed));
+    const path = getShortestPath(maze);
+    const minimum = difficulty === 'easy' ? 18 : 28;
+    assert.ok(path && path.length - 1 >= minimum, `${difficulty} seed ${seed} meets the shortest-path floor`);
+    assert.notDeepEqual(maze.start, maze.end);
+    for (const opening of [maze.entrance, maze.exit]) {
+      assert.ok(opening.cell.x > 0 && opening.cell.x < maze.width - 1 || opening.cell.y > 0 && opening.cell.y < maze.height - 1,
+        `seed ${seed}: endpoint does not occupy a corner`);
+    }
+    startCounts[maze.entrance.side]++;
+    finishCounts[maze.exit.side]++;
+    arrangements.add(`${maze.entrance.side}-${maze.exit.side}`);
+  }
+  for (const side of edgeNames) {
+    assert.ok(startCounts[side] >= 100, `start edge ${side} receives broad representation`);
+    assert.ok(finishCounts[side] >= 100, `finish edge ${side} receives broad representation`);
+  }
+  assert.ok([...arrangements].some(pair => { const [a, b] = pair.split('-'); return a === b; }), 'same-edge arrangements occur');
+  assert.ok([...arrangements].some(pair => { const [a, b] = pair.split('-'); return Math.abs(edgeNames.indexOf(a) - edgeNames.indexOf(b)) === 2; }), 'opposite-edge arrangements occur');
+  assert.ok([...arrangements].some(pair => { const [a, b] = pair.split('-'); const delta = Math.abs(edgeNames.indexOf(a) - edgeNames.indexOf(b)); return delta === 1 || delta === 3; }), 'adjacent-edge arrangements occur');
+});
+
 test('exterior boundaries are complete apart from declared entrance and exit', () => {
-  const maze = createMaze(7, 7, () => 0.37);
+  const maze = createMaze(7, 7, seeded(0));
   const edges = getWallSegments(maze);
   for (let y = 0; y < 7; y++) {
-    assert.ok(edges.some(edge => edge.orientation === 'vertical' && edge.x === 0 && edge.y === y));
-    assert.ok(edges.some(edge => edge.orientation === 'vertical' && edge.x === 7 && edge.y === y));
+    for (let x = 0; x < 7; x++) {
+      const cell = maze.cells[y][x];
+      for (const side of ['N', 'E', 'S', 'W']) {
+        const onBoundary = side === 'N' ? y === 0 : side === 'S' ? y === 6 : side === 'W' ? x === 0 : x === 6;
+        if (!onBoundary) continue;
+        const opening = [maze.entrance, maze.exit].some(port => port.side === side && port.cell.x === x && port.cell.y === y);
+        assert.equal(cell.walls[side], !opening);
+        const segment = side === 'N' ? { orientation: 'horizontal', x, y: 0 }
+          : side === 'S' ? { orientation: 'horizontal', x, y: 7 }
+            : side === 'W' ? { orientation: 'vertical', x: 0, y }
+              : { orientation: 'vertical', x: 7, y };
+        assert.equal(edges.some(edge => edge.orientation === segment.orientation && edge.x === segment.x && edge.y === segment.y), !opening,
+          `${side} exterior SVG edge must match its canonical wall bit`);
+      }
+    }
   }
-  for (let x = 1; x < 7; x++) assert.ok(edges.some(edge => edge.orientation === 'horizontal' && edge.x === x && edge.y === 0));
-  for (let x = 0; x < 6; x++) assert.ok(edges.some(edge => edge.orientation === 'horizontal' && edge.x === x && edge.y === 7));
-  assert.equal(canMove(maze, maze.start, { x: 0, y: -1 }), false);
-  assert.equal(canMove(maze, maze.end, { x: 6, y: 7 }), false);
+  const outside = { x: maze.entrance.side === 'W' ? -1 : maze.entrance.side === 'E' ? maze.width : maze.start.x,
+    y: maze.entrance.side === 'N' ? -1 : maze.entrance.side === 'S' ? maze.height : maze.start.y };
+  assert.equal(canMove(maze, maze.start, outside), false,
+    'an exterior opening never creates an out-of-domain graph edge');
 });
 
 test('canonical rendered internal edge stays blocked when either cell marks a shared wall', () => {
@@ -159,9 +218,10 @@ test('path validation rejects jumps, walls, out-of-bounds steps, and wrong start
 
 test('player may backtrack only by retracing the previous route cell', () => {
   const maze = createMaze(4, 4, () => 0.5);
-  const a = { x: 0, y: 0 };
+  const a = { ...maze.start };
   // Find any open first step so this assertion stays independent of generation order.
-  const first = [{ x: 1, y: 0 }, { x: 0, y: 1 }].find(p => canMove(maze, a, p));
+  const first = [{ x: a.x + 1, y: a.y }, { x: a.x - 1, y: a.y }, { x: a.x, y: a.y + 1 }, { x: a.x, y: a.y - 1 }]
+    .find(p => canMove(maze, a, p));
   const step = advancePath(maze, [a], first);
   assert.equal(step.moved, true);
   const back = advancePath(maze, step.path, a);

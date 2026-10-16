@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createTraceSession, traceSegment } from '../src/tracing.js';
 import { createTraceRecorder, mazeLayoutId } from '../src/trace-diagnostics.js';
-import { advancePath, canMove, createMaze, createMazeForDifficulty, validateMaze } from '../src/maze.js';
+import { advancePath, canMove, createMaze, createMazeForDifficulty, getShortestPath, validateMaze } from '../src/maze.js';
 import { finalPointerMovement, pointerMovementSamples } from '../src/pointer-samples.js';
 
 function mazeWithRoute(route, width = Math.max(...route.map(p => p.x)) + 1, height = Math.max(...route.map(p => p.y)) + 1) {
@@ -65,7 +65,10 @@ test('one continuous drag traverses multiple cells without cell-by-cell gestures
 
 test('a player can begin at the printed entrance opening instead of the cell center', () => {
   const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }];
-  const session = createTraceSession(mazeWithRoute(route));
+  const maze = mazeWithRoute(route);
+  maze.entrance = { cell: { x: 0, y: 0 }, side: 'N' };
+  maze.cells[0][0].walls.N = false;
+  const session = createTraceSession(maze);
   assert.equal(session.begin(4, { x: 0, y: -0.48 }), true);
   assert.deepEqual(session.move(4, { x: 0.6, y: 0 }).path, route.slice(0, 2));
 });
@@ -865,6 +868,36 @@ test('Medium maze uses the shared tracer for collision, release, endpoint re-tap
   assert.deepEqual(session.path.at(-1), maze.end);
   assert.equal(session.stroke.at(-1).x, maze.end.x);
   assert.equal(session.stroke.at(-1).y, maze.end.y);
+});
+
+test('dynamic perimeter starts accept the marked opening and finish legally at every exit edge', () => {
+  const foundStarts = new Set(), foundFinishes = new Set();
+  for (let seed = 0; seed < 120 && (foundStarts.size < 4 || foundFinishes.size < 4); seed++) {
+    const maze = createMazeForDifficulty(seed % 2 ? 'easy' : 'medium', seeded(seed));
+    foundStarts.add(maze.entrance.side);
+    foundFinishes.add(maze.exit.side);
+    const session = createTraceSession(maze), pointer = 2000 + seed;
+    const outsideStart = { ...maze.start };
+    if (maze.entrance.side === 'N') outsideStart.y -= .48;
+    if (maze.entrance.side === 'E') outsideStart.x += .48;
+    if (maze.entrance.side === 'S') outsideStart.y += .48;
+    if (maze.entrance.side === 'W') outsideStart.x -= .48;
+    assert.equal(session.begin(pointer, outsideStart), true, `seed ${seed}: touch can acquire ${maze.entrance.side} entrance without leaving the visible board`);
+    assert.equal(session.move(pointer, maze.start).blocked, false, `seed ${seed}: pencil can enter through the declared opening`);
+    let completed = 0;
+    const solution = getShortestPath(maze);
+    assert.ok(solution.length - 1 >= (maze.difficulty === 'medium' ? 28 : 18));
+    for (const cell of solution.slice(1)) {
+      const movement = session.move(pointer, cell);
+      assert.equal(movement.moved, true, `seed ${seed}: legal solution transition is accepted`);
+      if (movement.complete) completed++;
+    }
+    assert.equal(completed, 1, `seed ${seed}: completion fires once at the selected flower`);
+    assert.deepEqual(session.path.at(-1), maze.end);
+    assert.deepEqual({ x: Math.round(session.position.x), y: Math.round(session.position.y) }, maze.end);
+  }
+  assert.deepEqual([...foundStarts].sort(), ['E', 'N', 'S', 'W']);
+  assert.deepEqual([...foundFinishes].sort(), ['E', 'N', 'S', 'W']);
 });
 
 test('dead-end recovery works across all four movement directions', () => {
