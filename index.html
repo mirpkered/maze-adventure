@@ -107,6 +107,7 @@
           <section class="maze-close-panel maze-paper" id="maze-paper" aria-label="Close View, primary tracing surface">
             <span class="maze-panel-label">CLOSE VIEW <span id="zoom-factor-label">· 2×</span></span>
             <svg id="maze" draggable="false" tabindex="0" role="application" aria-label="Close View. Trace from the entrance to the exit. Focus the maze and use arrow keys to move one passage at a time." viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg>
+            <div class="steering-indicator" id="steering-indicator" aria-hidden="true" hidden><span class="steering-vector"></span><span class="steering-origin"></span><span class="steering-finger"></span></div>
           </section>
           <section id="completion-panel" class="completion-panel maze-paper" aria-labelledby="completion-title" aria-live="polite" aria-atomic="true" hidden>
             <span class="completion-flower" aria-hidden="true">✿</span>
@@ -120,6 +121,13 @@
         <output id="trace-diagnostics" class="trace-diagnostics" hidden aria-live="off"></output>
         <section id="trace-diagnostic-tools" class="trace-diagnostic-tools" hidden aria-label="QA tracing diagnostics">
           <div class="diagnostic-actions"><button id="copy-qa-summary" class="small-button">Copy quick summary</button><button id="copy-qa-incident" class="small-button">Copy recent incident</button><button id="copy-trace-report" class="small-button">Share / export full report</button><button id="reset-trace-log" class="small-button">Reset current log</button><button id="clear-qa-sessions" class="small-button">Clear saved QA sessions</button><button id="disable-qa-mode" class="small-button">Exit QA mode</button></div>
+          <label id="qa-input-mode-controls" class="qa-input-mode-controls" hidden for="qa-input-mode">Experimental input
+            <select id="qa-input-mode">
+              <option value="direct-touch">Direct Touch (Default)</option>
+              <option value="continuous-steering">Continuous Steering (Experimental)</option>
+            </select>
+            <small>Steering is QA-only. Touch down sets an origin; move away to guide the pencil.</small>
+          </label>
           <output id="qa-retention-status" aria-live="polite"></output>
           <label class="qa-session-picker" for="qa-session-history">Saved QA session</label><select id="qa-session-history" aria-label="Saved QA session"><option value="current">Current session</option></select>
           <p class="qa-privacy-note">QA reports are stored only on this device for up to 24 hours. They are not sent to Mirpworks.</p>

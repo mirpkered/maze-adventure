@@ -1215,6 +1215,73 @@ test('Hard 15x15 uses the shared tracer for a long route, wall lockout, retap, a
   assert.ok(replay.stroke.length >= inkAtCollision.length, 'permanent ink never shrinks during backtracking');
 });
 
+test('QA steering collision rejects only the frame and can redirect through an open passage without lifting', () => {
+  const maze = mazeWithRoute([{ x: 0, y: 0 }, { x: 0, y: 1 }], 2, 2);
+  const session = createTraceSession(maze), initialPosition = { ...session.position }, initialInk = session.stroke.map(point => ({ ...point }));
+  assert.equal(session.beginSteering(991), true);
+  assert.deepEqual(session.position, initialPosition, 'establishing the steering gesture does not move the pencil');
+  assert.deepEqual(session.stroke, initialInk, 'touchdown draws no ink');
+  const collision = session.steer(991, { x: 0.7, y: 0 });
+  assert.equal(collision.wallCollision, true);
+  assert.equal(collision.steeringCollision, true);
+  assert.equal(session.active, true, 'steering stays active after wall contact');
+  assert.equal(session.diagnostics.lockedOut, false, 'direct-touch lockout does not apply to steering');
+  assert.deepEqual(session.path, [{ x: 0, y: 0 }]);
+  assert.ok(session.position.x <= 0.46, 'the pencil stops on the legal side of the closed east wall');
+  const afterCollisionInk = session.stroke.map(point => ({ ...point }));
+  for (let index = 0; index < 8; index++) session.steer(991, { x: 0.2, y: 0 });
+  assert.deepEqual(session.position, collision.position, 'continued wall pressure cannot advance the endpoint');
+  assert.deepEqual(session.stroke, afterCollisionInk, 'holding against a wall does not add duplicate ink');
+  const turn = session.steer(991, { x: 0, y: 0.8 });
+  assert.equal(turn.moved, true);
+  assert.deepEqual(session.path, [{ x: 0, y: 0 }, { x: 0, y: 1 }], 'steering can proceed down the open passage without lifting');
+  assert.equal(turn.complete, true);
+  assert.ok(session.stroke.length >= afterCollisionInk.length, 'earlier ink remains append-only');
+  assert.equal(session.end(991), true);
+});
+
+test('QA steering can backtrack to a junction while retaining permanent ink', () => {
+  const maze = mazeWithRoute([{ x: 0, y: 0 }, { x: 1, y: 0 }], 2, 2);
+  maze.end = { x: 1, y: 1 };
+  const session = createTraceSession(maze);
+  session.beginSteering(992);
+  assert.equal(session.steer(992, { x: 0.9, y: 0 }).moved, true);
+  assert.deepEqual(session.path, [{ x: 0, y: 0 }, { x: 1, y: 0 }]);
+  const beforeReverse = session.stroke.map(point => ({ ...point }));
+  assert.equal(session.steer(992, { x: -0.9, y: 0 }).moved, true);
+  assert.deepEqual(session.path, [{ x: 0, y: 0 }]);
+  assert.ok(session.stroke.length >= beforeReverse.length, 'backtracking does not remove any ink');
+  assert.deepEqual(session.stroke.slice(0, beforeReverse.length), beforeReverse);
+});
+
+test('direct-touch collision lockout stays in force when steering is not selected', () => {
+  const maze = mazeWithRoute([{ x: 0, y: 0 }, { x: 0, y: 1 }], 2, 2);
+  const session = createTraceSession(maze);
+  assert.equal(session.begin(993, { x: 0, y: 0 }), true);
+  const collision = session.move(993, { x: 0.7, y: 0 });
+  assert.equal(collision.gestureTerminatedByWallCollision, true);
+  assert.equal(session.move(993, { x: 0, y: 0.2 }).ignored, true);
+  assert.equal(session.steer(993, { x: 0, y: 0.8 }).moved, false, 'steering cannot borrow a Direct Touch gesture');
+});
+
+test('the shared steering tracer accepts legal movement in Easy, Medium, and Hard layouts', () => {
+  for (const [index, difficulty] of ['easy', 'medium', 'hard'].entries()) {
+    const maze = createMazeForDifficulty(difficulty, seeded(4300 + index));
+    const solution = findSolution(maze), session = createTraceSession(maze), pointer = 995 + index;
+    assert.ok(solution && solution.length > 2);
+    assert.equal(session.beginSteering(pointer), true,
+      'the tracing session accepts steering ownership without moving the pencil');
+    for (const next of solution.slice(1, 6)) {
+      const from = session.position;
+      const movement = session.steer(pointer, { x: next.x - from.x, y: next.y - from.y });
+      assert.equal(movement.blocked, false, `${difficulty} accepts legal movement toward ${next.x},${next.y}`);
+    }
+    assert.deepEqual(session.path.at(-1), solution[5]);
+    assert.ok(session.stroke.length > 1);
+    session.end(pointer);
+  }
+});
+
 test('touch gesture suppression is scoped to the maze and browser zoom stays enabled', async () => {
   const [css, html] = await Promise.all([readFile(new URL('../src/styles.css', import.meta.url), 'utf8'), readFile(new URL('../index.html', import.meta.url), 'utf8')]);
   assert.match(css, /\.maze-paper,#maze\s*\{[^}]*touch-action\s*:\s*none/s);

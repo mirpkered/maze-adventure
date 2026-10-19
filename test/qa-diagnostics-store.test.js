@@ -29,6 +29,8 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
   assert.match(recovered, /start 2,0 N → finish 6,4 E \| solution 24 steps/);
   assert.match(createQuickSummary({ ...report, maze: { ...report.maze, difficulty: 'medium', dimensions: { width: 10, height: 10 } } }), /10x10 medium/);
   assert.ok(recovered.length < 2000);
+  const steering = createQuickSummary({ ...report, inputMode: 'continuous-steering', steering: { settings: { deadZonePixels: 10, maxSpeedMazeUnitsPerSecond: 1.15 }, frames: 60, activeFrames: 40, clampedFrames: 1 } });
+  assert.match(steering, /steering dead-zone 10px, max 1.15 cells\/s \| last gesture frames 40\/60, capped 1/);
   assert.match(createQuickSummary({ ...report, events: [] }), /INSUFFICIENT EVIDENCE/);
 });
 

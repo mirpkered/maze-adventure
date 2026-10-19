@@ -63,7 +63,7 @@ function appendInk(stroke, strokeCells, strokeBreaks, point, cell, breakBefore =
  * append-only history; it is never consulted to decide where the pencil may
  * move and is never shortened by retracing.
  */
-export function traceSegment(maze, path, from, to, currentStroke = path.map(copyPoint), previousPoint = from, recovering = false, currentStrokeCells = null, acceptedPosition = currentStroke.at(-1), currentStrokeBreaks = []) {
+export function traceSegment(maze, path, from, to, currentStroke = path.map(copyPoint), previousPoint = from, recovering = false, currentStrokeCells = null, acceptedPosition = currentStroke.at(-1), currentStrokeBreaks = [], { advanceSubthreshold = false } = {}) {
   let nextPath = path;
   const stroke = currentStroke.map(copyPoint);
   const strokeCells = currentStrokeCells?.map(cell => ({ ...cell })) ?? stroke.map(point => nearestCell(point, maze) ?? path.at(-1));
@@ -141,7 +141,11 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
     }
 
     const accepted = constrainStrokePoint(point, candidate, maze);
-    if (Math.hypot(accepted.x - position.x, accepted.y - position.y) > MIN_STROKE_POINT_DISTANCE) {
+    const acceptedDistance = Math.hypot(accepted.x - position.x, accepted.y - position.y);
+    if (advanceSubthreshold ? acceptedDistance > 1e-9 : acceptedDistance > MIN_STROKE_POINT_DISTANCE) {
+      // Steering advances the authoritative endpoint at every frame. Ink is
+      // still sampled against the prior ink point, so subpixel movement is
+      // accumulated without making the pencil freeze at high refresh rates.
       appendInk(stroke, strokeCells, strokeBreaks, accepted, candidate, rejoining);
       position = accepted;
       moved = true;
@@ -161,6 +165,7 @@ export function createTraceSession(maze) {
   let strokeBreaks = [];
   let position = { ...maze.start };
   let pointerId = null;
+  let steeringGesture = false;
   let lockedPointerId = null;
   let lockedOutMovementCount = 0;
   let wallCollisionTerminated = false;
@@ -188,6 +193,7 @@ export function createTraceSession(maze) {
     if (pointerId !== id && lockedPointerId !== id) return false;
     if (pointerId === id) {
       pointerId = null;
+      steeringGesture = false;
       lastTracePoint = null;
       lastPointerPoint = null;
       recovering = false;
@@ -268,6 +274,7 @@ export function createTraceSession(maze) {
         return false;
       }
       pointerId = id;
+      steeringGesture = false;
       lastResumeAfterWallCollision = wallCollisionTerminated;
       wallCollisionTerminated = false;
       // Anchor this gesture's contact point at the legal pencil endpoint.
@@ -282,7 +289,54 @@ export function createTraceSession(maze) {
       lastFailureCategory = null;
       return true;
     },
+    /** Start a QA steering gesture without moving or acquiring the pencil by touch location. */
+    beginSteering(id) {
+      if (lockedPointerId !== null) {
+        lastReason = 'wall-collision-pointer-locked-until-release';
+        lastFailureCategory = 'gesture';
+        lastBlocked = true;
+        return false;
+      }
+      if (pointerId !== null) { lastReason = 'gesture-already-active'; return false; }
+      pointerId = id;
+      steeringGesture = true;
+      hasBegun = true;
+      lastTracePoint = null;
+      lastPointerPoint = null;
+      recovering = false;
+      lastBlocked = false;
+      lastReason = null;
+      lastFailureCategory = null;
+      return true;
+    },
+    /** Apply one frame of steering through the same swept maze validator as direct tracing. */
+    steer(id, delta) {
+      if (pointerId !== id || !steeringGesture) {
+        return { path, stroke, position, moved: false, blocked: false, complete: false, reason: 'steering-without-active-gesture' };
+      }
+      if (!Number.isFinite(delta?.x) || !Number.isFinite(delta?.y)) {
+        return { path, stroke, position, moved: false, blocked: false, complete: false, reason: 'invalid-steering-delta' };
+      }
+      const from = copyPoint(position), to = { x: from.x + delta.x, y: from.y + delta.y };
+      const result = traceSegment(maze, path, from, to, stroke, from, false, strokeCells, position, strokeBreaks,
+        { advanceSubthreshold: true });
+      path = result.path;
+      stroke = result.stroke;
+      strokeCells = result.strokeCells;
+      strokeBreaks = result.strokeBreaks;
+      position = result.position;
+      // A steering collision rejects only this frame. The held steering input
+      // may be redirected through another open edge without releasing.
+      recovering = false;
+      lastBlocked = result.blocked;
+      lastReason = result.reason;
+      lastFailureCategory = result.blocked ? failureCategory(result.reason) : null;
+      return { ...result, recovering: false, recovered: result.moved && !result.blocked, steeringCollision: result.wallCollision };
+    },
     move(id, point) {
+      if (steeringGesture) {
+        return { path, stroke, position, moved: false, blocked: true, reason: 'direct-move-disabled-during-steering', complete: false };
+      }
       if (lockedPointerId === id) {
         lockedOutMovementCount++;
         lastPointerPoint = copyPoint(point);

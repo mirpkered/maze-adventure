@@ -228,6 +228,12 @@ body[data-screen="play"] .play-hint { margin: 2px 0 5px; flex: 0 0 auto; font-si
 #maze-paper[hidden] { display: none; }
 .maze-overview-panel { display: grid; width: min(100%, 34dvh); max-height: 100%; aspect-ratio: 1; place-items: center; }
 .maze-close-panel { display: grid; width: min(100%, 40dvh); aspect-ratio: 1; place-items: center; touch-action: none; }
+.steering-indicator { position: absolute; z-index: 2; inset: 6px; overflow: hidden; pointer-events: none; color: var(--rust, #c86f4a); }
+.steering-indicator[hidden] { display: none; }
+.steering-indicator > span { position: absolute; display: block; border-radius: 50%; }
+.steering-origin { left: var(--origin-x); top: var(--origin-y); width: 26px; height: 26px; border: 1px solid currentColor; background: #fff8e899; transform: translate(-50%,-50%); box-shadow: 0 1px 5px #35261930; }
+.steering-vector { left: var(--origin-x); top: var(--origin-y); width: var(--vector-length); height: 2px; border-radius: 2px !important; background: currentColor; transform: rotate(var(--vector-angle)); transform-origin: 0 50%; opacity: .8; }
+.steering-finger { left: var(--finger-x); top: var(--finger-y); width: 10px; height: 10px; border: 2px solid currentColor; background: #fff8e9cc; transform: translate(-50%,-50%); }
 .maze-panel-label { position: absolute; z-index: 1; top: 5px; left: 8px; padding: 2px 5px; border-radius: 3px; background: color-mix(in srgb, var(--paper) 88%, transparent); color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .1em; line-height: 1.1; pointer-events: none; }
 .maze-overview-panel svg, .maze-close-panel svg { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; touch-action: none; }
 #maze-overview { pointer-events: none; }
@@ -236,6 +242,10 @@ body[data-screen="play"] .play-footer { width: 100%; max-width: none; flex: 0 0 
 body[data-screen="play"] .game-actions .small-button { min-width: 44px; min-height: 44px; padding: 5px 8px; font-size: 11px; }
 body[data-screen="play"] .maze-workspace + .trace-diagnostics:not([hidden]),
 body[data-screen="play"] .maze-workspace ~ .trace-diagnostic-tools:not([hidden]) { flex: 0 0 auto; max-height: 20dvh; overflow: auto; }
+.qa-input-mode-controls { display: grid; grid-template-columns: 1fr; gap: 4px; color: #533c31; font-size: 11px; }
+.qa-input-mode-controls[hidden] { display: none; }
+.qa-input-mode-controls select { width: 100%; min-height: 38px; padding: 6px; border: 1px solid #b8aa96; border-radius: 6px; background: #fbf7ef; color: #3f5147; }
+.qa-input-mode-controls small { line-height: 1.35; }
 body[data-zoom-assist="false"] .maze-workspace { display: block; }
 body[data-zoom-assist="false"] .maze-overview-panel { display: none; }
 body[data-zoom-assist="false"] .maze-close-panel, body[data-zoom-assist="false"] .completion-panel { width: min(100%, calc(100dvh - 175px)); height: min(100%, calc(100dvh - 175px)); margin: 0 auto; aspect-ratio: 1; }

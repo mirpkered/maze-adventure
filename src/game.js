@@ -10,6 +10,7 @@ import { finalPointerMovement, pointerMovementSamples } from './pointer-samples.
 import { APP_BUILD_ID } from './build-info.js';
 import { createQaDiagnosticsStore, createQuickSummary, createRecentIncident } from './qa-diagnostics-store.js';
 import { applyVisualTheme, chooseLaunchTheme, THEME_PREFERENCE_OPTIONS } from './themes.js';
+import { createSteeringController, QA_INPUT_MODES, readQaInputMode, writeQaInputMode } from './continuous-steering.js';
 
 const $ = selector => document.querySelector(selector);
 const screens = ['home', 'difficulty', 'play', 'settings', 'help', 'about'].map(id => $(`#${id}`));
@@ -50,6 +51,9 @@ for (const { value, label } of THEME_PREFERENCE_OPTIONS) {
 }
 let settingsReturnToPlay = false;
 let qaEnabled = startQaSession(location, history, deviceStorage);
+let qaInputMode = qaEnabled ? readQaInputMode(deviceStorage) : QA_INPUT_MODES.DIRECT_TOUCH;
+const steeringController = createSteeringController();
+let steeringPointerId = null, steeringFrameId = null, steeringHadBlock = false, lastSteeringBlockReason = null;
 let lastRawPointer = null, lastClientPointer = null;
 let gestureScreenToSvg = null;
 let traceRecorder = qaEnabled ? createTraceRecorder({ limit: 400 }) : null;
@@ -63,6 +67,12 @@ function setQaMode(enabled) {
   if (qaEnabled && !enabled) {
     clearTimeout(persistTimer);
     if (traceRecorder && traceSession && qaSessionId) qaStore.save(diagnosticReportObject(), { sessionId: qaSessionId, buildId: APP_BUILD_ID });
+  }
+  if (!enabled && qaInputMode !== QA_INPUT_MODES.DIRECT_TOUCH) {
+    if (activePointerId !== null) clearPointer();
+    qaInputMode = QA_INPUT_MODES.DIRECT_TOUCH;
+  } else if (enabled) {
+    qaInputMode = readQaInputMode(deviceStorage);
   }
   qaEnabled = Boolean(enabled);
   if (qaEnabled) {
@@ -88,7 +98,21 @@ function syncQaControls() {
   else delete document.body.dataset.qa;
   $('#trace-diagnostic-tools').hidden = !qaEnabled;
   $('#trace-diagnostics').hidden = !qaEnabled || !traceSession;
+  $('#qa-input-mode-controls').hidden = !qaEnabled;
+  $('#qa-input-mode').value = qaInputMode;
   if (qaEnabled) refreshQaSessions();
+}
+
+function selectQaInputMode(mode) {
+  if (!qaEnabled) return;
+  if (activePointerId !== null) clearPointer();
+  qaInputMode = writeQaInputMode(mode, deviceStorage);
+  $('#qa-input-mode').value = qaInputMode;
+  $('#qa-mode-status').textContent = qaInputMode === QA_INPUT_MODES.CONTINUOUS_STEERING
+    ? 'Continuous Steering is experimental and active for QA only. Direct Touch remains the normal player control.'
+    : 'Direct Touch is active. This is the normal player control.';
+  updateTraceDiagnostics();
+  queueQaPersistence();
 }
 
 function refreshQaSessions() {
@@ -179,6 +203,8 @@ function diagnosticReportObject() {
     zoomAssist: preferences.zoomAssist,
     zoomFactor: preferences.zoomAssist ? cameraPosition.zoom : 1,
     cameraPosition: preferences.zoomAssist ? { x: cameraPosition.x, y: cameraPosition.y } : null,
+    inputMode: qaEnabled ? qaInputMode : QA_INPUT_MODES.DIRECT_TOUCH,
+    steering: qaEnabled ? { settings: steeringController.settings, ...steeringController.snapshot } : null,
   });
 }
 function diagnosticReport() { return JSON.stringify(diagnosticReportObject(), null, 2); }
@@ -201,7 +227,7 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
   const reversal = state.candidateReversal ? `${state.candidateReversal.x},${state.candidateReversal.y} (${state.candidateReversalOpen ? 'open' : 'closed'})` : 'none';
   const resume = state.resumeAcquisitionDistancePixels === null ? '—' : `${state.resumeAcquisitionDistancePixels.toFixed(1)}/${state.resumeAcquisitionThresholdPixels.toFixed(0)}px`;
-  output.textContent = `QA trace · build ${APP_BUILD_ID} · zoom ${preferences.zoomAssist ? `${cameraPosition.zoom}× close view (${cameraPosition.x.toFixed(0)},${cameraPosition.y.toFixed(0)})` : 'off'} · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · resume distance/limit ${resume} · gesture ${state.lockedOut ? `locked until release (${state.lockedOutMovementCount} ignored)` : state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · resumed after wall ${state.resumeAfterWallCollision ? 'yes' : 'no'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  output.textContent = `QA trace · build ${APP_BUILD_ID} · input ${qaInputMode === QA_INPUT_MODES.CONTINUOUS_STEERING ? 'continuous steering' : 'direct touch'} · zoom ${preferences.zoomAssist ? `${cameraPosition.zoom}× close view (${cameraPosition.x.toFixed(0)},${cameraPosition.y.toFixed(0)})` : 'off'} · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · resume distance/limit ${resume} · gesture ${state.lockedOut ? `locked until release (${state.lockedOutMovementCount} ignored)` : state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · resumed after wall ${state.resumeAfterWallCollision ? 'yes' : 'no'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -271,7 +297,8 @@ function renderTrace() {
   $('#overview-player').setAttribute('cx', endpoint.x);
   $('#overview-player').setAttribute('cy', endpoint.y);
   svg.dataset.visited = String(new Set(traceSession.path.map(point => `${point.x},${point.y}`)).size);
-  if (preferences.zoomAssist && (activePointerId === null || gestureScreenToSvg)) cameraPosition = mazeCamera.follow(endpoint);
+  // Steering remains screen-space while the camera follows the accepted pencil.
+  if (preferences.zoomAssist && (activePointerId === null || gestureScreenToSvg || steeringPointerId !== null)) cameraPosition = mazeCamera.follow(endpoint);
   svg.setAttribute('viewBox', preferences.zoomAssist ? cameraPosition.viewBox : `0 0 ${SIZE} ${SIZE}`);
 }
 
@@ -394,6 +421,7 @@ function playCompletionSound() {
 }
 
 function makeMaze(reuse = false) {
+  if (activePointerId !== null) clearPointer();
   if (!reuse || !maze) maze = createMazeForDifficulty(selectedDifficulty);
   mazeCompleted = false;
   delete document.body.dataset.completed;
@@ -410,12 +438,90 @@ function makeMaze(reuse = false) {
   renderMaze(); activeScreen($('#play')); syncQaControls(); updateTraceDiagnostics(); queueQaPersistence(); $('#play-title').focus({ preventScroll: true }); startTimer();
 }
 
+function updateSteeringIndicator(point) {
+  const indicator = $('#steering-indicator');
+  if (!point || !steeringController.active || qaInputMode !== QA_INPUT_MODES.CONTINUOUS_STEERING) {
+    indicator.hidden = true;
+    return;
+  }
+  const rect = indicator.getBoundingClientRect(), state = steeringController.snapshot;
+  if (!state.origin || !state.finger) { indicator.hidden = true; return; }
+  const originX = state.origin.x - rect.left, originY = state.origin.y - rect.top;
+  const fingerX = state.finger.x - rect.left, fingerY = state.finger.y - rect.top;
+  const dx = fingerX - originX, dy = fingerY - originY;
+  indicator.style.setProperty('--origin-x', `${originX}px`);
+  indicator.style.setProperty('--origin-y', `${originY}px`);
+  indicator.style.setProperty('--finger-x', `${fingerX}px`);
+  indicator.style.setProperty('--finger-y', `${fingerY}px`);
+  indicator.style.setProperty('--vector-length', `${Math.hypot(dx, dy)}px`);
+  indicator.style.setProperty('--vector-angle', `${Math.atan2(dy, dx)}rad`);
+  indicator.hidden = false;
+}
+
+function stopSteeringFrameLoop() {
+  if (steeringFrameId !== null) cancelAnimationFrame(steeringFrameId);
+  steeringFrameId = null;
+}
+
+function endSteeringGesture(id) {
+  stopSteeringFrameLoop();
+  steeringController.end(id);
+  if (steeringPointerId === id) steeringPointerId = null;
+  steeringHadBlock = false;
+  lastSteeringBlockReason = null;
+  $('#steering-indicator').hidden = true;
+}
+
+function recordSteeringEvent(eventType, movement, reason = null) {
+  const finger = steeringController.snapshot.finger;
+  const event = { pointerId: steeringPointerId, pointerType: 'touch', clientX: finger?.x, clientY: finger?.y };
+  recordTraceEvent(eventType, event, traceSession.position, Boolean(movement?.moved), reason, false, movement, 'steering-frame');
+}
+
+function scheduleSteeringFrameLoop(id) {
+  if (steeringFrameId !== null) return;
+  const frame = timestamp => {
+    steeringFrameId = null;
+    if (id !== steeringPointerId || activePointerId !== id || !qaEnabled
+      || qaInputMode !== QA_INPUT_MODES.CONTINUOUS_STEERING || $('#play').hidden || paused || activeOverlay || document.hidden || mazeCompleted) {
+      if (id === steeringPointerId && activePointerId === id) clearPointer();
+      return;
+    }
+    const delta = steeringController.advance(id, timestamp);
+    if (delta.active) {
+      const movement = traceSession.steer(id, delta);
+      if (movement.moved) renderTrace();
+      if (movement.blocked) {
+        if (!steeringHadBlock || movement.reason !== lastSteeringBlockReason) recordSteeringEvent('steering-blocked', movement, movement.reason);
+        steeringHadBlock = true;
+        lastSteeringBlockReason = movement.reason;
+      } else if (steeringHadBlock && movement.moved) {
+        recordSteeringEvent('steering-recovered', movement);
+        steeringHadBlock = false;
+        lastSteeringBlockReason = null;
+      }
+      if (movement.complete) {
+        recordSteeringEvent('steering-completed', movement);
+        endSteeringGesture(id);
+        traceSession.end(id);
+        activePointerId = null;
+        try { if (svg.hasPointerCapture?.(id)) svg.releasePointerCapture(id); } catch { /* Capture may already have been released. */ }
+        completeMaze();
+        return;
+      }
+    }
+    steeringFrameId = requestAnimationFrame(frame);
+  };
+  steeringFrameId = requestAnimationFrame(frame);
+}
+
 function clearPointer() {
   if (activePointerId === null) return;
   const id = activePointerId;
   recordTraceEvent('gesture-canceled-by-app', {
     pointerId: id, pointerType: 'unknown', clientX: lastClientPointer?.x, clientY: lastClientPointer?.y,
   }, lastRawPointer, false, 'application-interruption', true);
+  if (steeringPointerId === id) endSteeringGesture(id);
   traceSession?.cancel(id); activePointerId = null;
   clearGestureMapping();
   try { if (svg.hasPointerCapture?.(id)) svg.releasePointerCapture(id); } catch { /* Capture may already be gone. */ }
@@ -424,13 +530,15 @@ function clearPointer() {
 }
 function finishPointer(event, cancel = false) {
   if (activePointerId !== event.pointerId) return;
+  const steeringGesture = steeringPointerId === event.pointerId;
   lastClientPointer = { x: event.clientX, y: event.clientY };
   lastRawPointer = inputPointInMaze(event);
-  const finalMove = !cancel ? finalPointerMovement(traceSession, event.pointerId, event, lastRawPointer) : null;
+  const finalMove = !cancel && !steeringGesture ? finalPointerMovement(traceSession, event.pointerId, event, lastRawPointer) : null;
   if (finalMove?.moved) renderTrace();
   recordTraceEvent(event.type ?? (cancel ? 'pointercancel' : 'pointerup'), event, lastRawPointer,
     finalMove ? finalMove.moved : true,
     finalMove?.reason ?? (!finalMove?.moved && finalMove ? 'no-route-or-stroke-change' : null), cancel, finalMove);
+  if (steeringGesture) endSteeringGesture(event.pointerId);
   if (cancel) traceSession.cancel(event.pointerId);
   else traceSession.end(event.pointerId);
   activePointerId = null;
@@ -502,10 +610,24 @@ svg.addEventListener('pointerdown', event => {
   if (paused || activeOverlay) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'game-not-interactive'); return; }
   if (!event.isPrimary) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'non-primary-pointer'); return; }
   if (activePointerId !== null) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'another-pointer-owns-gesture'); return; }
-  const began = traceSession.begin(event.pointerId, lastRawPointer, pencilAcquisitionOptions());
+  let began;
+  if (qaEnabled && qaInputMode === QA_INPUT_MODES.CONTINUOUS_STEERING) {
+    began = traceSession.beginSteering(event.pointerId);
+    if (began) {
+      began = steeringController.begin(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (began) {
+        steeringPointerId = event.pointerId;
+        steeringHadBlock = false;
+        lastSteeringBlockReason = null;
+      } else traceSession.cancel(event.pointerId);
+    }
+  } else began = traceSession.begin(event.pointerId, lastRawPointer, pencilAcquisitionOptions());
   if (began) {
     activePointerId = event.pointerId;
-    if (preferences.zoomAssist) {
+    if (qaInputMode === QA_INPUT_MODES.CONTINUOUS_STEERING) {
+      updateSteeringIndicator({ x: event.clientX, y: event.clientY });
+      scheduleSteeringFrameLoop(event.pointerId);
+    } else if (preferences.zoomAssist) {
       try { gestureScreenToSvg = svg.getScreenCTM()?.inverse() ?? null; } catch { gestureScreenToSvg = null; }
     }
     try { svg.setPointerCapture(event.pointerId); } catch { /* Older embedded WebViews may lack pointer capture. */ }
@@ -516,6 +638,16 @@ svg.addEventListener('pointerdown', event => {
 window.addEventListener('pointermove', event => {
   if (mazeCompleted || activePointerId !== event.pointerId || $('#play').hidden || paused) return;
   event.preventDefault();
+  if (steeringPointerId === event.pointerId) {
+    for (const sample of pointerMovementSamples(event)) {
+      lastClientPointer = { x: sample.clientX, y: sample.clientY };
+      lastRawPointer = pointInMaze(sample);
+      steeringController.update(event.pointerId, { x: sample.clientX, y: sample.clientY });
+    }
+    updateSteeringIndicator(lastClientPointer);
+    updateTraceDiagnostics(lastRawPointer);
+    return;
+  }
   let moved = false, complete = false;
   const samples = pointerMovementSamples(event);
   for (const [sampleIndex, sample] of samples.entries()) {
@@ -548,8 +680,11 @@ svg.addEventListener('keydown', event => {
 window.addEventListener('pointerup', event => { if (finishPointer(event)) completeMaze(); });
 window.addEventListener('pointercancel', event => finishPointer(event, true));
 window.addEventListener('lostpointercapture', event => finishPointer(event, true));
-document.addEventListener('visibilitychange', () => document.hidden ? pauseTimer() : startTimer());
-window.addEventListener('blur', pauseTimer);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { pauseTimer(); if (steeringPointerId !== null) clearPointer(); }
+  else startTimer();
+});
+window.addEventListener('blur', () => { pauseTimer(); if (steeringPointerId !== null) clearPointer(); });
 window.addEventListener('focus', startTimer);
 
 $('#quick-play').addEventListener('click', showDifficultySelection);
