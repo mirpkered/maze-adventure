@@ -12,9 +12,13 @@ export const DIRECTIONS = [
 export const FREE_PLAY_DIFFICULTIES = Object.freeze({
   easy: Object.freeze({ width: 7, height: 7, label: 'Easy' }),
   medium: Object.freeze({ width: 10, height: 10, label: 'Medium' }),
+  hard: Object.freeze({ width: 15, height: 15, label: 'Hard' }),
 });
 
-const MIN_SOLUTION_LENGTH = Object.freeze({ '7x7': 18, '10x10': 28 });
+const MIN_SOLUTION_LENGTH = Object.freeze({ '7x7': 18, '10x10': 28, '15x15': 42 });
+const HARD_TARGET_LENGTH = 50;
+const HARD_MIN_ROUTE_JUNCTIONS = 6;
+const HARD_MAX_GENERATION_ATTEMPTS = 8;
 
 function pathsFrom(maze, start) {
   const queue = [{ ...start }], parents = new Map([[`${start.x},${start.y}`, null]]);
@@ -84,10 +88,57 @@ function chooseEndpointPair(maze, random, minimumLength) {
   return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))];
 }
 
+/**
+ * Hard uses the same perfect-maze graph and endpoint model, with a bounded
+ * search for a long route that passes through enough decision points. Prefer
+ * routes of 50+ edges when present; 42 is the guaranteed floor.
+ */
+function chooseHardEndpointPair(maze, random) {
+  const openings = perimeterOpenings(maze.width, maze.height);
+  const candidates = [];
+  for (const entrance of openings) {
+    // The DFS generator makes a tree, so one BFS provides exact route length
+    // and a prefix count of junctions for every possible exit.
+    const size = maze.width * maze.height, distance = new Int16Array(size), junctionPrefix = new Int16Array(size);
+    const root = entrance.cell.y * maze.width + entrance.cell.x;
+    distance.fill(-1);
+    distance[root] = 0;
+    junctionPrefix[root] = Number(graphDegree(maze, entrance.cell) >= 3);
+    const queue = [entrance.cell];
+    for (let index = 0; index < queue.length; index++) {
+      const here = queue[index], hereIndex = here.y * maze.width + here.x;
+      for (const direction of DIRECTIONS) {
+        const next = { x: here.x + direction.dx, y: here.y + direction.dy };
+        if (!inBounds(maze, next) || !canMove(maze, here, next)) continue;
+        const nextIndex = next.y * maze.width + next.x;
+        if (distance[nextIndex] !== -1) continue;
+        distance[nextIndex] = distance[hereIndex] + 1;
+        junctionPrefix[nextIndex] = junctionPrefix[hereIndex] + Number(graphDegree(maze, next) >= 3);
+        queue.push(next);
+      }
+    }
+    for (const exit of openings) {
+      if (entrance.cell.x === exit.cell.x && entrance.cell.y === exit.cell.y) continue;
+      const exitIndex = exit.cell.y * maze.width + exit.cell.x;
+      const length = distance[exitIndex];
+      if (length < MIN_SOLUTION_LENGTH['15x15']) continue;
+      const junctions = junctionPrefix[exitIndex] - Number(graphDegree(maze, entrance.cell) >= 3)
+        - Number(graphDegree(maze, exit.cell) >= 3);
+      if (junctions >= HARD_MIN_ROUTE_JUNCTIONS) candidates.push({ entrance, exit, length, junctions });
+    }
+  }
+  if (!candidates.length) return null;
+  const targetLength = candidates.filter(candidate => candidate.length >= HARD_TARGET_LENGTH);
+  const pool = targetLength.length ? targetLength : candidates;
+  return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))];
+}
+
 export function createMaze(width = 7, height = 7, random = Math.random) {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 2 || height < 2) throw new RangeError('Maze dimensions must be integers of at least 2.');
+  const isHard = width === 15 && height === 15;
   const minimumLength = MIN_SOLUTION_LENGTH[`${width}x${height}`] ?? 1;
-  for (let attempt = 0; attempt < 32; attempt++) {
+  const maxAttempts = isHard ? HARD_MAX_GENERATION_ATTEMPTS : 32;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const cells = Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => ({ x, y, walls: { N: true, E: true, S: true, W: true } })));
     const visited = new Set(['0,0']);
     const stack = [cells[0][0]];
@@ -103,7 +154,7 @@ export function createMaze(width = 7, height = 7, random = Math.random) {
       stack.push(cells[next.y][next.x]);
     }
     const maze = { width, height, cells };
-    let pair = chooseEndpointPair(maze, random, minimumLength);
+    let pair = isHard ? chooseHardEndpointPair(maze, random) : chooseEndpointPair(maze, random, minimumLength);
     if (!pair) continue;
     maze.start = { ...pair.entrance.cell };
     maze.end = { ...pair.exit.cell };
@@ -112,9 +163,10 @@ export function createMaze(width = 7, height = 7, random = Math.random) {
     cells[maze.start.y][maze.start.x].walls[maze.entrance.side] = false;
     cells[maze.end.y][maze.end.x].walls[maze.exit.side] = false;
     if (!validateMaze(maze)) throw new Error('Generated maze failed validation.');
+    if (isHard) maze.generationAttempts = attempt + 1;
     return maze;
   }
-  throw new Error(`Could not generate a ${width}x${height} maze with a sufficiently long perimeter solution.`);
+  throw new Error(`Could not generate a ${width}x${height} maze meeting its bounded endpoint quality requirements after ${maxAttempts} attempts.`);
 }
 
 /** Free Play sizes share the same maze model and generator; Easy keeps its original 7×7 behavior. */

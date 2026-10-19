@@ -9,7 +9,7 @@ function seeded(seed) {
 }
 
 function navigationStats(maze) {
-  let junctions = 0, deadEnds = 0, longestDeadEndBranch = 0;
+  let junctions = 0, deadEnds = 0, longestDeadEndBranch = 0, deepDeadEnds = 0;
   const degree = cell => [
     { x: cell.x, y: cell.y - 1 }, { x: cell.x + 1, y: cell.y },
     { x: cell.x, y: cell.y + 1 }, { x: cell.x - 1, y: cell.y },
@@ -32,8 +32,14 @@ function navigationStats(maze) {
       current = next;
     }
     longestDeadEndBranch = Math.max(longestDeadEndBranch, branchLength);
+    if (branchLength >= 4) deepDeadEnds++;
   }
-  return { junctions, deadEnds, longestDeadEndBranch };
+  return { junctions, deadEnds, longestDeadEndBranch, deepDeadEnds };
+}
+
+function percentile(values, fraction) {
+  const ordered = [...values].sort((a, b) => a - b);
+  return ordered[Math.floor((ordered.length - 1) * fraction)];
 }
 
 test('generated Easy mazes are connected and every wall has a matching neighbor', () => {
@@ -122,7 +128,59 @@ test('Easy and Medium Free Play sizes stay stable and Medium offers more varied 
   assert.equal(mediumLayouts.size, sampleCount, 'seeded Medium layouts retain variation');
   assert.equal(mazeLayoutId(createMazeForDifficulty('easy', seeded(33))), mazeLayoutId(createMaze(7, 7, seeded(33))),
     'Easy keeps the original generator topology for the same random stream');
-  assert.throws(() => createMazeForDifficulty('hard'), RangeError, 'Hard is not enabled');
+});
+
+test('Hard meets seeded path and navigation quality targets on 256 deterministic mazes', () => {
+  const sampleCount = 256, metrics = [], layouts = new Set();
+  const starts = Object.fromEntries(['N', 'E', 'S', 'W'].map(side => [side, 0]));
+  const finishes = Object.fromEntries(['N', 'E', 'S', 'W'].map(side => [side, 0]));
+  let totalAttempts = 0;
+  for (let seed = 0; seed < sampleCount; seed++) {
+    const maze = createMazeForDifficulty('hard', seeded(seed));
+    const route = getShortestPath(maze), routeStats = navigationStats(maze);
+    assert.equal(maze.width, 15); assert.equal(maze.height, 15);
+    assert.equal(maze.difficulty, 'hard');
+    assert.equal(validateMaze(maze), true, `Hard seed ${seed} is connected, reciprocal, and boundary-valid`);
+    assert.ok(route && route.length - 1 >= 42, `Hard seed ${seed} meets the 42-edge minimum`);
+    assert.equal(maze.start.x, maze.entrance.cell.x); assert.equal(maze.start.y, maze.entrance.cell.y);
+    assert.equal(maze.end.x, maze.exit.cell.x); assert.equal(maze.end.y, maze.exit.cell.y);
+    assert.notDeepEqual(maze.start, maze.end);
+    const renderedWalls = getWallSegments(maze);
+    for (const opening of [maze.entrance, maze.exit]) {
+      const expected = opening.side === 'N' ? { orientation: 'horizontal', x: opening.cell.x, y: 0 }
+        : opening.side === 'S' ? { orientation: 'horizontal', x: opening.cell.x, y: 15 }
+          : opening.side === 'W' ? { orientation: 'vertical', x: 0, y: opening.cell.y }
+            : { orientation: 'vertical', x: 15, y: opening.cell.y };
+      assert.ok(!renderedWalls.some(wall => wall.orientation === expected.orientation && wall.x === expected.x && wall.y === expected.y),
+        `Hard seed ${seed}: entrance and exit openings match rendered geometry`);
+    }
+    for (let y = 0; y < 15; y++) for (let x = 0; x < 15; x++) {
+      const cell = maze.cells[y][x];
+      if (x < 14) assert.equal(cell.walls.E, maze.cells[y][x + 1].walls.W, `Hard seed ${seed} reciprocal east/west wall`);
+      if (y < 14) assert.equal(cell.walls.S, maze.cells[y + 1][x].walls.N, `Hard seed ${seed} reciprocal north/south wall`);
+    }
+    starts[maze.entrance.side]++; finishes[maze.exit.side]++;
+    totalAttempts += maze.generationAttempts;
+    layouts.add(mazeLayoutId(maze));
+    metrics.push({ length: route.length - 1, ...routeStats,
+      routeJunctions: route.slice(1, -1).filter(cell => [
+        { x: cell.x, y: cell.y - 1 }, { x: cell.x + 1, y: cell.y },
+        { x: cell.x, y: cell.y + 1 }, { x: cell.x - 1, y: cell.y },
+      ].filter(next => canMove(maze, cell, next)).length >= 3).length });
+    assert.ok(maze.generationAttempts >= 1 && maze.generationAttempts <= 8, `Hard seed ${seed} stays within the retry bound`);
+  }
+  assert.ok(percentile(metrics.map(item => item.length), .1) >= 42, 'P10 solution is at least 42 edges');
+  assert.ok(percentile(metrics.map(item => item.length), .5) >= 50, 'median solution is at least 50 edges');
+  assert.ok(percentile(metrics.map(item => item.junctions), .5) >= 18, 'median maze has at least 18 junctions');
+  assert.ok(percentile(metrics.map(item => item.deadEnds), .5) >= 18, 'median maze has at least 18 dead ends');
+  assert.ok(percentile(metrics.map(item => item.routeJunctions), .5) >= 6, 'median solution passes at least 6 junctions');
+  assert.ok(percentile(metrics.map(item => item.deepDeadEnds), .5) >= 3, 'median maze has at least 3 dead ends with four or more cells before a junction');
+  assert.equal(layouts.size, sampleCount, 'all deterministic seeds produce distinct Hard layouts');
+  for (const side of ['N', 'E', 'S', 'W']) {
+    assert.ok(starts[side] >= 30, `Hard starts are distributed across ${side}`);
+    assert.ok(finishes[side] >= 30, `Hard finishes are distributed across ${side}`);
+  }
+  assert.ok(totalAttempts <= sampleCount * 8, 'the quality search has a strict maximum of eight generated candidates per maze');
 });
 
 test('endpoint arrangements vary across every edge while staying distinct, non-cornered, and graph-distant', () => {

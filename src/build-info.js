@@ -1,3 +1,3 @@
 // Change with each published application update; included in QA exports so a
 // Home Screen PWA report can be matched to the deployed JavaScript build.
-export const APP_BUILD_ID = '2026.10.16-inline-completion-1';
+export const APP_BUILD_ID = '2026.10.19-hard-15x15-1';

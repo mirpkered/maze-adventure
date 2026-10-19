@@ -1171,6 +1171,50 @@ test('keyboard alternative follows open passages and can backtrack by retracing'
   assert.equal(session.step({ x: 0, y: -1 }).blocked, true);
 });
 
+test('Hard 15x15 uses the shared tracer for a long route, wall lockout, retap, and permanent backtrack ink', () => {
+  const maze = createMazeForDifficulty('hard', seeded(712)), solution = findSolution(maze);
+  const session = createTraceSession(maze), pointer = 880;
+  assert.equal(session.begin(pointer, { ...maze.start }), true);
+  let completion;
+  for (const cell of solution.slice(1)) {
+    completion = session.move(pointer, { ...cell });
+    assert.equal(completion.blocked, false, `Hard solution can enter ${cell.x},${cell.y}`);
+  }
+  assert.deepEqual(session.path.at(-1), maze.end);
+  assert.equal(completion.complete, true);
+  assert.ok(session.stroke.length > 100, 'the shared permanent ink history supports the longer Hard route');
+
+  const replay = createTraceSession(maze), replayPointer = 881;
+  replay.begin(replayPointer, { ...maze.start });
+  let collisionIndex = -1, collisionDirection;
+  for (let index = 1; index < solution.length; index++) {
+    const cell = solution[index];
+    replay.move(replayPointer, { ...cell });
+    const closedDirection = [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }]
+      .map(delta => ({ x: cell.x + delta.x, y: cell.y + delta.y, delta }))
+      .find(next => next.x >= 0 && next.y >= 0 && next.x < maze.width && next.y < maze.height
+        && !canMove(maze, cell, { x: next.x, y: next.y }));
+    if (closedDirection) { collisionIndex = index; collisionDirection = closedDirection.delta; break; }
+  }
+  assert.ok(collisionIndex > 0, 'the deterministic Hard route contains a testable closed wall');
+  const beforeCollision = replay.stroke.map(point => ({ ...point }));
+  const tip = solution[collisionIndex];
+  const collision = replay.move(replayPointer, { x: tip.x + collisionDirection.x * .7, y: tip.y + collisionDirection.y * .7 });
+  assert.equal(collision.gestureTerminatedByWallCollision, true);
+  assert.equal(replay.diagnostics.lockedOut, true);
+  assert.deepEqual(replay.stroke.slice(0, beforeCollision.length), beforeCollision, 'the collision preserves earlier ink');
+  const endpoint = { ...replay.position }, inkAtCollision = replay.stroke.map(point => ({ ...point }));
+  assert.equal(replay.move(replayPointer, solution[collisionIndex - 1]).ignored, true, 'the collided pointer remains locked');
+  replay.end(replayPointer);
+  assert.equal(replay.begin(replayPointer + 1, endpoint), true, 'a fresh pointer can reacquire the authoritative endpoint');
+  assert.deepEqual(replay.position, endpoint, 'acquisition itself does not advance the pencil');
+  assert.deepEqual(replay.stroke, inkAtCollision, 'acquisition itself adds no ink');
+  const backtrack = replay.move(replayPointer + 1, solution[collisionIndex - 1]);
+  assert.equal(backtrack.blocked, false, 'the shared tracer permits legal backtracking after re-tap');
+  assert.equal(replay.path.length, collisionIndex, 'logical route shortens when retracing');
+  assert.ok(replay.stroke.length >= inkAtCollision.length, 'permanent ink never shrinks during backtracking');
+});
+
 test('touch gesture suppression is scoped to the maze and browser zoom stays enabled', async () => {
   const [css, html] = await Promise.all([readFile(new URL('../src/styles.css', import.meta.url), 'utf8'), readFile(new URL('../index.html', import.meta.url), 'utf8')]);
   assert.match(css, /\.maze-paper,#maze\s*\{[^}]*touch-action\s*:\s*none/s);

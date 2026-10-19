@@ -51,11 +51,12 @@ test('portrait and rotated viewport mappings preserve the same logical maze poin
   }
 });
 
-test('7x7 and 10x10 grid geometry fits the same paper and maps cell centers consistently', () => {
-  const geometry = [getMazeGridGeometry(7, 7), getMazeGridGeometry(10, 10)];
+test('7x7, 10x10, and 15x15 grid geometry fits the same paper and maps cell centers consistently', () => {
+  const geometry = [getMazeGridGeometry(7, 7), getMazeGridGeometry(10, 10), getMazeGridGeometry(15, 15)];
   assert.equal(geometry[0].cellSize, 352 / 7);
   assert.equal(geometry[1].cellSize, 35.2);
-  for (const [index, dimensions] of [[0, 7], [1, 10]]) {
+  assert.equal(geometry[2].cellSize, 352 / 15);
+  for (const [index, dimensions] of [[0, 7], [1, 10], [2, 15]]) {
     const layout = geometry[index];
     assert.equal(layout.x, 24); assert.equal(layout.y, 24);
     assert.ok(layout.x + dimensions * layout.cellSize <= 376);
