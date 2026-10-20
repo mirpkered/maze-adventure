@@ -13,15 +13,25 @@ function memoryStorage(value = null) {
 test('sound, paper, manual theme and automatic rotation history persist and normalize', () => {
   const storage = memoryStorage();
   assert.deepEqual(readPreferences(storage), DEFAULT_PREFERENCES);
-  const saved = writePreferences({ soundEffects: false, paperTheme: 'light', themePreference: 'camp-dusk', lastAutoTheme: 'traveler-map', zoomAssist: false, ignored: true }, storage);
-  assert.deepEqual(saved, { soundEffects: false, paperTheme: 'light', themePreference: 'camp-dusk', lastAutoTheme: 'traveler-map', zoomAssist: false });
+  const saved = writePreferences({ soundEffects: false, paperTheme: 'light', themePreference: 'camp-dusk', lastAutoTheme: 'traveler-map', zoomAssist: false, controlMode: 'direct-touch', ignored: true }, storage);
+  assert.deepEqual(saved, { soundEffects: false, paperTheme: 'light', themePreference: 'camp-dusk', lastAutoTheme: 'traveler-map', zoomAssist: false, controlMode: 'direct-touch' });
   assert.deepEqual(readPreferences(storage), saved);
-  assert.deepEqual(writePreferences({ soundEffects: true, paperTheme: 'unknown', themePreference: 'unknown', lastAutoTheme: 'unknown' }, storage), { soundEffects: true, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true });
-  assert.deepEqual(readPreferences(memoryStorage(JSON.stringify({ soundEffects: false, paperTheme: 'light' }))), { soundEffects: false, paperTheme: 'light', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true }, 'existing settings retain compatibility and receive the Zoom Assist default');
+  assert.deepEqual(writePreferences({ soundEffects: true, paperTheme: 'unknown', themePreference: 'unknown', lastAutoTheme: 'unknown' }, storage), { soundEffects: true, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true, controlMode: 'continuous-steering' });
+  assert.deepEqual(readPreferences(memoryStorage(JSON.stringify({ soundEffects: false, paperTheme: 'light' }))), { soundEffects: false, paperTheme: 'light', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true, controlMode: 'continuous-steering' }, 'old preferences without an explicit control selection migrate to Steering');
+});
+
+test('new player preference defaults to Steering and explicit Direct Touch survives reloads', () => {
+  const storage = memoryStorage();
+  assert.equal(DEFAULT_PREFERENCES.controlMode, 'continuous-steering');
+  assert.equal(readPreferences(storage).controlMode, 'continuous-steering');
+  const selected = writePreferences({ ...readPreferences(storage), controlMode: 'direct-touch' }, storage);
+  assert.equal(selected.controlMode, 'direct-touch');
+  assert.equal(readPreferences(storage).controlMode, 'direct-touch');
+  assert.equal(writePreferences({ ...selected, controlMode: 'unexpected' }, storage).controlMode, 'continuous-steering');
 });
 
 test('unavailable or malformed local storage falls back safely', () => {
   assert.deepEqual(readPreferences(memoryStorage('{broken')), DEFAULT_PREFERENCES);
   const storage = { getItem() { return null; }, setItem() { throw new Error('Storage disabled'); } };
-  assert.deepEqual(writePreferences({ soundEffects: false }, storage), { soundEffects: false, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true });
+  assert.deepEqual(writePreferences({ soundEffects: false }, storage), { soundEffects: false, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true, controlMode: 'continuous-steering' });
 });

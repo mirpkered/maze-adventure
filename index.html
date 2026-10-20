@@ -128,14 +128,14 @@
         <output id="trace-diagnostics" class="trace-diagnostics" hidden aria-live="off"></output>
         <section id="trace-diagnostic-tools" class="trace-diagnostic-tools" hidden aria-label="QA tracing diagnostics">
           <div class="diagnostic-actions"><button id="copy-qa-summary" class="small-button">Copy quick summary</button><button id="copy-qa-incident" class="small-button">Copy recent incident</button><button id="copy-trace-report" class="small-button">Share / export full report</button><button id="reset-trace-log" class="small-button">Reset current log</button><button id="clear-qa-sessions" class="small-button">Clear saved QA sessions</button><button id="disable-qa-mode" class="small-button">Exit QA mode</button></div>
-          <label id="qa-input-mode-controls" class="qa-input-mode-controls" hidden for="qa-input-mode">Experimental input
+          <label id="qa-input-mode-controls" class="qa-input-mode-controls" hidden for="qa-input-mode">QA input override
             <select id="qa-input-mode">
-              <option value="direct-touch">Direct Touch (Default)</option>
-              <option value="continuous-steering">Continuous Steering (Experimental)</option>
+              <option value="continuous-steering">Continuous Steering</option>
+              <option value="direct-touch">Direct Touch</option>
             </select>
-            <small>Steering is QA-only. Touch down sets an origin; move away to guide the pencil.</small>
+            <small>This temporary QA override is separate from the saved Maze Controls preference.</small>
           </label>
-          <output id="qa-active-input-mode" class="qa-active-input-mode" aria-live="polite">Active Input Mode: Direct Touch</output>
+          <output id="qa-active-input-mode" class="qa-active-input-mode" aria-live="polite">Active Input Mode: Continuous Steering</output>
           <output id="qa-retention-status" aria-live="polite"></output>
           <label class="qa-session-picker" for="qa-session-history">Saved QA session</label><select id="qa-session-history" aria-label="Saved QA session"><option value="current">Current session</option></select>
           <p class="qa-privacy-note">QA reports are stored only on this device for up to 24 hours. They are not sent to Mirpworks.</p>
@@ -147,6 +147,7 @@
 
       <section id="settings" class="screen info-screen" aria-labelledby="settings-title" hidden>
         <header class="view-header"><button class="back-button" id="settings-home">← Home</button><div><p class="eyebrow">THIS DEVICE</p><h1 id="settings-title" tabindex="-1">Settings</h1></div></header>
+        <section class="settings-panel" aria-labelledby="controls-title"><h2 id="controls-title">Maze Controls</h2><p>Choose how your pencil follows your finger.</p><label for="control-mode">Control method</label><select id="control-mode"><option value="continuous-steering">Continuous Steering · Recommended</option><option value="direct-touch">Direct Touch</option></select><p id="control-mode-description" class="control-mode-description" aria-live="polite">Touch the Close View. Move farther from your first touch to steer faster; return to center or lift to stop.</p></section>
         <section class="settings-panel" aria-labelledby="sound-title"><h2 id="sound-title">Sound</h2><p>Optional sound for maze completion.</p><label class="setting-row"><span><strong>Sound effects</strong><small>Play a soft chime when you finish a maze.</small></span><input id="sound-effects" type="checkbox" /></label></section>
         <section class="settings-panel" aria-labelledby="zoom-assist-title"><h2 id="zoom-assist-title">Tracing workspace</h2><p>Keep the full maze visible while tracing in a magnified close view.</p><label class="setting-row"><span><strong>Zoom Assist</strong><small>Show the full maze above a 2× tracing workspace.</small></span><input id="zoom-assist" type="checkbox" /></label></section>
         <section class="settings-panel" aria-labelledby="paper-title"><h2 id="paper-title">Appearance</h2><label for="paper-theme">Paper surface</label><select id="paper-theme"><option value="warm">Warm paper</option><option value="light">Soft ivory</option></select></section>
@@ -157,7 +158,7 @@
 
       <section id="help" class="screen info-screen" aria-labelledby="help-title" hidden>
         <header class="view-header"><button class="back-button" id="help-home">← Home</button><div><p class="eyebrow">A QUICK GUIDE</p><h1 id="help-title" tabindex="-1">How to play</h1></div></header>
-        <section class="settings-panel help-panel"><h2>Trace the open path</h2><ol><li>Touch or click the START entrance.</li><li>Drag through the open corridors to the flower.</li><li>Walls stop the pencil. To leave a dead end, trace back along your line.</li><li>Lift your finger whenever you need to. Touch the end of your line to continue.</li></ol><p>Keyboard option: focus the maze and use the arrow keys to move through one passage at a time. There is no countdown and no penalty for taking your time.</p></section>
+        <section class="settings-panel help-panel"><h2>Trace the open path</h2><p>Continuous Steering is the recommended control: touch to set a starting point, then move away from that spot to guide the pencil. Move farther for more speed; return to center or lift to stop. You can choose Direct Touch in Settings to trace the maze directly. With Direct Touch, lift and re-tap near the pencil after a wall collision.</p><ol><li>Follow connected open corridors to the flower.</li><li>Walls always stop the pencil. Backtrack along passages to explore another way.</li><li>Your accepted pencil marks stay visible throughout the attempt.</li></ol><p>Keyboard option: focus the maze and use the arrow keys to move through one passage at a time. There is no countdown and no penalty for taking your time.</p></section>
         <button class="button button-primary" id="help-play">Choose a difficulty <span aria-hidden="true">↗</span></button>
       </section>
 
@@ -168,7 +169,7 @@
 
       <section class="overlay" id="pause-dialog" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden><div class="dialog-card"><p class="eyebrow">TAKE YOUR TIME</p><h2 id="pause-title">Maze paused</h2><p>Your path is saved right where you left it.</p><button class="button button-primary" id="resume-game">Resume maze</button><button class="small-button" id="pause-settings">Settings</button><button class="small-button" id="pause-restart">Restart this maze</button><button class="small-button" id="pause-new">New maze</button><button class="text-button" id="pause-home">Return home</button><button class="dialog-close" id="close-pause" aria-label="Close pause menu">×</button></div></section>
       <section class="overlay" id="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title" hidden><div class="dialog-card"><p class="eyebrow">LEAVE THIS MAZE?</p><h2 id="confirm-title">Your current path will be cleared.</h2><p>You can restart this maze later, but this attempt will not be saved.</p><button class="button button-primary" id="confirm-leave">Leave maze</button><button class="small-button" id="cancel-leave">Keep playing</button></div></section>
-      <section class="overlay" id="reset-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title" hidden><div class="dialog-card"><p class="eyebrow">RESET PREFERENCES</p><h2 id="reset-title">Restore default settings?</h2><p>Your sound, paper and theme choices will return to their defaults.</p><button class="button button-primary" id="confirm-reset">Reset settings</button><button class="small-button" id="cancel-reset">Cancel</button></div></section>
+      <section class="overlay" id="reset-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title" hidden><div class="dialog-card"><p class="eyebrow">RESET PREFERENCES</p><h2 id="reset-title">Restore default settings?</h2><p>Your controls, sound, paper and theme choices will return to their defaults.</p><button class="button button-primary" id="confirm-reset">Reset settings</button><button class="small-button" id="cancel-reset">Cancel</button></div></section>
       <footer class="site-footer"><span>© MIRPWORKS</span><span>MADE FOR A MOMENT OF PLAY</span></footer>
     </main>
     <script>

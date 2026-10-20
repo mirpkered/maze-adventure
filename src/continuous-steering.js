@@ -10,7 +10,7 @@ export const DEFAULT_STEERING_SETTINGS = Object.freeze({
   // A gentle power curve keeps fine control near the origin while reserving
   // the larger speed increase for a deliberate, wider finger deflection.
   speedResponseExponent: 1.15,
-  maxSpeedMazeUnitsPerSecond: 1.5,
+  maxSpeedMazeUnitsPerSecond: 1.725,
   maxFrameSeconds: 0.05,
 });
 
@@ -37,34 +37,50 @@ export function writeQaInputMode(mode, storage = globalThis.localStorage) {
   return safeMode;
 }
 
+function normalizeInputMode(mode) {
+  return mode === QA_INPUT_MODES.DIRECT_TOUCH ? QA_INPUT_MODES.DIRECT_TOUCH : QA_INPUT_MODES.CONTINUOUS_STEERING;
+}
+
+function readQaOverride(storage) {
+  try {
+    const saved = storage?.getItem(QA_INPUT_MODE_KEY);
+    return saved === QA_INPUT_MODES.DIRECT_TOUCH || saved === QA_INPUT_MODES.CONTINUOUS_STEERING ? saved : null;
+  } catch { return null; }
+}
+
 /**
- * Owns the selected experimental mode and the mode that gameplay may use.
- * A stored Steering preference is honored only while QA is enabled.
+ * The player preference owns ordinary gameplay. QA may temporarily override it
+ * and persist that override under a separate QA-only key without changing the
+ * player's saved choice. Normal gameplay always ignores the QA override.
  */
-export function createQaInputModeState({ qaEnabled = false, storage = globalThis.localStorage } = {}) {
+export function createQaInputModeState({ qaEnabled = false, storage = globalThis.localStorage, playerMode = QA_INPUT_MODES.CONTINUOUS_STEERING } = {}) {
   let enabled = Boolean(qaEnabled);
-  let preferenceLoaded = enabled;
-  let selected = enabled ? readQaInputMode(storage) : QA_INPUT_MODES.DIRECT_TOUCH;
+  let playerSelection = normalizeInputMode(playerMode);
+  let qaOverride = enabled ? readQaOverride(storage) : null;
 
   return {
     get qaEnabled() { return enabled; },
-    get selected() { return selected; },
+    get playerMode() { return playerSelection; },
+    get qaOverride() { return qaOverride; },
+    get selected() { return this.active; },
     get active() {
-      return enabled ? selected : QA_INPUT_MODES.DIRECT_TOUCH;
+      return enabled && qaOverride ? qaOverride : playerSelection;
     },
     setQaEnabled(value) {
       const next = Boolean(value);
-      if (next && !enabled && !preferenceLoaded) {
-        selected = readQaInputMode(storage);
-        preferenceLoaded = true;
-      }
+      if (next && !enabled) qaOverride = readQaOverride(storage);
       enabled = next;
       return this.active;
     },
     select(mode) {
       if (!enabled) return this.active;
-      selected = writeQaInputMode(mode, storage);
-      preferenceLoaded = true;
+      qaOverride = writeQaInputMode(mode, storage);
+      return this.active;
+    },
+    setPlayerMode(mode) {
+      playerSelection = normalizeInputMode(mode);
+      qaOverride = null;
+      try { storage?.removeItem(QA_INPUT_MODE_KEY); } catch { /* The player selection still applies for this session. */ }
       return this.active;
     },
   };

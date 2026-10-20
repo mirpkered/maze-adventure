@@ -1,4 +1,4 @@
-export const DEFAULT_PREFERENCES = Object.freeze({ soundEffects: true, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true });
+export const DEFAULT_PREFERENCES = Object.freeze({ soundEffects: true, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true, controlMode: 'continuous-steering' });
 export const PREFERENCES_KEY = 'mirpworks.maze-adventure.preferences.v1';
 
 function validTheme(theme) { return theme === 'traveler-map' || theme === 'camp-dusk'; }
@@ -13,6 +13,7 @@ export function readPreferences(storage) {
       themePreference: saved?.themePreference === 'traveler-map' || saved?.themePreference === 'camp-dusk' ? saved.themePreference : 'auto',
       lastAutoTheme: validTheme(saved?.lastAutoTheme) ? saved.lastAutoTheme : null,
       zoomAssist: typeof saved?.zoomAssist === 'boolean' ? saved.zoomAssist : DEFAULT_PREFERENCES.zoomAssist,
+      controlMode: saved?.controlMode === 'direct-touch' ? 'direct-touch' : DEFAULT_PREFERENCES.controlMode,
     };
   } catch {
     return { ...DEFAULT_PREFERENCES };
@@ -26,6 +27,7 @@ export function writePreferences(preferences, storage) {
     themePreference: preferences.themePreference === 'traveler-map' || preferences.themePreference === 'camp-dusk' ? preferences.themePreference : 'auto',
     lastAutoTheme: validTheme(preferences.lastAutoTheme) ? preferences.lastAutoTheme : null,
     zoomAssist: preferences.zoomAssist !== false,
+    controlMode: preferences.controlMode === 'direct-touch' ? 'direct-touch' : DEFAULT_PREFERENCES.controlMode,
   };
   try { storage ??= globalThis.localStorage; storage.setItem(PREFERENCES_KEY, JSON.stringify(normalized)); } catch { /* Private browsing may reject storage; settings still work for this session. */ }
   return normalized;

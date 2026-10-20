@@ -54,7 +54,7 @@ for (const { value, label } of THEME_PREFERENCE_OPTIONS) {
 }
 let settingsReturnToPlay = false;
 let qaEnabled = startQaSession(location, history, deviceStorage);
-const qaInputModeState = createQaInputModeState({ qaEnabled, storage: deviceStorage });
+const qaInputModeState = createQaInputModeState({ qaEnabled, storage: deviceStorage, playerMode: preferences.controlMode });
 const steeringController = createSteeringController();
 let steeringPointerId = null, steeringFrameId = null, steeringHadBlock = false, lastSteeringBlockReason = null;
 let lastRawPointer = null, lastClientPointer = null;
@@ -112,7 +112,9 @@ function syncQaControls() {
   const activeMode = qaInputModeState.active;
   $('#qa-input-mode').value = activeMode;
   const modeLabel = activeMode === QA_INPUT_MODES.CONTINUOUS_STEERING ? 'Continuous Steering' : 'Direct Touch';
-  $('#qa-active-input-mode').textContent = `Active Input Mode: ${modeLabel}`;
+  const playerLabel = qaInputModeState.playerMode === QA_INPUT_MODES.CONTINUOUS_STEERING ? 'Continuous Steering' : 'Direct Touch';
+  const override = qaInputModeState.qaOverride ? ` · temporary QA override (${modeLabel}); saved player control stays ${playerLabel}` : ` · using saved player control (${playerLabel})`;
+  $('#qa-active-input-mode').textContent = `Active Input Mode: ${modeLabel}${qaEnabled ? override : ''}`;
   $('#qa-active-mode-indicator').textContent = `QA · ${activeMode === QA_INPUT_MODES.CONTINUOUS_STEERING ? 'Steering' : 'Direct'}`;
   $('#qa-active-mode-indicator').hidden = !qaEnabled;
   if (qaEnabled) refreshQaSessions();
@@ -124,8 +126,8 @@ function selectQaInputMode(mode) {
   const activeMode = qaInputModeState.select(mode);
   syncQaControls();
   $('#qa-mode-status').textContent = activeMode === QA_INPUT_MODES.CONTINUOUS_STEERING
-    ? 'Continuous Steering is experimental and active for QA only. Direct Touch remains the normal player control.'
-    : 'Direct Touch is active. This is the normal player control.';
+    ? 'Continuous Steering is active for this QA session. The override does not change your saved Maze Controls preference.'
+    : 'Direct Touch is active for this QA session. The override does not change your saved Maze Controls preference.';
   updateTraceDiagnostics();
   queueQaPersistence();
 }
@@ -422,13 +424,24 @@ function updateSettingsControls() {
   $('#paper-theme').value = preferences.paperTheme;
   $('#visual-theme').value = preferences.themePreference;
   $('#zoom-assist').checked = preferences.zoomAssist;
+  $('#control-mode').value = preferences.controlMode;
+  $('#control-mode-description').textContent = preferences.controlMode === QA_INPUT_MODES.CONTINUOUS_STEERING
+    ? `Touch ${preferences.zoomAssist ? 'the Close View' : 'the maze'} to set a steering origin. Move farther from your first touch to steer faster; return to center or lift to stop.`
+    : 'Trace the passages directly with your finger. After a wall collision, lift and re-tap near the pencil tip.';
   setTheme();
 }
 function savePreferences(update) {
   const zoomChanged = Object.hasOwn(update, 'zoomAssist') && preferences.zoomAssist !== update.zoomAssist;
-  if (zoomChanged && activePointerId !== null) clearPointer();
+  const controlModeChanged = Object.hasOwn(update, 'controlMode') && preferences.controlMode !== update.controlMode;
+  if ((zoomChanged || controlModeChanged) && activePointerId !== null) clearPointer();
   preferences = writePreferences({ ...preferences, ...update });
+  if (controlModeChanged) qaInputModeState.setPlayerMode(preferences.controlMode);
   updateSettingsControls();
+  if (controlModeChanged) {
+    syncQaControls();
+    updateTraceDiagnostics();
+    queueQaPersistence();
+  }
   if (zoomChanged) {
     document.body.dataset.zoomAssist = String(preferences.zoomAssist);
     if (mazeCompleted) $('#maze-paper').hidden = preferences.zoomAssist;
@@ -499,15 +512,15 @@ function makeMaze(reuse = false) {
   currentLayoutId = mazeLayoutId(maze);
   traceSession = createTraceSession(maze);
   activePointerId = null; elapsed = 0; paused = false; displayTime();
-  $('#play-hint').textContent = preferences.zoomAssist
-    ? 'Follow the full maze above; trace in the Close View below.'
+  $('#play-hint').textContent = preferences.controlMode === QA_INPUT_MODES.CONTINUOUS_STEERING
+    ? `Touch ${preferences.zoomAssist ? 'the Close View' : 'the maze'} to set a steering origin. Move away to guide the pencil; return to center or lift to stop.`
     : 'Trace from the entrance to the flower. Lift and tap the pencil tip to continue.';
   renderMaze(); activeScreen($('#play')); syncQaControls(); updateTraceDiagnostics(); queueQaPersistence(); $('#play-title').focus({ preventScroll: true }); startTimer();
 }
 
 function updateSteeringIndicator(point) {
   const indicator = $('#steering-indicator');
-  if (!point || !steeringController.active || qaInputModeState.active !== QA_INPUT_MODES.CONTINUOUS_STEERING) {
+  if (!qaEnabled || !point || !steeringController.active || qaInputModeState.active !== QA_INPUT_MODES.CONTINUOUS_STEERING) {
     indicator.hidden = true;
     return;
   }
@@ -549,7 +562,7 @@ function scheduleSteeringFrameLoop(id) {
   if (steeringFrameId !== null) return;
   const frame = timestamp => {
     steeringFrameId = null;
-    if (id !== steeringPointerId || activePointerId !== id || !qaEnabled
+    if (id !== steeringPointerId || activePointerId !== id
       || qaInputModeState.active !== QA_INPUT_MODES.CONTINUOUS_STEERING || $('#play').hidden || paused || activeOverlay || document.hidden || mazeCompleted) {
       if (id === steeringPointerId && activePointerId === id) clearPointer();
       return;
@@ -702,7 +715,7 @@ svg.addEventListener('pointerdown', event => {
   if (!event.isPrimary) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'non-primary-pointer'); return; }
   if (activePointerId !== null) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'another-pointer-owns-gesture'); return; }
   let began;
-  if (qaEnabled && qaInputModeState.active === QA_INPUT_MODES.CONTINUOUS_STEERING) {
+  if (qaInputModeState.active === QA_INPUT_MODES.CONTINUOUS_STEERING) {
     began = traceSession.beginSteering(event.pointerId);
     if (began) {
       began = steeringController.begin(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -818,15 +831,17 @@ $('#open-credits').addEventListener('click', () => { activeScreen($('#about')); 
 $('#sound-effects').addEventListener('change', event => savePreferences({ soundEffects: event.currentTarget.checked }));
 $('#zoom-assist').addEventListener('change', event => savePreferences({ zoomAssist: event.currentTarget.checked }));
 $('#paper-theme').addEventListener('change', event => savePreferences({ paperTheme: event.currentTarget.value }));
+$('#control-mode').addEventListener('change', event => savePreferences({ controlMode: event.currentTarget.value }));
 $('#visual-theme').addEventListener('change', event => saveThemePreference(event.currentTarget.value));
 $('#reset-settings').addEventListener('click', () => openOverlay($('#reset-dialog')));
 $('#cancel-reset').addEventListener('click', () => closeOverlay());
 $('#confirm-reset').addEventListener('click', () => {
   preferences = writePreferences({ ...DEFAULT_PREFERENCES }, deviceStorage);
+  qaInputModeState.setPlayerMode(preferences.controlMode);
   activeVisualTheme = chooseLaunchTheme('auto', activeVisualTheme, Math.random, canPersistPreferences);
   preferences = writePreferences({ ...preferences, lastAutoTheme: activeVisualTheme }, deviceStorage);
   applyVisualTheme(document, activeVisualTheme);
-  updateSettingsControls(); closeOverlay();
+  updateSettingsControls(); syncQaControls(); updateTraceDiagnostics(); closeOverlay();
 });
 
 async function copyQaText(value, label) {

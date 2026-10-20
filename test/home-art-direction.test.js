@@ -14,7 +14,7 @@ test('the home art direction remains a shared offline-ready screen system', asyn
   assert.match(css, /body\[data-visual-theme="camp-dusk"\]/);
   assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.home-art\.title-art\s*\{[^}]*order:\s*-1/s);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.match(worker, /shell-v35/);
+  assert.match(worker, /shell-v36/);
   assert.match(worker, /\.\/src\/home-art-direction\.css/);
 });
 
