@@ -97,7 +97,7 @@
       <section id="play" class="screen play-screen" aria-labelledby="play-title" hidden>
         <div class="play-heading">
           <div class="play-title-block"><p class="eyebrow">FREE PLAY <span class="dot">·</span> <span id="play-difficulty">EASY</span></p><h1 id="play-title" tabindex="-1">A little winding way</h1></div>
-          <div class="play-header-tools"><div class="timer-wrap"><span class="timer-label">TIME</span><output id="timer" aria-label="Elapsed time">0:00</output></div><button class="small-button qa-entry" id="qa-open-game" type="button" aria-label="Open QA configuration" title="QA configuration" hidden>QA</button><button class="small-button pause-tool" id="pause-game" aria-label="Pause maze" title="Pause maze">Ⅱ</button></div>
+          <div class="play-header-tools"><div class="timer-wrap"><span class="timer-label">TIME</span><output id="timer" aria-label="Elapsed time">0:00</output></div><span id="qa-active-mode-indicator" class="qa-active-mode-indicator" hidden>QA · Direct</span><button class="small-button qa-entry" id="qa-open-game" type="button" aria-label="Open QA configuration" title="QA configuration" hidden>QA</button><button class="small-button pause-tool" id="pause-game" aria-label="Pause maze" title="Pause maze">Ⅱ</button></div>
         </div>
         <p class="play-hint" id="play-hint">Follow the full map above; trace in the Close View below.</p>
         <div class="maze-workspace" id="maze-workspace">
@@ -135,6 +135,7 @@
             </select>
             <small>Steering is QA-only. Touch down sets an origin; move away to guide the pencil.</small>
           </label>
+          <output id="qa-active-input-mode" class="qa-active-input-mode" aria-live="polite">Active Input Mode: Direct Touch</output>
           <output id="qa-retention-status" aria-live="polite"></output>
           <label class="qa-session-picker" for="qa-session-history">Saved QA session</label><select id="qa-session-history" aria-label="Saved QA session"><option value="current">Current session</option></select>
           <p class="qa-privacy-note">QA reports are stored only on this device for up to 24 hours. They are not sent to Mirpworks.</p>

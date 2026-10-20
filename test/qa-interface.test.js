@@ -47,7 +47,10 @@ test('QA selection remains opt-in and cannot affect normal gameplay layout or st
   assert.match(game, /\$\('#qa-open-game'\)\.addEventListener\('click', openQaConfiguration\)/);
   assert.match(game, /\$\('#qa-open-home'\)\.addEventListener\('click', openQaConfiguration\)/);
   assert.match(game, /\$\('#disable-qa-mode'\)\.addEventListener\('click', \(\) => \{ setQaMode\(false\); returnFromQaConfiguration\(\); \}\)/);
-  assert.match(game, /qaInputMode = qaEnabled \? readQaInputMode\(deviceStorage\) : QA_INPUT_MODES\.DIRECT_TOUCH/);
+  assert.match(game, /\$\('#qa-input-mode'\)\.addEventListener\('change', event => selectQaInputMode\(event\.currentTarget\.value\)\)/);
+  assert.match(game, /const activeMode = qaInputModeState\.active/);
+  assert.match(game, /traceSession\.beginSteering\(event\.pointerId\)/);
+  assert.match(game, /traceSession\.begin\(event\.pointerId, lastRawPointer, pencilAcquisitionOptions\(\)\)/);
   assert.match(css, /body\[data-screen="play"\][^{]*\{/);
   assert.match(css, /body\[data-screen="qa-config"\] \.app-shell/);
 });

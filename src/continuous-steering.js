@@ -26,6 +26,39 @@ export function writeQaInputMode(mode, storage = globalThis.localStorage) {
   return safeMode;
 }
 
+/**
+ * Owns the selected experimental mode and the mode that gameplay may use.
+ * A stored Steering preference is honored only while QA is enabled.
+ */
+export function createQaInputModeState({ qaEnabled = false, storage = globalThis.localStorage } = {}) {
+  let enabled = Boolean(qaEnabled);
+  let preferenceLoaded = enabled;
+  let selected = enabled ? readQaInputMode(storage) : QA_INPUT_MODES.DIRECT_TOUCH;
+
+  return {
+    get qaEnabled() { return enabled; },
+    get selected() { return selected; },
+    get active() {
+      return enabled ? selected : QA_INPUT_MODES.DIRECT_TOUCH;
+    },
+    setQaEnabled(value) {
+      const next = Boolean(value);
+      if (next && !enabled && !preferenceLoaded) {
+        selected = readQaInputMode(storage);
+        preferenceLoaded = true;
+      }
+      enabled = next;
+      return this.active;
+    },
+    select(mode) {
+      if (!enabled) return this.active;
+      selected = writeQaInputMode(mode, storage);
+      preferenceLoaded = true;
+      return this.active;
+    },
+  };
+}
+
 /** Screen-space joystick input; it never reads camera or maze coordinates. */
 export function createSteeringController(settings = {}) {
   const config = { ...DEFAULT_STEERING_SETTINGS, ...settings };

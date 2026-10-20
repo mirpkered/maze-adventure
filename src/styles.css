@@ -99,6 +99,8 @@ h1 em { color: var(--rust); font-weight: 400; }
 .small-button { min-height: 44px; padding: 8px 12px; border: 1px solid #d2cbb9; border-radius: 4px; background: transparent; color: #555b50; font-size: 11px; cursor: pointer; }
 .small-button:hover { border-color: var(--green); background: rgba(255,253,245,.7); }
 .qa-entry { min-height: 36px; padding: 5px 9px; font-size: 10px; }
+.qa-active-mode-indicator { padding: 4px 6px; border: 1px solid var(--theme-line, #d9cfbe); border-radius: 999px; background: var(--theme-surface, #fbf7ef); color: var(--theme-ink, #3f5147); box-shadow: 0 2px 5px var(--theme-shadow, rgba(48,66,52,.09)); font-size: 8px; font-weight: 800; white-space: nowrap; }
+.qa-active-input-mode { display: block; color: var(--theme-ink, #3f5147); font-size: 13px; font-weight: 800; }
 
 .info-screen { width: min(100%, 720px); margin: 0 auto; padding: 30px 0 42px; }
 .qa-config-screen { width: min(100%, 760px); min-height: 0; flex: 1 1 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 0 max(20px, env(safe-area-inset-bottom)); touch-action: pan-y; }
