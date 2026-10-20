@@ -186,6 +186,7 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
     movementClassification: movement?.movementClassification ?? null,
     requestedMovement: movement?.requestedMovement ?? null,
     acceptedMovement: movement?.acceptedMovement ?? null,
+    steeringMetrics: movement?.steeringMetrics ?? null,
     strokeBreakCreated: movement?.strokeBreakCreated ?? false,
     gestureState: state.lockedOut ? 'locked-out-until-release' : state.active ? (state.recovering ? 'recovering' : 'active') : 'idle',
     accepted: Boolean(accepted),
@@ -559,6 +560,16 @@ function scheduleSteeringFrameLoop(id) {
       const movement = traceSession.steer(id, delta);
       movement.requestedMovement = { x: delta.x, y: delta.y };
       movement.acceptedMovement = { x: movement.position.x - positionBefore.x, y: movement.position.y - positionBefore.y };
+      const steeringState = steeringController.snapshot;
+      const fingerDisplacementPixels = steeringState.origin && steeringState.finger
+        ? Math.hypot(steeringState.finger.x - steeringState.origin.x, steeringState.finger.y - steeringState.origin.y) : 0;
+      movement.steeringMetrics = {
+        fingerDisplacementPixels,
+        speedDemand: delta.speed / steeringController.settings.maxSpeedMazeUnitsPerSecond,
+        requestedSpeed: delta.speed,
+        acceptedSpeed: delta.frameSeconds > 0
+          ? Math.hypot(movement.acceptedMovement.x, movement.acceptedMovement.y) / delta.frameSeconds : 0,
+      };
       movement.movementClassification = movement.wallCollision ? 'closed-wall-collision'
         : movement.blocked && movement.attemptedTransitions?.some(transition => transition.open) ? 'open-edge-transition-rejected'
           : movement.blocked ? 'movement-rejected'

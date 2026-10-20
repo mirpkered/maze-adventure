@@ -67,7 +67,7 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
   const activeController = report.activeController ?? current?.gestureInputMode ?? 'idle';
   const steeringSummary = `${selectedMode === 'continuous-steering' ? 'selected Continuous Steering' : selectedMode === 'direct-touch' ? 'selected Direct Touch' : `selected ${selectedMode}`} | gesture controller ${activeController}`;
   const steeringMetrics = selectedMode === 'continuous-steering' && report.steering
-    ? `steering dead-zone ${report.steering.settings?.deadZonePixels ?? '?'}px, max ${report.steering.settings?.maxSpeedMazeUnitsPerSecond ?? '?'} cells/s | last gesture frames ${report.steering.activeFrames ?? 0}/${report.steering.frames ?? 0}, capped ${report.steering.clampedFrames ?? 0}` : null;
+    ? `steering dead-zone ${report.steering.settings?.deadZonePixels ?? '?'}px, curve x^${report.steering.settings?.speedResponseExponent ?? '?'}, max ${report.steering.settings?.maxSpeedMazeUnitsPerSecond ?? '?'} cells/s | last gesture frames ${report.steering.activeFrames ?? 0}/${report.steering.frames ?? 0}, capped ${report.steering.clampedFrames ?? 0}` : null;
   return [
     `Maze Adventure QA ${report.buildId ?? 'build unknown'} | ${report.maze?.layoutId ?? 'maze unknown'}`,
     `${dimensions?.width ?? '?'}x${dimensions?.height ?? '?'} ${difficulty} | ${(durationMs / 1000).toFixed(1)}s | events ${observed}, accepted ${accepted}, rejected ${Object.values(rejectedByReason).reduce((a, b) => a + b, 0)} (${counts}), canceled ${canceled}`,

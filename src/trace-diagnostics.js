@@ -49,6 +49,12 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
         movementClassification: typeof event.movementClassification === 'string' ? event.movementClassification.slice(0, 40) : null,
         requestedMovement: point(event.requestedMovement),
         acceptedMovement: point(event.acceptedMovement),
+        steeringMetrics: event.steeringMetrics && typeof event.steeringMetrics === 'object' ? {
+          fingerDisplacementPixels: Number.isFinite(event.steeringMetrics.fingerDisplacementPixels) ? Math.round(event.steeringMetrics.fingerDisplacementPixels * 10) / 10 : null,
+          speedDemand: Number.isFinite(event.steeringMetrics.speedDemand) ? Math.round(event.steeringMetrics.speedDemand * 1000) / 1000 : null,
+          requestedSpeed: Number.isFinite(event.steeringMetrics.requestedSpeed) ? Math.round(event.steeringMetrics.requestedSpeed * 1000) / 1000 : null,
+          acceptedSpeed: Number.isFinite(event.steeringMetrics.acceptedSpeed) ? Math.round(event.steeringMetrics.acceptedSpeed * 1000) / 1000 : null,
+        } : null,
         strokeBreakCreated: Boolean(event.strokeBreakCreated),
         gestureState: String(event.gestureState ?? 'unknown').slice(0, 32),
         gestureTerminatedByWallCollision: Boolean(event.gestureTerminatedByWallCollision),
