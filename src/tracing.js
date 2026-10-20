@@ -36,12 +36,24 @@ function insideCell(point, cell, maze) {
   return false;
 }
 
-function constrainStrokePoint(point, cell, maze) {
+function constrainStrokePoint(point, cell, maze, allowOpenEdgeProgress = false) {
   const dx = point.x - cell.x, dy = point.y - cell.y;
   const entranceSide = sameCell(cell, maze.start) && outsideEntrance(point, maze) ? maze.entrance.side : null;
+  // Steering applies each frame's displacement to the authoritative pencil
+  // endpoint. Let it accumulate all the way to an OPEN cell boundary; the
+  // ordinary ink clamp (0.42) otherwise strands it before nearestCell can
+  // classify the adjacent cell at 0.5. The swept edge checks still decide
+  // whether that transition is legal, and the perpendicular axis stays in
+  // the existing corridor margin.
+  const xCorridor = allowOpenEdgeProgress && Math.abs(dy) <= CORRIDOR_MARGIN ? CORRIDOR_MARGIN : STROKE_WALL_SAFE_OFFSET;
+  const yCorridor = allowOpenEdgeProgress && Math.abs(dx) <= CORRIDOR_MARGIN ? CORRIDOR_MARGIN : STROKE_WALL_SAFE_OFFSET;
+  const xLimit = allowOpenEdgeProgress && Math.abs(dy) <= CORRIDOR_MARGIN && dx !== 0
+    ? canMove(maze, cell, { x: cell.x + Math.sign(dx), y: cell.y }) ? 0.5 : xCorridor : STROKE_WALL_SAFE_OFFSET;
+  const yLimit = allowOpenEdgeProgress && Math.abs(dx) <= CORRIDOR_MARGIN && dy !== 0
+    ? canMove(maze, cell, { x: cell.x, y: cell.y + Math.sign(dy) }) ? 0.5 : yCorridor : STROKE_WALL_SAFE_OFFSET;
   return {
-    x: entranceSide === 'W' || entranceSide === 'E' ? point.x : cell.x + Math.max(-STROKE_WALL_SAFE_OFFSET, Math.min(STROKE_WALL_SAFE_OFFSET, dx)),
-    y: entranceSide === 'N' || entranceSide === 'S' ? point.y : cell.y + Math.max(-STROKE_WALL_SAFE_OFFSET, Math.min(STROKE_WALL_SAFE_OFFSET, dy)),
+    x: entranceSide === 'W' || entranceSide === 'E' ? point.x : cell.x + Math.max(-xLimit, Math.min(xLimit, dx)),
+    y: entranceSide === 'N' || entranceSide === 'S' ? point.y : cell.y + Math.max(-yLimit, Math.min(yLimit, dy)),
   };
 }
 
@@ -63,7 +75,7 @@ function appendInk(stroke, strokeCells, strokeBreaks, point, cell, breakBefore =
  * append-only history; it is never consulted to decide where the pencil may
  * move and is never shortened by retracing.
  */
-export function traceSegment(maze, path, from, to, currentStroke = path.map(copyPoint), previousPoint = from, recovering = false, currentStrokeCells = null, acceptedPosition = currentStroke.at(-1), currentStrokeBreaks = [], { advanceSubthreshold = false } = {}) {
+export function traceSegment(maze, path, from, to, currentStroke = path.map(copyPoint), previousPoint = from, recovering = false, currentStrokeCells = null, acceptedPosition = currentStroke.at(-1), currentStrokeBreaks = [], { advanceSubthreshold = false, allowOpenEdgeProgress = false } = {}) {
   let nextPath = path;
   const stroke = currentStroke.map(copyPoint);
   const strokeCells = currentStrokeCells?.map(cell => ({ ...cell })) ?? stroke.map(point => nearestCell(point, maze) ?? path.at(-1));
@@ -140,7 +152,7 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
       continue;
     }
 
-    const accepted = constrainStrokePoint(point, candidate, maze);
+    const accepted = constrainStrokePoint(point, candidate, maze, allowOpenEdgeProgress);
     const acceptedDistance = Math.hypot(accepted.x - position.x, accepted.y - position.y);
     if (advanceSubthreshold ? acceptedDistance > 1e-9 : acceptedDistance > MIN_STROKE_POINT_DISTANCE) {
       // Steering advances the authoritative endpoint at every frame. Ink is
@@ -234,6 +246,7 @@ export function createTraceSession(maze) {
         traceHealth,
         strokeCells: strokeCells.map(cell => ({ ...cell })), strokeBreaks: [...strokeBreaks],
         active: pointerId !== null, recovering, blocked: lastBlocked, reason: lastReason,
+        gestureInputMode: pointerId === null ? null : steeringGesture ? 'continuous-steering' : 'direct-touch',
         lockedOut: lockedPointerId !== null, lockedOutMovementCount,
         wallCollisionTerminated, resumeAfterWallCollision: lastResumeAfterWallCollision,
         failureCategory: lastFailureCategory,
@@ -319,7 +332,7 @@ export function createTraceSession(maze) {
       }
       const from = copyPoint(position), to = { x: from.x + delta.x, y: from.y + delta.y };
       const result = traceSegment(maze, path, from, to, stroke, from, false, strokeCells, position, strokeBreaks,
-        { advanceSubthreshold: true });
+        { advanceSubthreshold: true, allowOpenEdgeProgress: true });
       path = result.path;
       stroke = result.stroke;
       strokeCells = result.strokeCells;

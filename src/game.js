@@ -181,6 +181,11 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
     lockedOutMovementCount: state.lockedOutMovementCount,
     resumeAfterWallCollision: state.resumeAfterWallCollision,
     attemptedTransitions: movement?.attemptedTransitions ?? [],
+    selectedInputMode: qaInputModeState.active,
+    activeController: state.gestureInputMode,
+    movementClassification: movement?.movementClassification ?? null,
+    requestedMovement: movement?.requestedMovement ?? null,
+    acceptedMovement: movement?.acceptedMovement ?? null,
     strokeBreakCreated: movement?.strokeBreakCreated ?? false,
     gestureState: state.lockedOut ? 'locked-out-until-release' : state.active ? (state.recovering ? 'recovering' : 'active') : 'idle',
     accepted: Boolean(accepted),
@@ -218,7 +223,11 @@ function diagnosticReportObject() {
     zoomAssist: preferences.zoomAssist,
     zoomFactor: preferences.zoomAssist ? cameraPosition.zoom : 1,
     cameraPosition: preferences.zoomAssist ? { x: cameraPosition.x, y: cameraPosition.y } : null,
+    // Keep the historical field for report compatibility, while naming the
+    // selection and active gesture controller explicitly for current reports.
     inputMode: qaInputModeState.active,
+    selectedInputMode: qaInputModeState.active,
+    activeController: state?.gestureInputMode ?? null,
     steering: qaEnabled ? { settings: steeringController.settings, ...steeringController.snapshot } : null,
   });
 }
@@ -242,7 +251,7 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
   const reversal = state.candidateReversal ? `${state.candidateReversal.x},${state.candidateReversal.y} (${state.candidateReversalOpen ? 'open' : 'closed'})` : 'none';
   const resume = state.resumeAcquisitionDistancePixels === null ? '—' : `${state.resumeAcquisitionDistancePixels.toFixed(1)}/${state.resumeAcquisitionThresholdPixels.toFixed(0)}px`;
-  output.textContent = `QA trace · build ${APP_BUILD_ID} · input ${qaInputModeState.active === QA_INPUT_MODES.CONTINUOUS_STEERING ? 'continuous steering' : 'direct touch'} · zoom ${preferences.zoomAssist ? `${cameraPosition.zoom}× close view (${cameraPosition.x.toFixed(0)},${cameraPosition.y.toFixed(0)})` : 'off'} · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · resume distance/limit ${resume} · gesture ${state.lockedOut ? `locked until release (${state.lockedOutMovementCount} ignored)` : state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · resumed after wall ${state.resumeAfterWallCollision ? 'yes' : 'no'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  output.textContent = `QA trace · build ${APP_BUILD_ID} · selected ${qaInputModeState.active === QA_INPUT_MODES.CONTINUOUS_STEERING ? 'steering' : 'direct'} · gesture controller ${state.gestureInputMode ?? 'idle'} · zoom ${preferences.zoomAssist ? `${cameraPosition.zoom}× close view (${cameraPosition.x.toFixed(0)},${cameraPosition.y.toFixed(0)})` : 'off'} · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · resume distance/limit ${resume} · gesture ${state.lockedOut ? `locked until release (${state.lockedOutMovementCount} ignored)` : state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · resumed after wall ${state.resumeAfterWallCollision ? 'yes' : 'no'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -546,7 +555,14 @@ function scheduleSteeringFrameLoop(id) {
     }
     const delta = steeringController.advance(id, timestamp);
     if (delta.active) {
+      const positionBefore = traceSession.position;
       const movement = traceSession.steer(id, delta);
+      movement.requestedMovement = { x: delta.x, y: delta.y };
+      movement.acceptedMovement = { x: movement.position.x - positionBefore.x, y: movement.position.y - positionBefore.y };
+      movement.movementClassification = movement.wallCollision ? 'closed-wall-collision'
+        : movement.blocked && movement.attemptedTransitions?.some(transition => transition.open) ? 'open-edge-transition-rejected'
+          : movement.blocked ? 'movement-rejected'
+            : !movement.moved ? 'steering-no-progress' : 'accepted';
       if (movement.moved) renderTrace();
       if (movement.blocked) {
         if (!steeringHadBlock || movement.reason !== lastSteeringBlockReason) recordSteeringEvent('steering-blocked', movement, movement.reason);
@@ -556,6 +572,13 @@ function scheduleSteeringFrameLoop(id) {
         recordSteeringEvent('steering-recovered', movement);
         steeringHadBlock = false;
         lastSteeringBlockReason = null;
+      } else if (!movement.moved && !movement.blocked) {
+        // A sustained nonzero steering vector that produces no legal movement
+        // is useful evidence (for example, a pencil stalled before an open
+        // edge) but recording every animation frame would bloat QA reports.
+        if (!steeringHadBlock) recordSteeringEvent('steering-no-progress', movement, 'steering-no-progress');
+        steeringHadBlock = true;
+        lastSteeringBlockReason = 'steering-no-progress';
       }
       if (movement.complete) {
         recordSteeringEvent('steering-completed', movement);

@@ -44,6 +44,11 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
         attemptedTransitions: Array.isArray(event.attemptedTransitions) ? event.attemptedTransitions.slice(0, 24).map(transition => ({
           from: cell(transition.from), to: cell(transition.to), open: Boolean(transition.open),
         })) : [],
+        selectedInputMode: typeof event.selectedInputMode === 'string' ? event.selectedInputMode.slice(0, 32) : null,
+        activeController: typeof event.activeController === 'string' ? event.activeController.slice(0, 32) : null,
+        movementClassification: typeof event.movementClassification === 'string' ? event.movementClassification.slice(0, 40) : null,
+        requestedMovement: point(event.requestedMovement),
+        acceptedMovement: point(event.acceptedMovement),
         strokeBreakCreated: Boolean(event.strokeBreakCreated),
         gestureState: String(event.gestureState ?? 'unknown').slice(0, 32),
         gestureTerminatedByWallCollision: Boolean(event.gestureTerminatedByWallCollision),

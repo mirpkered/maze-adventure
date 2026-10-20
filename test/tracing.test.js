@@ -502,6 +502,8 @@ test('diagnostic samples retain source, interpolation, attempted edge, and build
   const recorder = createTraceRecorder({ now: () => 10 });
   recorder.record({ eventType: 'pointermove', sampleType: 'coalesced', sampleIndex: 2,
     interpolationCount: 7, attemptedTransitions: [{ from: { x: 1, y: 2 }, to: { x: 2, y: 2 }, open: false }],
+    selectedInputMode: 'continuous-steering', activeController: 'continuous-steering', movementClassification: 'closed-wall-collision',
+    requestedMovement: { x: 0.03, y: 0 }, acceptedMovement: { x: 0, y: 0 },
     resumeAcquisitionDistancePixels: 18.5, resumeAcquisitionThresholdPixels: 24,
     gestureTerminatedByWallCollision: true, lockedOutMovement: true, lockedOutMovementCount: 3,
     resumeAfterWallCollision: true, gestureState: 'locked-out-until-release',
@@ -512,6 +514,11 @@ test('diagnostic samples retain source, interpolation, attempted edge, and build
   assert.equal(report.events[0].sampleIndex, 2);
   assert.equal(report.events[0].interpolationCount, 7);
   assert.deepEqual(report.events[0].attemptedTransitions, [{ from: { x: 1, y: 2 }, to: { x: 2, y: 2 }, open: false }]);
+  assert.equal(report.events[0].selectedInputMode, 'continuous-steering');
+  assert.equal(report.events[0].activeController, 'continuous-steering');
+  assert.equal(report.events[0].movementClassification, 'closed-wall-collision');
+  assert.deepEqual(report.events[0].requestedMovement, { x: 0.03, y: 0 });
+  assert.deepEqual(report.events[0].acceptedMovement, { x: 0, y: 0 });
   assert.equal(report.events[0].resumeAcquisitionDistancePixels, 18.5);
   assert.equal(report.events[0].resumeAcquisitionThresholdPixels, 24);
   assert.equal(report.events[0].gestureTerminatedByWallCollision, true);

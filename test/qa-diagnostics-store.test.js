@@ -31,16 +31,25 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
   assert.ok(recovered.length < 2000);
   const steering = createQuickSummary({ ...report, inputMode: 'continuous-steering', steering: { settings: { deadZonePixels: 10, maxSpeedMazeUnitsPerSecond: 1.15 }, frames: 60, activeFrames: 40, clampedFrames: 1 } });
   assert.match(steering, /steering dead-zone 10px, max 1.15 cells\/s \| last gesture frames 40\/60, capped 1/);
+  const explicitMode = createQuickSummary({ ...report, inputMode: 'direct-touch', selectedInputMode: 'continuous-steering', activeController: 'continuous-steering' });
+  assert.match(explicitMode, /selected Continuous Steering \| gesture controller continuous-steering/,
+    'the summary uses explicitly captured mode and controller rather than a stale legacy alias');
+  assert.doesNotMatch(explicitMode, /selected Direct Touch/);
+  const legacy = createQuickSummary({ ...report, inputMode: undefined });
+  assert.match(legacy, /selected unknown \(legacy report\)/, 'legacy reports do not invent a Direct Touch selection');
   assert.match(createQuickSummary({ ...report, events: [] }), /INSUFFICIENT EVIDENCE/);
 });
 
 test('recent incident report provides a bounded event window and recovery evidence', () => {
   const events = Array.from({ length: 40 }, (_, t) => ({ t, eventType: 'pointermove', accepted: true, movementAccepted: true, maze: { x: t, y: 0 }, pencilPosition: { x: t, y: 0 }, cell: { x: t, y: 0 } }));
-  events[25] = { ...events[25], accepted: false, rejectedReason: 'rejoin-not-route-tail' };
+  events[25] = { ...events[25], accepted: false, rejectedReason: 'closed-wall-collision', selectedInputMode: 'continuous-steering', activeController: 'continuous-steering', movementClassification: 'closed-wall-collision', requestedMovement: { x: 0.02, y: 0 }, acceptedMovement: { x: 0, y: 0 }, attemptedTransitions: [{ from: { x: 2, y: 2 }, to: { x: 3, y: 2 }, open: false }] };
   const incident = createRecentIncident({ buildId: 'b', maze: { layoutId: 'm' }, events }, 4);
   assert.equal(incident.events.length, 9);
   assert.equal(incident.recoveryObserved, true);
-  assert.equal(incident.events[incident.rejectionIndex].reason, 'rejoin-not-route-tail');
+  assert.equal(incident.events[incident.rejectionIndex].reason, 'closed-wall-collision');
+  assert.equal(incident.events[incident.rejectionIndex].activeController, 'continuous-steering');
+  assert.deepEqual(incident.events[incident.rejectionIndex].requestedMovement, { x: 0.02, y: 0 });
+  assert.deepEqual(incident.events[incident.rejectionIndex].transitions, [{ from: { x: 2, y: 2 }, to: { x: 3, y: 2 }, open: false }]);
 });
 
 test('QA diagnostics persistence fails safely when browser storage throws', () => {

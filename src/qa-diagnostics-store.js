@@ -63,14 +63,17 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
   const endpointSummary = start && finish
     ? `start ${start.cell?.x ?? '?'},${start.cell?.y ?? '?'} ${start.edge ?? '?'} → finish ${finish.cell?.x ?? '?'},${finish.cell?.y ?? '?'} ${finish.edge ?? '?'} | solution ${report.maze?.shortestSolutionLength ?? '?'} steps`
     : null;
-  const steeringSummary = report.inputMode === 'continuous-steering' && report.steering
-    ? `steering dead-zone ${report.steering.settings?.deadZonePixels ?? '?'}px, max ${report.steering.settings?.maxSpeedMazeUnitsPerSecond ?? '?'} cells/s | last gesture frames ${report.steering.activeFrames ?? 0}/${report.steering.frames ?? 0}, capped ${report.steering.clampedFrames ?? 0}`
-    : `input ${report.inputMode ?? 'direct-touch'}`;
+  const selectedMode = report.selectedInputMode ?? report.inputMode ?? 'unknown (legacy report)';
+  const activeController = report.activeController ?? current?.gestureInputMode ?? 'idle';
+  const steeringSummary = `${selectedMode === 'continuous-steering' ? 'selected Continuous Steering' : selectedMode === 'direct-touch' ? 'selected Direct Touch' : `selected ${selectedMode}`} | gesture controller ${activeController}`;
+  const steeringMetrics = selectedMode === 'continuous-steering' && report.steering
+    ? `steering dead-zone ${report.steering.settings?.deadZonePixels ?? '?'}px, max ${report.steering.settings?.maxSpeedMazeUnitsPerSecond ?? '?'} cells/s | last gesture frames ${report.steering.activeFrames ?? 0}/${report.steering.frames ?? 0}, capped ${report.steering.clampedFrames ?? 0}` : null;
   return [
     `Maze Adventure QA ${report.buildId ?? 'build unknown'} | ${report.maze?.layoutId ?? 'maze unknown'}`,
     `${dimensions?.width ?? '?'}x${dimensions?.height ?? '?'} ${difficulty} | ${(durationMs / 1000).toFixed(1)}s | events ${observed}, accepted ${accepted}, rejected ${Object.values(rejectedByReason).reduce((a, b) => a + b, 0)} (${counts}), canceled ${canceled}`,
     ...(endpointSummary ? [endpointSummary] : []),
     steeringSummary,
+    ...(steeringMetrics ? [steeringMetrics] : []),
     `pencil ${current?.authoritativePosition?.x?.toFixed?.(3) ?? '?'} ${current?.authoritativePosition?.y?.toFixed?.(3) ?? '?'} | cell ${current?.logicalCell?.x ?? '?'},${current?.logicalCell?.y ?? '?'} | gesture ${current?.active ? current.recovering ? 'recovering' : 'active' : 'idle'}`,
     `last rejection ${latestReject?.rejectedReason ?? 'none'} | ${status}`,
   ].join('\n').slice(0, 1900);
@@ -85,6 +88,13 @@ export function createRecentIncident(report, windowSize = 8) {
     format: 'maze-adventure-incident-v1', buildId: report.buildId,
     layoutId: report.maze?.layoutId, rejectionIndex: index - from,
     recoveryObserved: events.slice(index + 1).some(event => event.movementAccepted),
-    events: events.slice(from, to).map(event => ({ t: event.t, type: event.eventType, sample: event.sampleType, raw: event.maze, pencil: event.pencilPosition, cell: event.cell, accepted: event.accepted, movementAccepted: Boolean(event.movementAccepted), reason: event.rejectedReason, state: event.gestureState, captured: event.pointerCaptured, canceled: event.pointerCanceled })),
+    events: events.slice(from, to).map(event => ({ t: event.t, type: event.eventType, sample: event.sampleType,
+      inputMode: event.selectedInputMode ?? null, activeController: event.activeController ?? null,
+      raw: event.maze, pencil: event.pencilPosition, cell: event.cell,
+      requestedMovement: event.requestedMovement ?? null, acceptedMovement: event.acceptedMovement ?? null,
+      classification: event.movementClassification ?? null, accepted: event.accepted,
+      movementAccepted: Boolean(event.movementAccepted), reason: event.rejectedReason,
+      transitions: event.attemptedTransitions ?? [], state: event.gestureState,
+      captured: event.pointerCaptured, canceled: event.pointerCanceled })),
   };
 }
