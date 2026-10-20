@@ -98,8 +98,14 @@ h1 em { color: var(--rust); font-weight: 400; }
 .game-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .small-button { min-height: 44px; padding: 8px 12px; border: 1px solid #d2cbb9; border-radius: 4px; background: transparent; color: #555b50; font-size: 11px; cursor: pointer; }
 .small-button:hover { border-color: var(--green); background: rgba(255,253,245,.7); }
+.qa-entry { min-height: 36px; padding: 5px 9px; font-size: 10px; }
 
 .info-screen { width: min(100%, 720px); margin: 0 auto; padding: 30px 0 42px; }
+.qa-config-screen { width: min(100%, 760px); min-height: 0; flex: 1 1 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 0 max(20px, env(safe-area-inset-bottom)); touch-action: pan-y; }
+.qa-config-header { grid-template-columns: minmax(105px, .42fr) 1fr; gap: 10px; margin-bottom: 8px; }
+.qa-config-header .back-button { min-width: 0; font-size: 11px; }
+.qa-config-header h1 { font-size: clamp(25px, 5vw, 36px); }
+.qa-config-notice { margin: 0 0 12px; padding: 10px 12px; border-left: 3px solid var(--theme-accent, var(--rust)); background: color-mix(in srgb, var(--paper) 82%, transparent); color: var(--muted); font-size: 12px; line-height: 1.45; }
 .view-header { display: grid; grid-template-columns: minmax(70px, .3fr) 1fr; align-items: center; gap: 14px; margin-bottom: 24px; }
 .view-header .eyebrow { margin-bottom: 5px; }
 .view-header h1 { margin: 0; font: 400 clamp(28px, 5vw, 42px) 'DM Serif Display', Georgia, serif; }
@@ -166,6 +172,10 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 /* Gesture suppression stays on the maze; the rest of the app keeps normal page and zoom gestures. */
 .maze-paper,#maze { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: contain; }
 body[data-screen="play"] .topbar, body[data-screen="play"] .site-footer { display: none; }
+body[data-screen="qa-config"] { height: 100dvh; overflow: hidden; }
+body[data-screen="qa-config"] .app-shell { height: 100dvh; min-height: 0; overflow: hidden; }
+body[data-screen="qa-config"] .topbar { height: 50px; flex: 0 0 50px; }
+body[data-screen="qa-config"] .site-footer { height: 30px; flex: 0 0 30px; }
 @media (max-width: 760px) {
   .app-shell { padding-right: max(14px, calc(env(safe-area-inset-right) + 14px)); padding-left: max(14px, calc(env(safe-area-inset-left) + 14px)); }
   .topbar { height: 62px; flex-basis: 62px; }
@@ -203,6 +213,9 @@ body[data-screen="play"] .topbar, body[data-screen="play"] .site-footer { displa
   .maze-paper { width: min(100%, calc(100dvh - 205px)); }
   .completion-panel { width: min(100%, 40dvh); }
   .settings-panel { padding: 15px; }
+  .qa-config-screen { padding-top: 12px; }
+  .qa-config-header { grid-template-columns: minmax(88px, .36fr) 1fr; }
+  .qa-config-header .back-button { font-size: 10px; }
 }
 
 /* Split maze workspace: two views of the same SVG geometry and trace state. */
@@ -240,8 +253,6 @@ body[data-screen="play"] .play-hint { margin: 2px 0 5px; flex: 0 0 auto; font-si
 .game-actions { display: grid; width: min(100%, 390px); grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 body[data-screen="play"] .play-footer { width: 100%; max-width: none; flex: 0 0 auto; justify-content: center; margin: 5px auto 0; }
 body[data-screen="play"] .game-actions .small-button { min-width: 44px; min-height: 44px; padding: 5px 8px; font-size: 11px; }
-body[data-screen="play"] .maze-workspace + .trace-diagnostics:not([hidden]),
-body[data-screen="play"] .maze-workspace ~ .trace-diagnostic-tools:not([hidden]) { flex: 0 0 auto; max-height: 20dvh; overflow: auto; }
 .qa-input-mode-controls { display: grid; grid-template-columns: 1fr; gap: 4px; color: #533c31; font-size: 11px; }
 .qa-input-mode-controls[hidden] { display: none; }
 .qa-input-mode-controls select { width: 100%; min-height: 38px; padding: 6px; border: 1px solid #b8aa96; border-radius: 6px; background: #fbf7ef; color: #3f5147; }
@@ -317,9 +328,9 @@ body[data-screen="home"] .site-footer { height: 30px; flex-basis: 30px; }
 .home-art.title-art .art-caption { bottom: 7%; }
 .home-contact { display: block; color: inherit; }
 .home-contact:hover strong { color: var(--rust); }
-.trace-diagnostics { margin: 4px auto; width: min(100%, 670px); padding: 6px 9px; border: 1px dashed #a34d36; background: #fff7e9; color: #533c31; font: 10px/1.45 ui-monospace, monospace; overflow-wrap: anywhere; }
-body[data-qa="true"] #play .trace-diagnostics:not([hidden]) { display: block; }
-body[data-qa="true"] #play .trace-diagnostic-tools:not([hidden]) { display: grid; gap: 6px; width: min(100%, 670px); margin: 6px auto; padding: 8px; border: 1px dashed #a34d36; border-radius: 8px; background: #fff7e9; }
+.trace-diagnostics { margin: 4px auto 12px; width: 100%; padding: 8px 10px; border: 1px dashed #a34d36; background: #fff7e9; color: #533c31; font: 10px/1.45 ui-monospace, monospace; overflow-wrap: anywhere; }
+body[data-qa="true"] #qa-config .trace-diagnostics:not([hidden]) { display: block; }
+body[data-qa="true"] #qa-config .trace-diagnostic-tools:not([hidden]) { display: grid; gap: 12px; width: 100%; margin: 8px auto; padding: clamp(12px, 3vw, 20px); border: 1px dashed #a34d36; border-radius: 10px; background: var(--paper); box-shadow: 0 5px 20px var(--theme-shadow, rgba(48,66,52,.09)); }
 .diagnostic-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr)); gap: 8px; min-width: 0; }
 .trace-diagnostic-tools,.trace-diagnostic-tools > * { min-width: 0; }
 #trace-diagnostic-status { color: #533c31; font-size: 12px; }

@@ -11,9 +11,10 @@ import { APP_BUILD_ID } from './build-info.js';
 import { createQaDiagnosticsStore, createQuickSummary, createRecentIncident } from './qa-diagnostics-store.js';
 import { applyVisualTheme, chooseLaunchTheme, THEME_PREFERENCE_OPTIONS } from './themes.js';
 import { createSteeringController, QA_INPUT_MODES, readQaInputMode, writeQaInputMode } from './continuous-steering.js';
+import { captureQaReturnState, restoreQaReturnState } from './qa-view-state.js';
 
 const $ = selector => document.querySelector(selector);
-const screens = ['home', 'difficulty', 'play', 'settings', 'help', 'about'].map(id => $(`#${id}`));
+const screens = ['home', 'difficulty', 'play', 'qa-config', 'settings', 'help', 'about'].map(id => $(`#${id}`));
 const svg = $('#maze');
 const overviewSvg = $('#maze-overview');
 let deviceStorage = null;
@@ -26,6 +27,8 @@ const PENCIL_ACQUISITION_RADIUS_PX = 24;
 let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, timerId, mazeCompleted = false;
 let selectedDifficulty = 'easy';
 let paused = false, activeOverlay = null, returnFocus = null, resumeAfterOverlay = false;
+let qaReturnState = null;
+let qaReturnFocus = null;
 let isolatedPage = [], bodyOverflow = '';
 function preferenceStorageAvailable() {
   if (!deviceStorage) return false;
@@ -99,6 +102,8 @@ function syncQaControls() {
   $('#trace-diagnostic-tools').hidden = !qaEnabled;
   $('#trace-diagnostics').hidden = !qaEnabled || !traceSession;
   $('#qa-input-mode-controls').hidden = !qaEnabled;
+  $('#qa-open-home').hidden = !qaEnabled || $('#home').hidden;
+  $('#qa-open-game').hidden = !qaEnabled;
   $('#qa-input-mode').value = qaInputMode;
   if (qaEnabled) refreshQaSessions();
 }
@@ -240,6 +245,48 @@ function activeScreen(screen, { safeToUpdate = true } = {}) {
   if (safeToUpdate && ['home', 'difficulty', 'settings', 'help', 'about'].includes(screen.id)) window.dispatchEvent(new Event('maze-adventure:safe-to-update'));
   if (screen !== $('#play')) pauseTimer();
   else if (!paused && !activeOverlay) startTimer();
+}
+
+function openQaConfiguration() {
+  if (!qaEnabled || !$('#qa-config').hidden || activeOverlay) return;
+  const currentScreen = screens.find(screen => !screen.hidden);
+  if (!currentScreen || currentScreen === $('#qa-config')) return;
+  const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  qaReturnState = captureQaReturnState({
+    screenId: currentScreen.id,
+    paused,
+    timerRunning: Boolean(timerId),
+    completed: mazeCompleted,
+  });
+  qaReturnFocus = opener;
+  if (currentScreen === $('#play')) {
+    paused = true;
+    pauseTimer();
+    clearPointer();
+    $('#qa-config-return').textContent = '← Return to Game';
+    $('#qa-config-notice').textContent = 'Gameplay is suspended while these controls are open. Your maze, pencil position, and ink are preserved.';
+  } else {
+    $('#qa-config-return').textContent = '← Return to Home';
+    $('#qa-config-notice').textContent = 'Choose QA input and review reports here. Gameplay remains untouched until you return to the game.';
+  }
+  activeScreen($('#qa-config'));
+  $('#qa-config-title').focus({ preventScroll: true });
+}
+
+function returnFromQaConfiguration() {
+  const snapshot = qaReturnState;
+  qaReturnState = null;
+  const restoreState = restoreQaReturnState(snapshot, { completed: mazeCompleted, documentHidden: document.hidden });
+  const targetScreen = $(`#${restoreState.screenId}`);
+  activeScreen(targetScreen);
+  paused = restoreState.paused;
+  if (restoreState.resumeTimer) startTimer();
+  const opener = qaReturnFocus;
+  qaReturnFocus = null;
+  const focusTarget = opener?.isConnected && !opener.closest('[hidden]')
+    ? opener
+    : targetScreen === $('#play') ? $('#pause-game') : $('#quick-play');
+  focusTarget?.focus({ preventScroll: true });
 }
 function displayTime() { $('#timer').value = formatTime(elapsed); }
 function startTimer() {
@@ -702,6 +749,9 @@ $('#restart-maze').addEventListener('click', () => makeMaze(true));
 $('#back-home').addEventListener('click', () => { clearPointer(); showDifficultySelection(); });
 $('#brand-home').addEventListener('click', event => { event.preventDefault(); $('#play').hidden ? showHome() : openHomeConfirmation(); });
 $('#pause-game').addEventListener('click', () => openOverlay($('#pause-dialog'), { pause: true }));
+$('#qa-open-home').addEventListener('click', openQaConfiguration);
+$('#qa-open-game').addEventListener('click', openQaConfiguration);
+$('#qa-config-return').addEventListener('click', returnFromQaConfiguration);
 $('#pause-settings').addEventListener('click', openSettingsFromPause);
 function resumeFromPause() { paused = false; closeOverlay(); startTimer(); }
 $('#resume-game').addEventListener('click', resumeFromPause);
@@ -785,9 +835,10 @@ window.addEventListener('pagehide', () => {
   if (!qaEnabled || !traceRecorder || !traceSession || !qaSessionId) return;
   clearTimeout(persistTimer); qaStore.save(diagnosticReportObject(), { sessionId: qaSessionId, buildId: APP_BUILD_ID });
 });
-$('#disable-qa-mode').addEventListener('click', () => setQaMode(false));
+$('#disable-qa-mode').addEventListener('click', () => { setQaMode(false); returnFromQaConfiguration(); });
 bindEmblemQaTrigger($('#qa-logo-trigger'), () => {
   setQaMode(true);
+  openQaConfiguration();
   if (navigator.vibrate) navigator.vibrate(18);
 });
 

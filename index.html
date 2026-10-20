@@ -43,6 +43,7 @@
       <header class="topbar">
         <a class="wordmark" href="#home" id="brand-home" aria-label="Maze Adventure home"><span class="mark" aria-hidden="true">M</span><span>mirpworks</span></a>
         <span class="tagline">Let’s play a game.</span>
+        <button class="small-button qa-entry" id="qa-open-home" type="button" hidden>QA setup</button>
       </header>
 
       <section id="home" class="screen home-screen" aria-labelledby="home-title">
@@ -96,7 +97,7 @@
       <section id="play" class="screen play-screen" aria-labelledby="play-title" hidden>
         <div class="play-heading">
           <div class="play-title-block"><p class="eyebrow">FREE PLAY <span class="dot">·</span> <span id="play-difficulty">EASY</span></p><h1 id="play-title" tabindex="-1">A little winding way</h1></div>
-          <div class="play-header-tools"><div class="timer-wrap"><span class="timer-label">TIME</span><output id="timer" aria-label="Elapsed time">0:00</output></div><button class="small-button pause-tool" id="pause-game" aria-label="Pause maze" title="Pause maze">Ⅱ</button></div>
+          <div class="play-header-tools"><div class="timer-wrap"><span class="timer-label">TIME</span><output id="timer" aria-label="Elapsed time">0:00</output></div><button class="small-button qa-entry" id="qa-open-game" type="button" aria-label="Open QA configuration" title="QA configuration" hidden>QA</button><button class="small-button pause-tool" id="pause-game" aria-label="Pause maze" title="Pause maze">Ⅱ</button></div>
         </div>
         <p class="play-hint" id="play-hint">Follow the full map above; trace in the Close View below.</p>
         <div class="maze-workspace" id="maze-workspace">
@@ -118,6 +119,12 @@
             </div>
           </section>
         </div>
+        <div class="play-footer"><nav class="game-actions" aria-label="Maze controls"><button class="small-button" id="back-home" aria-label="Back to difficulty selection"><span aria-hidden="true">←</span> Back</button><button class="small-button" id="restart-maze"><span aria-hidden="true">↻</span> Restart</button><button class="small-button" id="new-maze"><span aria-hidden="true">＋</span> New</button></nav></div>
+      </section>
+
+      <section id="qa-config" class="screen info-screen qa-config-screen" aria-labelledby="qa-config-title" hidden>
+        <header class="view-header qa-config-header"><button class="back-button" id="qa-config-return">← Return to Game</button><div><p class="eyebrow">INTERNAL TESTING</p><h1 id="qa-config-title" tabindex="-1">QA configuration</h1></div></header>
+        <p class="qa-config-notice" id="qa-config-notice">Gameplay is suspended while these controls are open. Your maze and pencil marks are preserved.</p>
         <output id="trace-diagnostics" class="trace-diagnostics" hidden aria-live="off"></output>
         <section id="trace-diagnostic-tools" class="trace-diagnostic-tools" hidden aria-label="QA tracing diagnostics">
           <div class="diagnostic-actions"><button id="copy-qa-summary" class="small-button">Copy quick summary</button><button id="copy-qa-incident" class="small-button">Copy recent incident</button><button id="copy-trace-report" class="small-button">Share / export full report</button><button id="reset-trace-log" class="small-button">Reset current log</button><button id="clear-qa-sessions" class="small-button">Clear saved QA sessions</button><button id="disable-qa-mode" class="small-button">Exit QA mode</button></div>
@@ -135,7 +142,6 @@
           <output id="trace-diagnostic-status" aria-live="polite"></output>
           <textarea id="trace-diagnostic-fallback" aria-label="Diagnostic report for manual copying" readonly hidden rows="8"></textarea>
         </section>
-        <div class="play-footer"><nav class="game-actions" aria-label="Maze controls"><button class="small-button" id="back-home" aria-label="Back to difficulty selection"><span aria-hidden="true">←</span> Back</button><button class="small-button" id="restart-maze"><span aria-hidden="true">↻</span> Restart</button><button class="small-button" id="new-maze"><span aria-hidden="true">＋</span> New</button></nav></div>
       </section>
 
       <section id="settings" class="screen info-screen" aria-labelledby="settings-title" hidden>

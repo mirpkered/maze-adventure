@@ -41,7 +41,7 @@ test('canonical Mirpworks launch splash covers startup, then reveals the title o
   assert.equal((html.match(/id="launch-splash"/g) || []).length, 1, 'the initial document must contain one splash layer');
   assert.ok(html.indexOf("querySelector('#launch-splash')") < html.indexOf('src="./src/game.js"'), 'splash startup must be initialized before the game module');
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.launch-splash \{ transition: opacity 100ms ease !important/);
-  assert.match(worker, /shell-v31/);
+  assert.match(worker, /shell-v32/);
   assert.match(worker, /\.\/branding\/mirpworks-logo\.jpg/);
   assert.match(styles, /body\[data-screen="home"\]/);
 });
@@ -82,13 +82,13 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(game, /setQaMode\(true\)/);
   assert.match(game, /function syncQaControls\(\)/);
   assert.match(game, /renderMaze\(\); activeScreen\(\$\('#play'\)\); syncQaControls\(\)/);
-  assert.match(game, /#disable-qa-mode'\)\.addEventListener\('click', \(\) => setQaMode\(false\)\)/);
+  assert.match(game, /#disable-qa-mode'\)\.addEventListener\('click', \(\) => \{ setQaMode\(false\); returnFromQaConfiguration\(\); \}\)/);
   assert.match(game, /#copy-trace-report/);
   assert.match(game, /#reset-trace-log/);
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v31/);
+  assert.match(worker, /shell-v32/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);
@@ -130,7 +130,7 @@ test('gameplay actions keep restart, new maze, pause, and guarded Home behavior 
   assert.match(game, /if \(mazeCompleted\) \$\('#maze-paper'\)\.hidden = preferences\.zoomAssist/);
   assert.match(game, /#back-home'\)\.addEventListener\('click', \(\) => \{ clearPointer\(\); showDifficultySelection\(\); \}\)/);
   assert.match(game, /createMazeForDifficulty\(selectedDifficulty\)/);
-  assert.match(game, /const screens = \['home', 'difficulty', 'play'/);
+  assert.match(game, /const screens = \['home', 'difficulty', 'play', 'qa-config'/);
   assert.match(game, /#quick-play'\)\.addEventListener\('click', showDifficultySelection\)/);
   assert.match(game, /#difficulty-home'\)\.addEventListener\('click', showHome\)/);
   assert.match(game, /querySelectorAll\('\[data-start-difficulty\]'\)/);
