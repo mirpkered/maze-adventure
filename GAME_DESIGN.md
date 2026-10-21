@@ -1,24 +1,24 @@
 # Maze Adventure — Game Design
 
-**Status:** Phase 1 foundation. This document separates confirmed decisions from ideas that still need discussion.
+**Status:** Current Free Play supports Easy, Medium, and Hard and uses Continuous Steering as its only pointer-based gameplay controller. Historical phase notes below describe the implementation at that time.
 
 ## Confirmed
 
 ### Player activity
 
 - The core puzzle is a traditional top-down maze: trace from a clear entrance to a clear exit.
-- Mobile portrait is the primary layout target. Finger, mouse, and pointer tracing use one continuous interaction model.
-- Input is slightly forgiving around corridor centers. Walls cause a hard stop and never impose a penalty.
-- Dead ends are left by retracing the existing route. Lifting a pointer preserves progress; tracing resumes from the current endpoint.
+- Mobile portrait is the primary layout target. Touch, mouse, and pen input use Continuous Steering: touch-down sets a screen-space origin, displacement chooses direction and speed, and recentering or release stops movement immediately.
+- The shared tracer validates every movement against reciprocal maze walls. Walls stop steering without ending the gesture; the player can redirect without lifting.
+- Dead ends are left by retracing the existing route. Every accepted mark remains visible while the logical route backtracks.
 - The UI does not show step or backtrack counts.
 - Completion time is displayed. There is no mandatory countdown. Elapsed time pauses when the player is away from active play, including a hidden page or an unfocused window.
 - No forced tutorial, score, currency, or leaderboard is part of the foundation.
 
 ### Modes and difficulty
 
-- Free Play currently offers immediately selectable Easy and Medium choices. There are no difficulty unlocks or progression gates.
-- Easy is 7×7 and Medium is 10×10. Both use the same perfect-maze generator and tracing rules; Medium has more junctions and wrong-turn branches on average.
-- Hard and Expert remain future possibilities and are not implemented. Custom mode is intended to let players choose dimensions independently.
+- Free Play offers immediately selectable Easy, Medium, and Hard choices. There are no difficulty unlocks or progression gates.
+- Easy is 7×7, Medium is 10×10, and Hard is 15×15. All use the same generator, authoritative tracer, collision rules, and Continuous Steering controller.
+- Expert and custom mode remain future possibilities and are not implemented.
 - Custom mode is intended to let players choose dimensions and difficulty independently.
 - Free Play primarily uses procedural mazes. Generated mazes must be validated as solvable.
 - Core difficulties are not locked behind progression.
@@ -111,7 +111,9 @@ Pause/Resume and the keyboard arrow-key alternative are maze-specific additions.
 - Permanent ink and pencil position are separate. Every legal forward or reverse movement appends ink; all marks remain visible until Restart Maze or New Maze. Backtracking changes only the current logical route and pencil position. Ink samples are never consulted to authorize movement. Re-entering after a blocked excursion starts a separate rendered stroke when a connecting line would cross a wall.
 - QA regression checks use the supplied report excerpt and deterministic permanent-ink tests for dead ends, repeated traversal, lift/resume, completion, reset, wall collision, no shortcut authorization, and current position independent from the ink tail. These tests do not establish physical iPhone behavior.
 
-## Phase 2J — Wall recovery and touch reacquisition
+## Historical Phase 2J — Wall recovery and touch reacquisition (retired)
+
+The following bullets record the former Direct Touch design and are retained as engineering history only. Current gameplay has no Direct Touch controller, endpoint reacquisition radius, or release-and-retap collision mode; Continuous Steering is the sole pointer controller.
 
 - A wall-side sample can be outside the legal cell corridor before it crosses into a neighboring cell. Record that as a wall collision when the attempted side is closed, preserve the last legal pencil position, and keep a legal predecessor available for reversal.
 - Recovery follows the current route tip and open graph edges. A pointer lift clears only the gesture recovery state; it preserves the route, pencil position, and append-only ink.

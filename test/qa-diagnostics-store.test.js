@@ -29,12 +29,14 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
   assert.match(recovered, /start 2,0 N → finish 6,4 E \| solution 24 steps/);
   assert.match(createQuickSummary({ ...report, maze: { ...report.maze, difficulty: 'medium', dimensions: { width: 10, height: 10 } } }), /10x10 medium/);
   assert.ok(recovered.length < 2000);
-  const steering = createQuickSummary({ ...report, inputMode: 'continuous-steering', steering: { settings: { deadZonePixels: 10, speedResponseExponent: 1.15, maxSpeedMazeUnitsPerSecond: 1.725 }, frames: 60, activeFrames: 40, clampedFrames: 1 } });
+  const steering = createQuickSummary({ ...report, controlSystem: 'continuous-steering', activeController: 'idle', steering: { settings: { deadZonePixels: 10, speedResponseExponent: 1.15, maxSpeedMazeUnitsPerSecond: 1.725 }, frames: 60, activeFrames: 40, clampedFrames: 1 } });
+  assert.match(steering, /control system continuous-steering \| active controller idle/);
   assert.match(steering, /steering dead-zone 10px, curve x\^1.15, max 1.725 cells\/s \| last gesture frames 40\/60, capped 1/);
   const explicitMode = createQuickSummary({ ...report, inputMode: 'direct-touch', selectedInputMode: 'continuous-steering', activeController: 'continuous-steering' });
   assert.match(explicitMode, /selected Continuous Steering \| gesture controller continuous-steering/,
-    'the summary uses explicitly captured mode and controller rather than a stale legacy alias');
-  assert.doesNotMatch(explicitMode, /selected Direct Touch/);
+    'historical reports retain the mode and controller they recorded');
+  const historicalDirect = createQuickSummary({ ...report, inputMode: 'direct-touch', selectedInputMode: 'direct-touch' });
+  assert.match(historicalDirect, /selected Direct Touch/, 'historical Direct Touch reports are not rewritten as Steering');
   const legacy = createQuickSummary({ ...report, inputMode: undefined });
   assert.match(legacy, /selected unknown \(legacy report\)/, 'legacy reports do not invent a Direct Touch selection');
   assert.match(createQuickSummary({ ...report, events: [] }), /INSUFFICIENT EVIDENCE/);
@@ -42,7 +44,7 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
 
 test('recent incident report provides a bounded event window and recovery evidence', () => {
   const events = Array.from({ length: 40 }, (_, t) => ({ t, eventType: 'pointermove', accepted: true, movementAccepted: true, maze: { x: t, y: 0 }, pencilPosition: { x: t, y: 0 }, cell: { x: t, y: 0 } }));
-  events[25] = { ...events[25], accepted: false, rejectedReason: 'closed-wall-collision', selectedInputMode: 'continuous-steering', activeController: 'continuous-steering', movementClassification: 'closed-wall-collision', requestedMovement: { x: 0.02, y: 0 }, acceptedMovement: { x: 0, y: 0 }, attemptedTransitions: [{ from: { x: 2, y: 2 }, to: { x: 3, y: 2 }, open: false }] };
+  events[25] = { ...events[25], accepted: false, rejectedReason: 'closed-wall-collision', controlSystem: 'continuous-steering', activeController: 'continuous-steering', movementClassification: 'closed-wall-collision', requestedMovement: { x: 0.02, y: 0 }, acceptedMovement: { x: 0, y: 0 }, attemptedTransitions: [{ from: { x: 2, y: 2 }, to: { x: 3, y: 2 }, open: false }] };
   const incident = createRecentIncident({ buildId: 'b', maze: { layoutId: 'm' }, events }, 4);
   assert.equal(incident.events.length, 9);
   assert.equal(incident.recoveryObserved, true);
@@ -50,6 +52,11 @@ test('recent incident report provides a bounded event window and recovery eviden
   assert.equal(incident.events[incident.rejectionIndex].activeController, 'continuous-steering');
   assert.deepEqual(incident.events[incident.rejectionIndex].requestedMovement, { x: 0.02, y: 0 });
   assert.deepEqual(incident.events[incident.rejectionIndex].transitions, [{ from: { x: 2, y: 2 }, to: { x: 3, y: 2 }, open: false }]);
+  assert.equal(Object.hasOwn(incident.events[incident.rejectionIndex], 'inputMode'), false,
+    'new Steering incidents do not carry the retired input-mode field');
+
+  const historical = createRecentIncident({ buildId: 'old', maze: { layoutId: 'm' }, events: [{ t: 1, accepted: false, rejectedReason: 'wall', inputMode: 'direct-touch' }] });
+  assert.equal(historical.events[0].inputMode, 'direct-touch', 'historical reports retain their recorded controller mode');
 });
 
 test('QA diagnostics persistence fails safely when browser storage throws', () => {

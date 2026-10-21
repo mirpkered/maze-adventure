@@ -1,4 +1,5 @@
 export const QA_STORAGE_KEY = 'mirpworks.mazeAdventure.qaMode';
+const RETIRED_QA_INPUT_MODE_KEY = 'maze-adventure-qa-input-mode-v1';
 export const QA_LOGO_HOLD_MS = 3000;
 export const QA_LOGO_MOVE_LIMIT = 12;
 
@@ -16,7 +17,10 @@ function removeQaQuery(location, history) {
 }
 
 function clearLegacyQaPreference(storage) {
-  try { storage?.removeItem(QA_STORAGE_KEY); }
+  try {
+    storage?.removeItem(QA_STORAGE_KEY);
+    storage?.removeItem(RETIRED_QA_INPUT_MODE_KEY);
+  }
   catch { /* Storage can be unavailable in private or embedded contexts. */ }
 }
 

@@ -1,9 +1,3 @@
-export const QA_INPUT_MODE_KEY = 'maze-adventure-qa-input-mode-v1';
-export const QA_INPUT_MODES = Object.freeze({
-  DIRECT_TOUCH: 'direct-touch',
-  CONTINUOUS_STEERING: 'continuous-steering',
-});
-
 export const DEFAULT_STEERING_SETTINGS = Object.freeze({
   deadZonePixels: 10,
   maxDeflectionPixels: 76,
@@ -20,70 +14,6 @@ export function steeringSpeedForDisplacement(magnitude, settings = DEFAULT_STEER
   const strength = Math.min(1, (magnitude - settings.deadZonePixels)
     / (settings.maxDeflectionPixels - settings.deadZonePixels));
   return settings.maxSpeedMazeUnitsPerSecond * (strength ** settings.speedResponseExponent);
-}
-
-export function readQaInputMode(storage = globalThis.localStorage) {
-  try {
-    return storage?.getItem(QA_INPUT_MODE_KEY) === QA_INPUT_MODES.CONTINUOUS_STEERING
-      ? QA_INPUT_MODES.CONTINUOUS_STEERING
-      : QA_INPUT_MODES.DIRECT_TOUCH;
-  } catch { return QA_INPUT_MODES.DIRECT_TOUCH; }
-}
-
-export function writeQaInputMode(mode, storage = globalThis.localStorage) {
-  const safeMode = mode === QA_INPUT_MODES.CONTINUOUS_STEERING
-    ? QA_INPUT_MODES.CONTINUOUS_STEERING : QA_INPUT_MODES.DIRECT_TOUCH;
-  try { storage?.setItem(QA_INPUT_MODE_KEY, safeMode); } catch { /* QA mode remains available for this session. */ }
-  return safeMode;
-}
-
-function normalizeInputMode(mode) {
-  return mode === QA_INPUT_MODES.DIRECT_TOUCH ? QA_INPUT_MODES.DIRECT_TOUCH : QA_INPUT_MODES.CONTINUOUS_STEERING;
-}
-
-function readQaOverride(storage) {
-  try {
-    const saved = storage?.getItem(QA_INPUT_MODE_KEY);
-    return saved === QA_INPUT_MODES.DIRECT_TOUCH || saved === QA_INPUT_MODES.CONTINUOUS_STEERING ? saved : null;
-  } catch { return null; }
-}
-
-/**
- * The player preference owns ordinary gameplay. QA may temporarily override it
- * and persist that override under a separate QA-only key without changing the
- * player's saved choice. Normal gameplay always ignores the QA override.
- */
-export function createQaInputModeState({ qaEnabled = false, storage = globalThis.localStorage, playerMode = QA_INPUT_MODES.CONTINUOUS_STEERING } = {}) {
-  let enabled = Boolean(qaEnabled);
-  let playerSelection = normalizeInputMode(playerMode);
-  let qaOverride = enabled ? readQaOverride(storage) : null;
-
-  return {
-    get qaEnabled() { return enabled; },
-    get playerMode() { return playerSelection; },
-    get qaOverride() { return qaOverride; },
-    get selected() { return this.active; },
-    get active() {
-      return enabled && qaOverride ? qaOverride : playerSelection;
-    },
-    setQaEnabled(value) {
-      const next = Boolean(value);
-      if (next && !enabled) qaOverride = readQaOverride(storage);
-      enabled = next;
-      return this.active;
-    },
-    select(mode) {
-      if (!enabled) return this.active;
-      qaOverride = writeQaInputMode(mode, storage);
-      return this.active;
-    },
-    setPlayerMode(mode) {
-      playerSelection = normalizeInputMode(mode);
-      qaOverride = null;
-      try { storage?.removeItem(QA_INPUT_MODE_KEY); } catch { /* The player selection still applies for this session. */ }
-      return this.active;
-    },
-  };
 }
 
 /** Screen-space joystick input; it never reads camera or maze coordinates. */

@@ -63,10 +63,12 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
   const endpointSummary = start && finish
     ? `start ${start.cell?.x ?? '?'},${start.cell?.y ?? '?'} ${start.edge ?? '?'} → finish ${finish.cell?.x ?? '?'},${finish.cell?.y ?? '?'} ${finish.edge ?? '?'} | solution ${report.maze?.shortestSolutionLength ?? '?'} steps`
     : null;
-  const selectedMode = report.selectedInputMode ?? report.inputMode ?? 'unknown (legacy report)';
-  const activeController = report.activeController ?? current?.gestureInputMode ?? 'idle';
-  const steeringSummary = `${selectedMode === 'continuous-steering' ? 'selected Continuous Steering' : selectedMode === 'direct-touch' ? 'selected Direct Touch' : `selected ${selectedMode}`} | gesture controller ${activeController}`;
-  const steeringMetrics = selectedMode === 'continuous-steering' && report.steering
+  const historicalMode = report.selectedInputMode ?? report.inputMode;
+  const activeController = report.activeController ?? current?.gestureInputMode ?? (report.controlSystem === 'continuous-steering' ? 'continuous-steering' : 'idle');
+  const steeringSummary = report.controlSystem
+    ? `control system ${report.controlSystem} | active controller ${activeController}`
+    : `${historicalMode === 'continuous-steering' ? 'selected Continuous Steering' : historicalMode === 'direct-touch' ? 'selected Direct Touch' : `selected ${historicalMode ?? 'unknown (legacy report)'}`} | gesture controller ${activeController}`;
+  const steeringMetrics = (report.controlSystem === 'continuous-steering' || historicalMode === 'continuous-steering') && report.steering
     ? `steering dead-zone ${report.steering.settings?.deadZonePixels ?? '?'}px, curve x^${report.steering.settings?.speedResponseExponent ?? '?'}, max ${report.steering.settings?.maxSpeedMazeUnitsPerSecond ?? '?'} cells/s | last gesture frames ${report.steering.activeFrames ?? 0}/${report.steering.frames ?? 0}, capped ${report.steering.clampedFrames ?? 0}` : null;
   return [
     `Maze Adventure QA ${report.buildId ?? 'build unknown'} | ${report.maze?.layoutId ?? 'maze unknown'}`,
@@ -89,7 +91,8 @@ export function createRecentIncident(report, windowSize = 8) {
     layoutId: report.maze?.layoutId, rejectionIndex: index - from,
     recoveryObserved: events.slice(index + 1).some(event => event.movementAccepted),
     events: events.slice(from, to).map(event => ({ t: event.t, type: event.eventType, sample: event.sampleType,
-      inputMode: event.selectedInputMode ?? null, activeController: event.activeController ?? null,
+      ...((event.selectedInputMode ?? event.inputMode) ? { inputMode: event.selectedInputMode ?? event.inputMode } : {}),
+      controlSystem: event.controlSystem ?? null, activeController: event.activeController ?? null,
       raw: event.maze, pencil: event.pencilPosition, cell: event.cell,
       requestedMovement: event.requestedMovement ?? null, acceptedMovement: event.acceptedMovement ?? null,
       classification: event.movementClassification ?? null, accepted: event.accepted,

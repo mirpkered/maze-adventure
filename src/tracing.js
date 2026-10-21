@@ -5,7 +5,6 @@ const CORRIDOR_MARGIN = 0.46;
 const ENTRANCE_TOLERANCE = 0.62;
 const STROKE_WALL_SAFE_OFFSET = 0.42;
 const MIN_STROKE_POINT_DISTANCE = 0.015;
-const DEFAULT_ACQUISITION_RADIUS = 0.5;
 
 function nearestCell(point, maze) {
   const roundedX = Math.round(point.x), roundedY = Math.round(point.y);
@@ -75,7 +74,7 @@ function appendInk(stroke, strokeCells, strokeBreaks, point, cell, breakBefore =
  * append-only history; it is never consulted to decide where the pencil may
  * move and is never shortened by retracing.
  */
-export function traceSegment(maze, path, from, to, currentStroke = path.map(copyPoint), previousPoint = from, recovering = false, currentStrokeCells = null, acceptedPosition = currentStroke.at(-1), currentStrokeBreaks = [], { advanceSubthreshold = false, allowOpenEdgeProgress = false } = {}) {
+export function traceSegment(maze, path, from, to, currentStroke = path.map(copyPoint), currentStrokeCells = null, acceptedPosition = currentStroke.at(-1), currentStrokeBreaks = [], { advanceSubthreshold = false, allowOpenEdgeProgress = false } = {}) {
   let nextPath = path;
   const stroke = currentStroke.map(copyPoint);
   const strokeCells = currentStrokeCells?.map(cell => ({ ...cell })) ?? stroke.map(point => nearestCell(point, maze) ?? path.at(-1));
@@ -89,49 +88,28 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
   const distance = Math.hypot(to.x - from.x, to.y - from.y);
   const samples = Math.max(1, Math.ceil(distance / MAX_SAMPLE_DISTANCE));
   interpolatedSamples = Math.max(0, samples - 1);
-  let rejoining = recovering;
 
   for (let index = 1; index <= samples; index++) {
     const point = { x: from.x + (to.x - from.x) * index / samples, y: from.y + (to.y - from.y) * index / samples };
     const candidate = nearestCell(point, maze);
-    if (!candidate) { reject('outside-maze'); rejoining = true; continue; }
+    if (!candidate) { reject('outside-maze'); break; }
 
     const current = nextPath.at(-1);
-    const same = sameCell(candidate, current);
-    if (rejoining && (!same && !canMove(maze, current, candidate))) {
-      const adjacent = Math.abs(candidate.x - current.x) + Math.abs(candidate.y - current.y) === 1;
-      if (adjacent) {
-        wallCollision = true;
-        reject('closed-or-nonadjacent-edge');
-        break;
-      }
-      reject('rejoin-not-route-tail');
-      continue;
-    }
-
-    let transition = null;
-    if (!same) {
+    if (!sameCell(candidate, current)) {
       const dx = candidate.x - current.x, dy = candidate.y - current.y;
-      if (Math.abs(dx) + Math.abs(dy) === 1) attemptedTransitions.push({ from: { ...current }, to: { ...candidate }, open: canMove(maze, current, candidate) });
-      if (Math.abs(dx) + Math.abs(dy) !== 1 || !canMove(maze, current, candidate)) {
-        wallCollision ||= Math.abs(dx) + Math.abs(dy) === 1 && !canMove(maze, current, candidate);
+      const adjacent = Math.abs(dx) + Math.abs(dy) === 1;
+      const open = adjacent && canMove(maze, current, candidate);
+      if (adjacent) attemptedTransitions.push({ from: { ...current }, to: { ...candidate }, open });
+      if (!open) {
+        wallCollision ||= adjacent;
         reject('closed-or-nonadjacent-edge');
-        rejoining = true;
-        // Do not accept a later sample from this same sparse diagonal segment;
-        // it may already have crossed a wall corner before re-entering a cell.
         break;
       }
       const crossAxisOffset = dx !== 0 ? Math.abs(point.y - candidate.y) : Math.abs(point.x - candidate.x);
-      if (crossAxisOffset > CORRIDOR_MARGIN) { reject('off-center-edge'); rejoining = true; break; }
-      // Validate before mutating the route so an edge sample at a corner cannot
-      // leave the logical route one cell ahead of the legal pencil position.
-      if (!insideCell(point, candidate, maze)) {
-        reject(rejoining ? 'outside-rejoin-corridor' : 'outside-current-corridor');
-        rejoining = true;
-        continue;
-      }
-      transition = advancePath(maze, nextPath, candidate);
-      if (!transition.moved) { reject('closed-or-nonadjacent-edge'); rejoining = true; continue; }
+      if (crossAxisOffset > CORRIDOR_MARGIN) { reject('off-center-edge'); break; }
+      if (!insideCell(point, candidate, maze)) { reject('outside-current-corridor'); break; }
+      const transition = advancePath(maze, nextPath, candidate);
+      if (!transition.moved) { reject('closed-or-nonadjacent-edge'); break; }
       nextPath = transition.path;
       complete ||= transition.complete;
       moved = true;
@@ -143,33 +121,24 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
           ? !canMove(maze, current, { x: current.x, y: current.y + Math.sign(dy) })
           : false;
       reject(wallSide ? 'closed-wall-collision' : 'outside-current-corridor');
-      if (wallSide) {
-        wallCollision = true;
-        rejoining = true;
-        break;
-      }
-      rejoining = true;
-      continue;
+      wallCollision = wallSide;
+      break;
     }
 
     const accepted = constrainStrokePoint(point, candidate, maze, allowOpenEdgeProgress);
     const acceptedDistance = Math.hypot(accepted.x - position.x, accepted.y - position.y);
     if (advanceSubthreshold ? acceptedDistance > 1e-9 : acceptedDistance > MIN_STROKE_POINT_DISTANCE) {
-      // Steering advances the authoritative endpoint at every frame. Ink is
-      // still sampled against the prior ink point, so subpixel movement is
-      // accumulated without making the pencil freeze at high refresh rates.
-      appendInk(stroke, strokeCells, strokeBreaks, accepted, candidate, rejoining);
+      appendInk(stroke, strokeCells, strokeBreaks, accepted, candidate);
       position = accepted;
       moved = true;
     }
-    rejoining = false;
   }
 
-  return { path: nextPath, stroke, strokeCells, strokeBreaks, position, moved, blocked, reason, complete, wallCollision, recovering: rejoining, recovered: blocked && moved && !rejoining,
+  return { path: nextPath, stroke, strokeCells, strokeBreaks, position, moved, blocked, reason, complete, wallCollision,
     interpolatedSamples, attemptedTransitions, strokeBreakCreated: strokeBreaks.length > initialBreakCount };
 }
 
-/** Pointer lift and cancellation preserve both the legal endpoint and all ink. */
+/** Shared authoritative maze route, pencil endpoint, and append-only ink session. */
 export function createTraceSession(maze) {
   let path = [{ ...maze.start }];
   let stroke = [{ ...maze.start }];
@@ -177,45 +146,19 @@ export function createTraceSession(maze) {
   let strokeBreaks = [];
   let position = { ...maze.start };
   let pointerId = null;
-  let steeringGesture = false;
-  let lockedPointerId = null;
-  let lockedOutMovementCount = 0;
-  let wallCollisionTerminated = false;
-  let lastResumeAfterWallCollision = false;
-  let lastTracePoint = null;
-  let lastPointerPoint = null;
-  let hasBegun = false;
-  let recovering = false;
   let lastBlocked = false;
   let lastReason = null;
   let lastFailureCategory = null;
-  let lastResumeDistance = null;
-  let lastResumeThreshold = 0;
-  let lastResumeDistancePixels = null;
-  let lastResumeThresholdPixels = null;
   const failureCategory = reason => {
     if (!reason) return null;
-    if (reason.startsWith('begin-')) return 'acquisition';
     if (reason === 'closed-wall-collision' || reason === 'closed-or-nonadjacent-edge' || reason === 'off-center-edge') return 'collision';
-    if (reason.startsWith('rejoin-') || reason === 'route-revisit') return 'route-history';
-    if (reason.startsWith('outside-')) return 'corridor-recovery';
-    return 'gesture';
+    if (reason === 'route-revisit') return 'route-history';
+    if (reason.startsWith('outside-')) return 'corridor';
+    return 'movement';
   };
   const end = id => {
-    if (pointerId !== id && lockedPointerId !== id) return false;
-    if (pointerId === id) {
-      pointerId = null;
-      steeringGesture = false;
-      lastTracePoint = null;
-      lastPointerPoint = null;
-      recovering = false;
-    }
-    if (lockedPointerId === id) {
-      lockedPointerId = null;
-      lockedOutMovementCount = 0;
-      lastPointerPoint = null;
-      recovering = false;
-    }
+    if (pointerId !== id) return false;
+    pointerId = null;
     return true;
   };
 
@@ -230,176 +173,49 @@ export function createTraceSession(maze) {
       const cell = path.at(-1);
       const candidateReversal = path.length > 1 ? { ...path.at(-2) } : null;
       const candidateReversalOpen = candidateReversal ? canMove(maze, cell, candidateReversal) : false;
-      const traceHealth = lockedPointerId !== null ? 'wall-collision-gesture-terminated'
-        : lastFailureCategory === 'acquisition' ? 'acquisition-rejected'
-        : lastFailureCategory === 'route-history' ? 'route-history-rejected'
-          : lastFailureCategory === 'collision' && candidateReversalOpen ? 'wall-blocked-reversal-available'
-            : recovering && candidateReversalOpen ? 'recovering-reversal-available'
-              : recovering ? 'recovery-needs-corridor-reentry'
-                : lastBlocked ? 'blocked' : 'ready';
       return {
-        raw: lastPointerPoint ? copyPoint(lastPointerPoint) : null,
         endpoint: copyPoint(position), authoritativePosition: copyPoint(position),
-        cell: { ...cell }, logicalCell: { ...cell },
-        previousCell: candidateReversal, candidateReversal,
-        candidateReversalOpen,
-        traceHealth,
-        strokeCells: strokeCells.map(cell => ({ ...cell })), strokeBreaks: [...strokeBreaks],
-        active: pointerId !== null, recovering, blocked: lastBlocked, reason: lastReason,
-        gestureInputMode: pointerId === null ? null : steeringGesture ? 'continuous-steering' : 'direct-touch',
-        lockedOut: lockedPointerId !== null, lockedOutMovementCount,
-        wallCollisionTerminated, resumeAfterWallCollision: lastResumeAfterWallCollision,
-        failureCategory: lastFailureCategory,
-        resumeAcquisitionDistance: lastResumeDistance,
-        resumeAcquisitionThreshold: lastResumeThreshold,
-        resumeAcquisitionDistancePixels: lastResumeDistancePixels,
-        resumeAcquisitionThresholdPixels: lastResumeThresholdPixels,
+        cell: { ...cell }, logicalCell: { ...cell }, previousCell: candidateReversal,
+        candidateReversal, candidateReversalOpen, controlSystem: 'continuous-steering',
+        traceHealth: lastBlocked ? 'blocked' : 'ready', active: pointerId !== null,
+        blocked: lastBlocked, reason: lastReason, failureCategory: lastFailureCategory,
         pathLength: path.length, strokeLength: stroke.length,
+        strokeCells: strokeCells.map(item => ({ ...item })), strokeBreaks: [...strokeBreaks],
       };
     },
-    begin(id, point, { radius = DEFAULT_ACQUISITION_RADIUS, pixelsPerMazeUnit = null } = {}) {
-      if (lockedPointerId !== null) {
-        lastReason = 'wall-collision-pointer-locked-until-release';
-        lastFailureCategory = 'gesture';
-        lastBlocked = true;
-        return false;
-      }
-      if (pointerId !== null) { lastReason = 'gesture-already-active'; return false; }
-      const cell = nearestCell(point, maze);
-      const entranceStart = path.length === 1 && stroke.length === 1;
-      const atEntrance = entranceStart && cell && sameCell(cell, maze.start) && outsideEntrance(point, maze);
-      lastResumeDistance = Math.hypot(point.x - position.x, point.y - position.y);
-      lastResumeThreshold = Number.isFinite(radius) && radius >= 0 ? radius : DEFAULT_ACQUISITION_RADIUS;
-      lastResumeDistancePixels = Number.isFinite(pixelsPerMazeUnit) && pixelsPerMazeUnit > 0
-        ? lastResumeDistance * pixelsPerMazeUnit : null;
-      lastResumeThresholdPixels = Number.isFinite(pixelsPerMazeUnit) && pixelsPerMazeUnit > 0
-        ? lastResumeThreshold * pixelsPerMazeUnit : null;
-      if (entranceStart && (!cell || !sameCell(cell, maze.start) || (!insideCell(point, cell, maze) && !atEntrance))) {
-        lastReason = 'begin-outside-route-endpoint-corridor';
-        lastFailureCategory = 'acquisition';
-        lastBlocked = true;
-        return false;
-      }
-      if (!entranceStart && !atEntrance && lastResumeDistance > lastResumeThreshold + 1e-9) {
-        lastReason = 'begin-outside-route-endpoint-corridor';
-        lastFailureCategory = 'acquisition';
-        lastBlocked = true;
-        return false;
-      }
-      pointerId = id;
-      steeringGesture = false;
-      lastResumeAfterWallCollision = wallCollisionTerminated;
-      wallCollisionTerminated = false;
-      // Anchor this gesture's contact point at the legal pencil endpoint.
-      // The acquisition offset is not movement: only later finger deltas are
-      // sent through the normal swept collision and route-history checks.
-      lastPointerPoint = copyPoint(point);
-      lastTracePoint = copyPoint(hasBegun ? position : point);
-      hasBegun = true;
-      recovering = false;
-      lastBlocked = false;
-      lastReason = null;
-      lastFailureCategory = null;
-      return true;
-    },
-    /** Start a QA steering gesture without moving or acquiring the pencil by touch location. */
     beginSteering(id) {
-      if (lockedPointerId !== null) {
-        lastReason = 'wall-collision-pointer-locked-until-release';
-        lastFailureCategory = 'gesture';
-        lastBlocked = true;
-        return false;
-      }
-      if (pointerId !== null) { lastReason = 'gesture-already-active'; return false; }
+      if (pointerId !== null) { lastReason = 'gesture-already-active'; lastFailureCategory = 'movement'; lastBlocked = true; return false; }
       pointerId = id;
-      steeringGesture = true;
-      hasBegun = true;
-      lastTracePoint = null;
-      lastPointerPoint = null;
-      recovering = false;
-      lastBlocked = false;
-      lastReason = null;
-      lastFailureCategory = null;
+      lastBlocked = false; lastReason = null; lastFailureCategory = null;
       return true;
     },
-    /** Apply one frame of steering through the same swept maze validator as direct tracing. */
     steer(id, delta) {
-      if (pointerId !== id || !steeringGesture) {
-        return { path, stroke, position, moved: false, blocked: false, complete: false, reason: 'steering-without-active-gesture' };
-      }
+      if (pointerId !== id) return { path, stroke, position, moved: false, blocked: false, complete: false, reason: 'steering-without-active-gesture' };
       if (!Number.isFinite(delta?.x) || !Number.isFinite(delta?.y)) {
         return { path, stroke, position, moved: false, blocked: false, complete: false, reason: 'invalid-steering-delta' };
       }
       const from = copyPoint(position), to = { x: from.x + delta.x, y: from.y + delta.y };
-      const result = traceSegment(maze, path, from, to, stroke, from, false, strokeCells, position, strokeBreaks,
+      const result = traceSegment(maze, path, from, to, stroke, strokeCells, position, strokeBreaks,
         { advanceSubthreshold: true, allowOpenEdgeProgress: true });
-      path = result.path;
-      stroke = result.stroke;
-      strokeCells = result.strokeCells;
-      strokeBreaks = result.strokeBreaks;
-      position = result.position;
-      // A steering collision rejects only this frame. The held steering input
-      // may be redirected through another open edge without releasing.
-      recovering = false;
-      lastBlocked = result.blocked;
-      lastReason = result.reason;
+      path = result.path; stroke = result.stroke; strokeCells = result.strokeCells;
+      strokeBreaks = result.strokeBreaks; position = result.position;
+      const recovered = lastBlocked && result.moved && !result.blocked;
+      lastBlocked = result.blocked; lastReason = result.reason;
       lastFailureCategory = result.blocked ? failureCategory(result.reason) : null;
-      return { ...result, recovering: false, recovered: result.moved && !result.blocked, steeringCollision: result.wallCollision };
-    },
-    move(id, point) {
-      if (steeringGesture) {
-        return { path, stroke, position, moved: false, blocked: true, reason: 'direct-move-disabled-during-steering', complete: false };
-      }
-      if (lockedPointerId === id) {
-        lockedOutMovementCount++;
-        lastPointerPoint = copyPoint(point);
-        return { path, stroke, position, moved: false, blocked: true, reason: 'wall-collision-pointer-locked-out', complete: false,
-          ignored: true, lockedOut: true, lockedOutMovementCount, firstLockedOutMove: lockedOutMovementCount === 1 };
-      }
-      if (pointerId !== id || !lastTracePoint || !lastPointerPoint) { lastReason = 'move-without-active-gesture'; return { path, stroke, position, moved: false, blocked: false, reason: lastReason, complete: false }; }
-      const target = {
-        x: lastTracePoint.x + point.x - lastPointerPoint.x,
-        y: lastTracePoint.y + point.y - lastPointerPoint.y,
-      };
-      const result = traceSegment(maze, path, lastTracePoint, target, stroke, lastTracePoint, recovering, strokeCells, position, strokeBreaks);
-      path = result.path;
-      stroke = result.stroke;
-      strokeCells = result.strokeCells;
-      strokeBreaks = result.strokeBreaks;
-      position = result.position;
-      lastPointerPoint = copyPoint(point);
-      lastTracePoint = target;
-      if (result.wallCollision) {
-        pointerId = null;
-        lockedPointerId = id;
-        lockedOutMovementCount = 0;
-        lastTracePoint = null;
-        recovering = false;
-        wallCollisionTerminated = true;
-        lastBlocked = true;
-        lastReason = result.reason;
-        lastFailureCategory = 'collision';
-        lastResumeAfterWallCollision = false;
-        return { ...result, recovering: false, recovered: false, gestureTerminatedByWallCollision: true, lockedOut: true };
-      }
-      recovering = result.recovering;
-      lastBlocked = result.recovered ? false : result.blocked;
-      lastReason = result.recovered ? null : result.reason;
-      lastFailureCategory = result.recovered ? null : failureCategory(result.reason);
-      return result;
+      return { ...result, recovered, steeringCollision: result.wallCollision };
     },
     step(direction) {
-      if (pointerId !== null || lockedPointerId !== null) return { path, stroke, position, moved: false, blocked: false, complete: false };
+      if (pointerId !== null) return { path, stroke, position, moved: false, blocked: false, complete: false };
       const current = path.at(-1), candidate = { x: current.x + direction.x, y: current.y + direction.y };
       const advance = advancePath(maze, path, candidate);
-      if (!advance.moved) { lastReason = canMove(maze, current, candidate) ? 'route-revisit' : 'closed-or-nonadjacent-edge'; lastFailureCategory = failureCategory(lastReason); lastBlocked = true; return { path, stroke, position, moved: false, blocked: true, reason: lastReason, complete: false }; }
-      path = advance.path;
-      position = { ...candidate };
+      if (!advance.moved) {
+        lastReason = canMove(maze, current, candidate) ? 'route-revisit' : 'closed-or-nonadjacent-edge';
+        lastFailureCategory = failureCategory(lastReason); lastBlocked = true;
+        return { path, stroke, position, moved: false, blocked: true, reason: lastReason, complete: false };
+      }
+      path = advance.path; position = { ...candidate };
       appendInk(stroke, strokeCells, strokeBreaks, position, candidate);
-      recovering = false;
-      lastBlocked = false;
-      lastReason = null;
-      lastFailureCategory = null;
+      lastBlocked = false; lastReason = null; lastFailureCategory = null;
       return { path, stroke, position, moved: true, blocked: false, complete: advance.complete };
     },
     end,

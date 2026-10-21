@@ -9,8 +9,3 @@ export function pointerMovementSamples(event) {
   if (!last || last.clientX !== event.clientX || last.clientY !== event.clientY) samples.push(event);
   return samples;
 }
-
-/** pointerup carries one last position; cancellation must not invent movement. */
-export function finalPointerMovement(session, pointerId, event, point) {
-  return event.type === 'pointerup' ? session.move(pointerId, point) : null;
-}

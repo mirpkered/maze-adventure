@@ -14,24 +14,26 @@ test('sound, paper, manual theme and automatic rotation history persist and norm
   const storage = memoryStorage();
   assert.deepEqual(readPreferences(storage), DEFAULT_PREFERENCES);
   const saved = writePreferences({ soundEffects: false, paperTheme: 'light', themePreference: 'camp-dusk', lastAutoTheme: 'traveler-map', zoomAssist: false, controlMode: 'direct-touch', ignored: true }, storage);
-  assert.deepEqual(saved, { soundEffects: false, paperTheme: 'light', themePreference: 'camp-dusk', lastAutoTheme: 'traveler-map', zoomAssist: false, controlMode: 'direct-touch' });
+  assert.deepEqual(saved, { soundEffects: false, paperTheme: 'light', themePreference: 'camp-dusk', lastAutoTheme: 'traveler-map', zoomAssist: false });
   assert.deepEqual(readPreferences(storage), saved);
-  assert.deepEqual(writePreferences({ soundEffects: true, paperTheme: 'unknown', themePreference: 'unknown', lastAutoTheme: 'unknown' }, storage), { soundEffects: true, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true, controlMode: 'continuous-steering' });
-  assert.deepEqual(readPreferences(memoryStorage(JSON.stringify({ soundEffects: false, paperTheme: 'light' }))), { soundEffects: false, paperTheme: 'light', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true, controlMode: 'continuous-steering' }, 'old preferences without an explicit control selection migrate to Steering');
+  assert.deepEqual(writePreferences({ soundEffects: true, paperTheme: 'unknown', themePreference: 'unknown', lastAutoTheme: 'unknown' }, storage), { soundEffects: true, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true });
+  assert.deepEqual(readPreferences(memoryStorage(JSON.stringify({ soundEffects: false, paperTheme: 'light', controlMode: 'direct-touch' }))), { soundEffects: false, paperTheme: 'light', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true }, 'obsolete input mode is ignored while existing preferences remain intact');
 });
 
-test('new player preference defaults to Steering and explicit Direct Touch survives reloads', () => {
+test('obsolete input-mode fields are ignored and never written back', () => {
   const storage = memoryStorage();
-  assert.equal(DEFAULT_PREFERENCES.controlMode, 'continuous-steering');
-  assert.equal(readPreferences(storage).controlMode, 'continuous-steering');
-  const selected = writePreferences({ ...readPreferences(storage), controlMode: 'direct-touch' }, storage);
-  assert.equal(selected.controlMode, 'direct-touch');
-  assert.equal(readPreferences(storage).controlMode, 'direct-touch');
-  assert.equal(writePreferences({ ...selected, controlMode: 'unexpected' }, storage).controlMode, 'continuous-steering');
+  storage.value = JSON.stringify({ soundEffects: false, controlMode: 'direct-touch', inputMode: 'direct' });
+  const loaded = readPreferences(storage);
+  assert.equal(loaded.soundEffects, false);
+  assert.equal(Object.hasOwn(loaded, 'controlMode'), false);
+  assert.equal(Object.hasOwn(loaded, 'inputMode'), false);
+  const saved = writePreferences({ ...loaded, controlMode: 'direct-touch' }, storage);
+  assert.equal(Object.hasOwn(saved, 'controlMode'), false);
+  assert.equal(JSON.parse(storage.value).controlMode, undefined);
 });
 
 test('unavailable or malformed local storage falls back safely', () => {
   assert.deepEqual(readPreferences(memoryStorage('{broken')), DEFAULT_PREFERENCES);
   const storage = { getItem() { return null; }, setItem() { throw new Error('Storage disabled'); } };
-  assert.deepEqual(writePreferences({ soundEffects: false }, storage), { soundEffects: false, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true, controlMode: 'continuous-steering' });
+  assert.deepEqual(writePreferences({ soundEffects: false }, storage), { soundEffects: false, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true });
 });

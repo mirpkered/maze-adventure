@@ -6,7 +6,7 @@ Maze Adventure is a separate, mobile-first maze puzzle game inspired by the prog
 
 ## Play the foundation
 
-Free Play offers an immediate choice of Easy (7×7) or Medium (10×10), with no unlocks or progression gates. Both use the same generated maze rules and direct-touch pencil tracer. Medium's larger randomized layouts average more junctions, wrong-turn endpoints, and longer dead-end branches. Trace from START to the flower with a finger, mouse, or pointer. Walls stop movement; after a wall contact, release and tap near the pencil to continue. Retrace the route to leave a dead end. Lifting your pointer preserves your route. The elapsed timer pauses when the page is hidden or the window loses focus.
+Free Play offers Easy (7×7), Medium (10×10), and Hard (15×15), with no unlocks or progression gates. All difficulties use the same maze geometry and Continuous Steering controller. Touch the maze and move your finger away from the touch-down point to steer the pencil; farther movement travels faster. Return to the center or lift your finger to stop. Closed walls stop the pencil, and you can redirect without lifting. Retrace passages to leave a dead end; every accepted pencil mark stays visible. The elapsed timer pauses when the page is hidden or the window loses focus.
 
 Adventure is visibly marked Coming Soon. Story chapters, linked mazes, daily challenges, custom setup, cosmetics, and persistent maze progress are not implemented yet.
 

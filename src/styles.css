@@ -255,10 +255,6 @@ body[data-screen="play"] .play-hint { margin: 2px 0 5px; flex: 0 0 auto; font-si
 .game-actions { display: grid; width: min(100%, 390px); grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 body[data-screen="play"] .play-footer { width: 100%; max-width: none; flex: 0 0 auto; justify-content: center; margin: 5px auto 0; }
 body[data-screen="play"] .game-actions .small-button { min-width: 44px; min-height: 44px; padding: 5px 8px; font-size: 11px; }
-.qa-input-mode-controls { display: grid; grid-template-columns: 1fr; gap: 4px; color: #533c31; font-size: 11px; }
-.qa-input-mode-controls[hidden] { display: none; }
-.qa-input-mode-controls select { width: 100%; min-height: 38px; padding: 6px; border: 1px solid #b8aa96; border-radius: 6px; background: #fbf7ef; color: #3f5147; }
-.qa-input-mode-controls small { line-height: 1.35; }
 body[data-zoom-assist="false"] .maze-workspace { display: block; }
 body[data-zoom-assist="false"] .maze-overview-panel { display: none; }
 body[data-zoom-assist="false"] .maze-close-panel, body[data-zoom-assist="false"] .completion-panel { width: min(100%, calc(100dvh - 175px)); height: min(100%, calc(100dvh - 175px)); margin: 0 auto; aspect-ratio: 1; }

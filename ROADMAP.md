@@ -1,6 +1,6 @@
 # Maze Adventure — Roadmap
 
-This roadmap tracks intended phases, current state, priorities, and unresolved choices. Dates and scope beyond Phase 1 are not commitments.
+This roadmap tracks intended phases, current state, priorities, and unresolved choices. The live controller is Continuous Steering only; old Direct Touch milestones are retained as history, not current behavior.
 
 ## Phase 1 — Repository and playable foundation
 

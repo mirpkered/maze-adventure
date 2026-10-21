@@ -2,19 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
-  createQaInputModeState, createSteeringController, DEFAULT_STEERING_SETTINGS, QA_INPUT_MODE_KEY, QA_INPUT_MODES,
-  readQaInputMode, steeringSpeedForDisplacement, writeQaInputMode,
+  createSteeringController, DEFAULT_STEERING_SETTINGS, steeringSpeedForDisplacement,
 } from '../src/continuous-steering.js';
 import { createTraceSession } from '../src/tracing.js';
 import { createTraceRecorder } from '../src/trace-diagnostics.js';
 import { canMove, createMazeForDifficulty } from '../src/maze.js';
-
-class MemoryStorage {
-  values = new Map();
-  getItem(key) { return this.values.get(key) ?? null; }
-  setItem(key, value) { this.values.set(key, String(value)); }
-  removeItem(key) { this.values.delete(key); }
-}
 
 function mazeWithOpenRoute(route, width = 7, height = 7, entranceSide = 'N') {
   const cells = Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => ({ x, y, walls: { N: true, E: true, S: true, W: true } })));
@@ -77,78 +69,6 @@ function runRate(hz, durationMs = 1000) {
   controller.end(pointer);
   return total;
 }
-
-test('Direct Touch remains the default and QA input mode is locally selectable', () => {
-  const storage = new MemoryStorage();
-  assert.equal(readQaInputMode(storage), QA_INPUT_MODES.DIRECT_TOUCH);
-  assert.equal(writeQaInputMode(QA_INPUT_MODES.CONTINUOUS_STEERING, storage), QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(storage.getItem(QA_INPUT_MODE_KEY), QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(readQaInputMode(storage), QA_INPUT_MODES.CONTINUOUS_STEERING);
-  storage.setItem(QA_INPUT_MODE_KEY, 'unexpected');
-  assert.equal(readQaInputMode(storage), QA_INPUT_MODES.DIRECT_TOUCH);
-  assert.equal(readQaInputMode({ getItem() { throw new Error('storage unavailable'); } }), QA_INPUT_MODES.DIRECT_TOUCH);
-});
-
-test('saved player control defaults to Steering while a persisted QA override remains isolated', () => {
-  const storage = new MemoryStorage();
-  const normalLaunch = createQaInputModeState({ storage, qaEnabled: false });
-  assert.equal(normalLaunch.active, QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(normalLaunch.select(QA_INPUT_MODES.DIRECT_TOUCH), QA_INPUT_MODES.CONTINUOUS_STEERING,
-    'ordinary launch ignores QA-only selection attempts');
-  assert.equal(normalLaunch.active, QA_INPUT_MODES.CONTINUOUS_STEERING);
-
-  const qaLaunch = createQaInputModeState({ storage, qaEnabled: true });
-  assert.equal(qaLaunch.active, QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(qaLaunch.select(QA_INPUT_MODES.CONTINUOUS_STEERING), QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(qaLaunch.playerMode, QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(qaLaunch.select(QA_INPUT_MODES.DIRECT_TOUCH), QA_INPUT_MODES.DIRECT_TOUCH);
-  assert.equal(qaLaunch.playerMode, QA_INPUT_MODES.CONTINUOUS_STEERING,
-    "QA override does not overwrite the player's saved preference");
-  assert.equal(qaLaunch.select(QA_INPUT_MODES.CONTINUOUS_STEERING), QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(qaLaunch.active, QA_INPUT_MODES.CONTINUOUS_STEERING);
-
-  // Leaving QA restores ordinary gameplay to the saved player control.
-  assert.equal(qaLaunch.setQaEnabled(false), QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(qaLaunch.selected, QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(qaLaunch.setQaEnabled(true), QA_INPUT_MODES.CONTINUOUS_STEERING,
-    'reopening QA restores the persisted steering selection');
-
-  const reloadedQa = createQaInputModeState({ storage, qaEnabled: true });
-  assert.equal(reloadedQa.active, QA_INPUT_MODES.CONTINUOUS_STEERING,
-    'an explicit QA reload restores the local QA selection');
-  const reloadedNormal = createQaInputModeState({ storage, qaEnabled: false });
-  assert.equal(reloadedNormal.active, QA_INPUT_MODES.CONTINUOUS_STEERING,
-    'a normal launch uses the ordinary player preference');
-  const directPreference = createQaInputModeState({ storage, qaEnabled: false, playerMode: QA_INPUT_MODES.DIRECT_TOUCH });
-  assert.equal(directPreference.active, QA_INPUT_MODES.DIRECT_TOUCH,
-    'an explicitly selected Direct Touch preference remains supported');
-});
-
-test('QA selection remains available for this page session when local storage is unavailable', () => {
-  const blockedStorage = { getItem() { throw new Error('storage unavailable'); }, setItem() { throw new Error('storage unavailable'); } };
-  const mode = createQaInputModeState({ storage: blockedStorage, qaEnabled: false });
-  assert.equal(mode.active, QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(mode.setQaEnabled(true), QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(mode.select(QA_INPUT_MODES.CONTINUOUS_STEERING), QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(mode.select(QA_INPUT_MODES.DIRECT_TOUCH), QA_INPUT_MODES.DIRECT_TOUCH);
-  assert.equal(mode.setQaEnabled(false), QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(mode.setQaEnabled(true), QA_INPUT_MODES.CONTINUOUS_STEERING);
-});
-
-test('switching QA modes updates the active controller choice without changing its shared maze engine', () => {
-  const storage = new MemoryStorage();
-  const mode = createQaInputModeState({ storage, qaEnabled: true });
-  const geometry = { layout: 'same-maze', route: [[0, 0], [1, 0]], ink: [[0, 0], [1, 0]] };
-  assert.equal(mode.active, QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(mode.select(QA_INPUT_MODES.CONTINUOUS_STEERING), QA_INPUT_MODES.CONTINUOUS_STEERING);
-  assert.equal(mode.select(QA_INPUT_MODES.DIRECT_TOUCH), QA_INPUT_MODES.DIRECT_TOUCH);
-  assert.deepEqual(geometry, { layout: 'same-maze', route: [[0, 0], [1, 0]], ink: [[0, 0], [1, 0]] });
-  assert.equal(readQaInputMode(storage), QA_INPUT_MODES.DIRECT_TOUCH);
-  assert.equal(mode.playerMode, QA_INPUT_MODES.CONTINUOUS_STEERING);
-  mode.setPlayerMode(QA_INPUT_MODES.DIRECT_TOUCH);
-  assert.equal(mode.active, QA_INPUT_MODES.DIRECT_TOUCH);
-  assert.equal(mode.qaOverride, null, 'ordinary preference changes clear the temporary QA override');
-});
 
 test('touch down establishes steering origin without producing movement', () => {
   const controller = createSteeringController(), pointer = 1;
@@ -396,7 +316,7 @@ test('lift, cancel, and mismatched pointers stop steering', () => {
   assert.equal(controller.advance(7, 1000).active, false);
 });
 
-test('QA steering controls are opt-in, locally stored, interruptible, and do not use the camera transform', async () => {
+test('Steering is the only gameplay controller and QA diagnostics identify it without an override', async () => {
   const [html, game, css, worker, packageJson] = await Promise.all([
     readFile(new URL('../index.html', import.meta.url), 'utf8'),
     readFile(new URL('../src/game.js', import.meta.url), 'utf8'),
@@ -404,20 +324,10 @@ test('QA steering controls are opt-in, locally stored, interruptible, and do not
     readFile(new URL('../service-worker.js', import.meta.url), 'utf8'),
     readFile(new URL('../package.json', import.meta.url), 'utf8'),
   ]);
-  assert.match(html, /id="qa-input-mode-controls"[^>]*hidden/);
-  assert.match(html, /id="qa-input-mode"[\s\S]*?value="continuous-steering"[\s\S]*?value="direct-touch"/);
-  assert.match(html, /id="qa-active-input-mode"/);
+  assert.doesNotMatch(html, /qa-input-mode|control-mode|Direct Touch/i);
+  assert.match(html, /Control system: Continuous Steering/);
   assert.match(html, /id="qa-active-mode-indicator"[^>]*hidden/);
-  assert.match(html.slice(html.indexOf('<section id="settings"')), /id="control-mode"/,
-    'player-facing control selection is available in standard Settings');
-  assert.doesNotMatch(html.slice(html.indexOf('<section id="settings"')), /qa-input-mode/,
-    'the temporary QA override remains separate from standard Settings');
-  assert.match(game, /\$\('#qa-input-mode'\)\.addEventListener\('change', event => selectQaInputMode\(event\.currentTarget\.value\)\)/);
-  assert.match(game, /createQaInputModeState\(\{ qaEnabled, storage: deviceStorage, playerMode: preferences\.controlMode \}\)/);
-  assert.match(game, /if \(qaInputModeState\.active === QA_INPUT_MODES\.CONTINUOUS_STEERING\) \{\s*began = traceSession\.beginSteering/,
-    'ordinary gameplay activates the selected shared Steering controller');
-  assert.match(game, /if \(qaInputModeState\.active === QA_INPUT_MODES\.CONTINUOUS_STEERING\) \{\s*updateSteeringIndicator/);
-  assert.match(game, /qaInputModeState\.active/);
+  assert.doesNotMatch(game, /qaInputModeState|selectQaInputMode|traceSession\.begin\(|traceSession\.move\(/);
   assert.match(game, /traceSession\.beginSteering\(event\.pointerId\)/);
   assert.match(game, /traceSession\.steer\(id, delta\)/);
   assert.match(game, /if \(!event\.isPrimary\)/, 'a second simultaneous pointer cannot start another steering gesture');
@@ -428,7 +338,7 @@ test('QA steering controls are opt-in, locally stored, interruptible, and do not
     'pause and its Settings transition stop the controller');
   assert.match(game, /if \(cancel\) traceSession\.cancel\(event\.pointerId\)/,
     'pointercancel and lost capture end steering without movement');
-  assert.match(game, /gestureScreenToSvg \|\| steeringPointerId !== null/,
+  assert.match(game, /if \(preferences\.zoomAssist && \(activePointerId === null \|\| steeringPointerId !== null\)\) cameraPosition = mazeCamera\.follow\(endpoint\)/,
     'camera follows the logical pencil while steering input remains screen-space');
   assert.match(game, /requestAnimationFrame\(frame\)/);
   assert.match(game, /cancelAnimationFrame\(steeringFrameId\)/);

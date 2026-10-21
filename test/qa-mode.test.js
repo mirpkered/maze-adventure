@@ -37,12 +37,13 @@ function session(href, values = new Map()) {
   return { location, history, storage, values };
 }
 
-test('normal launch starts with QA off and removes only the legacy QA preference', () => {
-  const values = new Map([[QA_STORAGE_KEY, 'enabled'], ['game-progress', 'level-4'], ['preferences', 'sound-off']]);
+test('normal launch starts with QA off and removes only retired QA preferences', () => {
+  const values = new Map([[QA_STORAGE_KEY, 'enabled'], ['maze-adventure-qa-input-mode-v1', 'direct-touch'], ['game-progress', 'level-4'], ['preferences', 'sound-off']]);
   const app = session('/maze?theme=dark#play', values);
   assert.equal(startQaSession(app.location, app.history, app.storage), false);
   assert.equal(app.location.href, 'https://maze.example/maze?theme=dark#play');
   assert.equal(values.has(QA_STORAGE_KEY), false);
+  assert.equal(values.has('maze-adventure-qa-input-mode-v1'), false);
   assert.equal(values.get('game-progress'), 'level-4');
   assert.equal(values.get('preferences'), 'sound-off');
 });

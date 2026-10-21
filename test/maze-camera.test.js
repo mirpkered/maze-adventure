@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMazeCamera, mazeDistanceForScreenPixels } from '../src/maze-camera.js';
+import { createMazeCamera } from '../src/maze-camera.js';
 import { transformPoint } from '../src/coordinates.js';
 
 test('close camera stays at 2x magnification and follows each maze boundary within padded limits', () => {
@@ -19,7 +19,6 @@ test('close camera stays at 2x magnification and follows each maze boundary with
     assert.ok(point.y >= view.y && point.y <= view.y + view.height);
   }
 });
-
 test('camera follow changes only the viewBox; gesture mapping uses its captured screen transform', () => {
   const camera = createMazeCamera({ viewSize: 400, zoom: 2 });
   camera.center({ x: 90, y: 90 });
@@ -88,15 +87,4 @@ test('repeated corner turns do not accumulate camera-relative coordinate drift',
   assert.deepEqual(steps.map(point => ({ x: Math.round(point.x * 1e10) / 1e10, y: Math.round(point.y * 1e10) / 1e10 })), [
     { x: 1.25, y: 0 }, { x: 0, y: 1.25 }, { x: 0, y: 1.25 }, { x: 1.25, y: 0 }, { x: 1.25, y: 0 },
   ]);
-});
-
-test('endpoint acquisition remains 24 CSS pixels at the current SVG magnification', () => {
-  const cellSize = 35.2;
-  const normal = mazeDistanceForScreenPixels(24, cellSize, .82);
-  const zoomed = mazeDistanceForScreenPixels(24, cellSize, 1.64);
-  assert.equal(normal.pixelsPerMazeUnit, cellSize * .82);
-  assert.equal(zoomed.pixelsPerMazeUnit, cellSize * 1.64);
-  assert.ok(Math.abs(normal.mazeUnits * normal.pixelsPerMazeUnit - 24) < 1e-10);
-  assert.ok(Math.abs(zoomed.mazeUnits * zoomed.pixelsPerMazeUnit - 24) < 1e-10);
-  assert.ok(zoomed.mazeUnits < normal.mazeUnits, 'the world-space tolerance shrinks when the pane is magnified');
 });

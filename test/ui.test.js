@@ -41,7 +41,7 @@ test('canonical Mirpworks launch splash covers startup, then reveals the title o
   assert.equal((html.match(/id="launch-splash"/g) || []).length, 1, 'the initial document must contain one splash layer');
   assert.ok(html.indexOf("querySelector('#launch-splash')") < html.indexOf('src="./src/game.js"'), 'splash startup must be initialized before the game module');
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.launch-splash \{ transition: opacity 100ms ease !important/);
-  assert.match(worker, /shell-v36/);
+  assert.match(worker, /shell-v37/);
   assert.match(worker, /\.\/branding\/mirpworks-logo\.jpg/);
   assert.match(styles, /body\[data-screen="home"\]/);
 });
@@ -59,15 +59,15 @@ test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, col
   assert.match(game, /startQaSession\(location, history, deviceStorage\)/);
   assert.match(html, /id="disable-qa-mode"[^>]*>Exit QA mode/);
   assert.match(game, /window\.mazeAdventureTraceDiagnostics = \(\) => traceSession\?\.diagnostics/);
-  for (const item of ['pointerType', 'client:', 'maze:', 'difficulty: maze?.difficulty', 'acceptedInkEndpoint', 'pencilPosition', 'previousRouteCell', 'candidateReversal', 'resumeAcquisitionDistance', 'resumeAcquisitionThreshold', 'resumeAcquisitionDistancePixels', 'resumeAcquisitionThresholdPixels', 'failureCategory', 'traceHealth', 'gestureState', 'gestureTerminatedByWallCollision', 'lockedOutMovement', 'lockedOutMovementCount', 'resumeAfterWallCollision', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
-  assert.match(game, /if \(!result\.ignored \|\| result\.firstLockedOutMove\)/, 'prolonged lockout movement logs only its first ignored sample');
+  for (const item of ['controlSystem', 'activeController', 'pointerType', 'client:', 'maze:', 'difficulty: maze?.difficulty', 'acceptedInkEndpoint', 'pencilPosition', 'previousRouteCell', 'candidateReversal', 'failureCategory', 'traceHealth', 'gestureState', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
+  assert.match(game, /controlSystem: 'continuous-steering'/, 'QA events identify the single active control system');
   assert.match(game, /window\.addEventListener\('pointercancel', event => finishPointer\(event, true\)\)/);
   assert.match(game, /window\.addEventListener\('lostpointercapture', event => finishPointer\(event, true\)\)/);
   assert.match(game, /navigator\.clipboard\?\.writeText/);
   assert.match(game, /document\.execCommand\('copy'\)/);
   assert.match(game, /traceRecorder\.reset\(\)/);
   assert.match(game, /limit: 400/);
-  for (const item of ['raw', 'endpoint', 'cell', 'blocked', 'recovering']) assert.ok(tracing.includes(item));
+  for (const item of ['endpoint', 'cell', 'blocked', 'controlSystem', 'candidateReversal']) assert.ok(tracing.includes(item));
 });
 
 test('logo hold enables session-only QA, consumes explicit launch URLs, and supports deactivation', async () => {
@@ -88,7 +88,7 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v36/);
+  assert.match(worker, /shell-v37/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);
@@ -191,16 +191,13 @@ test('Zoom Assist uses one tracing SVG and a non-interactive full-maze overview'
   assert.doesNotMatch(game, /overviewSvg\.addEventListener\(['"]pointer/);
   assert.match(game, /\$\('#trail'\)\.setAttribute\('d', path\)/);
   assert.match(game, /\$\('#overview-trail'\)\.setAttribute\('d', path\)/);
-  assert.match(game, /return pointInMaze\(event, preferences\.zoomAssist \? gestureScreenToSvg : null\)/);
-  assert.match(game, /gestureScreenToSvg = svg\.getScreenCTM\(\)\?\.inverse\(\)/);
+  assert.match(game, /pointAt\(event, screenToSvg = null\)/);
   assert.match(game, /cameraPosition = mazeCamera\.follow\(endpoint\)/);
-  assert.match(game, /gestureScreenToSvg \|\| steeringPointerId !== null/);
-  assert.match(game, /if \(finalMove\?\.moved\) renderTrace\(\)/);
+  assert.match(game, /steeringPointerId !== null/);
   assert.match(camera, /const span = viewSize \/ zoom/);
-  assert.match(game, /if \(finalMove\?\.moved\) renderTrace\(\)/, 'pointerup movement uses the same logical render update');
   assert.match(game, /#back-home'\)\.addEventListener\('click', \(\) => \{ clearPointer\(\); showDifficultySelection\(\); \}\)/);
-  assert.match(game, /if \(\(zoomChanged \|\| controlModeChanged\) && activePointerId !== null\) clearPointer\(\)/,
-    'zoom or control changes safely cancel an active input gesture');
+  assert.match(game, /if \(zoomChanged && activePointerId !== null\) clearPointer\(\)/,
+    'zoom changes safely cancel an active input gesture');
   assert.match(game, /const zoomChanged = Object\.hasOwn\(update, 'zoomAssist'\)[\s\S]*?preferences = writePreferences\(\{ \.\.\.preferences, \.\.\.update \}\)/);
   assert.match(game, /if \(preferences\.zoomAssist && traceSession\) cameraPosition = mazeCamera\.center\(svgPoint\(traceSession\.position\)\)/);
   assert.match(game, /\$\('#trail'\)\.setAttribute\('d', path\)[\s\S]*?\$\('#overview-trail'\)\.setAttribute\('d', path\)/);
@@ -228,15 +225,17 @@ test('iPhone portrait keeps the maze as a responsive, scoped touch target', asyn
   assert.match(css, /safe-area-inset-(?:left|right)/);
 });
 
-test('touch input uses the SVG screen transform, coalesced samples, and safe rotation cancellation', async () => {
+test('steering input uses screen-space origin, coalesced samples, and safe rotation cancellation', async () => {
   const game = await read('src/game.js'), samples = await read('src/pointer-samples.js');
-  assert.match(game, /svg\.getScreenCTM\(\)\?\.inverse\(\)/);
+  assert.match(game, /svg\.getScreenCTM\(\)\?\.inverse\(\)/, 'coordinates are converted for QA reporting');
   assert.match(game, /pointerMovementSamples\(event\)/);
   assert.match(samples, /getCoalescedEvents/);
   assert.match(samples, /samples\.push\(event\)/);
-  assert.match(game, /finalPointerMovement\(traceSession, event\.pointerId, event, lastRawPointer\)/);
+  assert.doesNotMatch(game, /finalPointerMovement/);
+  assert.match(game, /traceSession\.beginSteering\(event\.pointerId\)/);
+  assert.match(game, /steeringController\.begin\(event\.pointerId, \{ x: event\.clientX, y: event\.clientY \}\)/);
+  assert.match(game, /steeringController\.update\(event\.pointerId, \{ x: sample\.clientX, y: sample\.clientY \}\)/);
   assert.match(game, /window\.addEventListener\('resize', clearPointer\)/);
   assert.match(game, /function pointInMaze\(event, screenToSvg = null\) \{ return svgToMazePoint\(pointAt\(event, screenToSvg\), gridGeometry\.x, gridGeometry\.cellSize, gridGeometry\.y\); \}/);
-  assert.match(game, /return pointInMaze\(event, preferences\.zoomAssist \? gestureScreenToSvg : null\)/);
   assert.match(game, /getMazeGridGeometry\(maze\.width, maze\.height, SIZE, PAD\)/);
 });

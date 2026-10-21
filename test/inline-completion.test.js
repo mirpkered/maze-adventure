@@ -27,10 +27,10 @@ test('completion is an inline play-screen state with a single accessible result 
   assert.match(game, /mazeCompleted = false;\s*delete document\.body\.dataset\.completed;\s*\$\('#completion-panel'\)\.hidden = true/);
   assert.match(game, /\$\('#restart-maze'\)\.addEventListener\('click', \(\) => makeMaze\(true\)\)/);
   assert.match(game, /\$\('#new-maze'\)\.addEventListener\('click', \(\) => makeMaze\(\)\)/);
-  assert.match(worker, /shell-v36/);
+  assert.match(worker, /shell-v37/);
 });
 
-test('Zoom Assist and direct-touch completion preserve an appropriately sized maze layout', async () => {
+test('Zoom Assist and steering completion preserve an appropriately sized maze layout', async () => {
   const css = await read('src/styles.css');
   const game = await read('src/game.js');
 

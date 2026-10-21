@@ -13,7 +13,8 @@ test('QA configuration is a separate screen and no diagnostic controls live in g
   assert.doesNotMatch(play, /trace-diagnostic-tools|trace-diagnostics|qa-input-mode/, 'the tracing surface has no diagnostic panel');
   assert.match(play, /id="qa-open-game"[^>]*hidden/, 'the small in-header entry is hidden unless QA is active');
   assert.match(config, /id="trace-diagnostic-tools"[^>]*hidden/);
-  assert.match(config, /id="qa-input-mode"/);
+  assert.doesNotMatch(config, /<select[^>]*(?:input|mode)|Direct Touch/i, 'QA has no retired input-mode controls');
+  assert.match(config, /Control system: Continuous Steering/);
   assert.match(config, /id="qa-config-return"/);
   assert.match(html, /id="qa-open-home"[^>]*hidden/);
 });
@@ -42,15 +43,15 @@ test('QA return state restores active gameplay timer but preserves paused and co
   assert.deepEqual(restoreQaReturnState(home), { screenId: 'home', paused: false, resumeTimer: false });
 });
 
-test('QA selection remains opt-in and cannot affect normal gameplay layout or steering math', async () => {
+test('QA remains opt-in and always reports the canonical Steering controller', async () => {
   const game = await read('src/game.js'), css = await read('src/styles.css');
   assert.match(game, /\$\('#qa-open-game'\)\.addEventListener\('click', openQaConfiguration\)/);
   assert.match(game, /\$\('#qa-open-home'\)\.addEventListener\('click', openQaConfiguration\)/);
   assert.match(game, /\$\('#disable-qa-mode'\)\.addEventListener\('click', \(\) => \{ setQaMode\(false\); returnFromQaConfiguration\(\); \}\)/);
-  assert.match(game, /\$\('#qa-input-mode'\)\.addEventListener\('change', event => selectQaInputMode\(event\.currentTarget\.value\)\)/);
-  assert.match(game, /const activeMode = qaInputModeState\.active/);
   assert.match(game, /traceSession\.beginSteering\(event\.pointerId\)/);
-  assert.match(game, /traceSession\.begin\(event\.pointerId, lastRawPointer, pencilAcquisitionOptions\(\)\)/);
+  assert.doesNotMatch(game, /qaInputModeState|selectQaInputMode|traceSession\.begin\(|traceSession\.move\(/,
+    'no stale controller selector or Direct Touch dispatch is active');
+  assert.match(game, /controlSystem: 'continuous-steering'/);
   assert.match(css, /body\[data-screen="play"\][^{]*\{/);
   assert.match(css, /body\[data-screen="qa-config"\] \.app-shell/);
 });

@@ -2,15 +2,15 @@ import { createMazeForDifficulty, FREE_PLAY_DIFFICULTIES, getShortestPath, getWa
 import { createTraceSession } from './tracing.js';
 import { DEFAULT_PREFERENCES, PREFERENCES_KEY, readPreferences, writePreferences } from './preferences.js';
 import { clientToViewBoxPoint, getMazeGridGeometry, mazeToSvgPoint, svgToMazePoint, transformPoint } from './coordinates.js';
-import { createMazeCamera, mazeDistanceForScreenPixels } from './maze-camera.js';
+import { createMazeCamera } from './maze-camera.js';
 import { tracePathData } from './trace-rendering.js';
 import { createTraceRecorder, mazeLayoutId } from './trace-diagnostics.js';
 import { bindEmblemQaTrigger, closeQaSession, startQaSession } from './qa-mode.js';
-import { finalPointerMovement, pointerMovementSamples } from './pointer-samples.js';
+import { pointerMovementSamples } from './pointer-samples.js';
 import { APP_BUILD_ID } from './build-info.js';
 import { createQaDiagnosticsStore, createQuickSummary, createRecentIncident } from './qa-diagnostics-store.js';
 import { applyVisualTheme, chooseLaunchTheme, THEME_PREFERENCE_OPTIONS } from './themes.js';
-import { createQaInputModeState, createSteeringController, QA_INPUT_MODES } from './continuous-steering.js';
+import { createSteeringController } from './continuous-steering.js';
 import { captureQaReturnState, restoreQaReturnState } from './qa-view-state.js';
 
 const $ = selector => document.querySelector(selector);
@@ -23,7 +23,6 @@ const SIZE = 400, PAD = 24;
 let gridGeometry = getMazeGridGeometry(7, 7, SIZE, PAD);
 const mazeCamera = createMazeCamera({ viewSize: SIZE, zoom: 2 });
 let cameraPosition = mazeCamera.snapshot();
-const PENCIL_ACQUISITION_RADIUS_PX = 24;
 let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, timerId, mazeCompleted = false;
 let selectedDifficulty = 'easy';
 let paused = false, activeOverlay = null, returnFocus = null, resumeAfterOverlay = false;
@@ -54,11 +53,9 @@ for (const { value, label } of THEME_PREFERENCE_OPTIONS) {
 }
 let settingsReturnToPlay = false;
 let qaEnabled = startQaSession(location, history, deviceStorage);
-const qaInputModeState = createQaInputModeState({ qaEnabled, storage: deviceStorage, playerMode: preferences.controlMode });
 const steeringController = createSteeringController();
 let steeringPointerId = null, steeringFrameId = null, steeringHadBlock = false, lastSteeringBlockReason = null;
 let lastRawPointer = null, lastClientPointer = null;
-let gestureScreenToSvg = null;
 let traceRecorder = qaEnabled ? createTraceRecorder({ limit: 400 }) : null;
 const qaStore = createQaDiagnosticsStore(deviceStorage);
 let qaSessionId = qaEnabled ? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` : null;
@@ -81,7 +78,6 @@ function setQaMode(enabled) {
   }
   const nextEnabled = Boolean(enabled);
   if (!nextEnabled) stopActiveInput();
-  qaInputModeState.setQaEnabled(nextEnabled);
   qaEnabled = nextEnabled;
   if (qaEnabled) {
     traceRecorder ??= createTraceRecorder({ limit: 400 });
@@ -106,30 +102,12 @@ function syncQaControls() {
   else delete document.body.dataset.qa;
   $('#trace-diagnostic-tools').hidden = !qaEnabled;
   $('#trace-diagnostics').hidden = !qaEnabled || !traceSession;
-  $('#qa-input-mode-controls').hidden = !qaEnabled;
   $('#qa-open-home').hidden = !qaEnabled || $('#home').hidden;
   $('#qa-open-game').hidden = !qaEnabled;
-  const activeMode = qaInputModeState.active;
-  $('#qa-input-mode').value = activeMode;
-  const modeLabel = activeMode === QA_INPUT_MODES.CONTINUOUS_STEERING ? 'Continuous Steering' : 'Direct Touch';
-  const playerLabel = qaInputModeState.playerMode === QA_INPUT_MODES.CONTINUOUS_STEERING ? 'Continuous Steering' : 'Direct Touch';
-  const override = qaInputModeState.qaOverride ? ` · temporary QA override (${modeLabel}); saved player control stays ${playerLabel}` : ` · using saved player control (${playerLabel})`;
-  $('#qa-active-input-mode').textContent = `Active Input Mode: ${modeLabel}${qaEnabled ? override : ''}`;
-  $('#qa-active-mode-indicator').textContent = `QA · ${activeMode === QA_INPUT_MODES.CONTINUOUS_STEERING ? 'Steering' : 'Direct'}`;
+  $('#qa-active-input-mode').textContent = 'Control system: Continuous Steering';
+  $('#qa-active-mode-indicator').textContent = 'QA · Steering';
   $('#qa-active-mode-indicator').hidden = !qaEnabled;
   if (qaEnabled) refreshQaSessions();
-}
-
-function selectQaInputMode(mode) {
-  if (!qaEnabled) return;
-  stopActiveInput();
-  const activeMode = qaInputModeState.select(mode);
-  syncQaControls();
-  $('#qa-mode-status').textContent = activeMode === QA_INPUT_MODES.CONTINUOUS_STEERING
-    ? 'Continuous Steering is active for this QA session. The override does not change your saved Maze Controls preference.'
-    : 'Direct Touch is active for this QA session. The override does not change your saved Maze Controls preference.';
-  updateTraceDiagnostics();
-  queueQaPersistence();
 }
 
 function refreshQaSessions() {
@@ -167,30 +145,22 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
     previousRouteCell: state.previousCell ? { ...state.previousCell } : null,
     candidateReversal: state.candidateReversal,
     candidateReversalOpen: state.candidateReversalOpen,
-    resumeAcquisitionDistance: state.resumeAcquisitionDistance,
-    resumeAcquisitionThreshold: state.resumeAcquisitionThreshold,
-    resumeAcquisitionDistancePixels: state.resumeAcquisitionDistancePixels,
-    resumeAcquisitionThresholdPixels: state.resumeAcquisitionThresholdPixels,
     failureCategory: state.failureCategory,
     traceHealth: state.traceHealth,
     interpolationCount: movement?.interpolatedSamples ?? 0,
-    gestureTerminatedByWallCollision: Boolean(movement?.gestureTerminatedByWallCollision),
     zoomAssist: preferences.zoomAssist,
     zoomFactor: preferences.zoomAssist ? cameraPosition.zoom : 1,
     cameraPosition: preferences.zoomAssist ? { x: Math.round(cameraPosition.x * 100) / 100, y: Math.round(cameraPosition.y * 100) / 100 } : null,
     inputPanel: preferences.zoomAssist ? 'close-view' : 'full-maze',
-    lockedOutMovement: Boolean(movement?.ignored),
-    lockedOutMovementCount: state.lockedOutMovementCount,
-    resumeAfterWallCollision: state.resumeAfterWallCollision,
     attemptedTransitions: movement?.attemptedTransitions ?? [],
-    selectedInputMode: qaInputModeState.active,
-    activeController: state.gestureInputMode,
+    controlSystem: 'continuous-steering',
+    activeController: state.active ? 'continuous-steering' : 'idle',
     movementClassification: movement?.movementClassification ?? null,
     requestedMovement: movement?.requestedMovement ?? null,
     acceptedMovement: movement?.acceptedMovement ?? null,
     steeringMetrics: movement?.steeringMetrics ?? null,
     strokeBreakCreated: movement?.strokeBreakCreated ?? false,
-    gestureState: state.lockedOut ? 'locked-out-until-release' : state.active ? (state.recovering ? 'recovering' : 'active') : 'idle',
+    gestureState: state.active ? 'active' : 'idle',
     accepted: Boolean(accepted),
     movementAccepted: Boolean(movement?.moved || (eventType === 'pointermove' && accepted)),
     rejectedReason: reason ?? state.reason ?? (accepted ? null : 'no-route-or-stroke-change'),
@@ -226,11 +196,8 @@ function diagnosticReportObject() {
     zoomAssist: preferences.zoomAssist,
     zoomFactor: preferences.zoomAssist ? cameraPosition.zoom : 1,
     cameraPosition: preferences.zoomAssist ? { x: cameraPosition.x, y: cameraPosition.y } : null,
-    // Keep the historical field for report compatibility, while naming the
-    // selection and active gesture controller explicitly for current reports.
-    inputMode: qaInputModeState.active,
-    selectedInputMode: qaInputModeState.active,
-    activeController: state?.gestureInputMode ?? null,
+    controlSystem: 'continuous-steering',
+    activeController: state?.active ? 'continuous-steering' : 'idle',
     steering: qaEnabled ? { settings: steeringController.settings, ...steeringController.snapshot } : null,
   });
 }
@@ -253,8 +220,7 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   const state = traceSession.diagnostics;
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
   const reversal = state.candidateReversal ? `${state.candidateReversal.x},${state.candidateReversal.y} (${state.candidateReversalOpen ? 'open' : 'closed'})` : 'none';
-  const resume = state.resumeAcquisitionDistancePixels === null ? '—' : `${state.resumeAcquisitionDistancePixels.toFixed(1)}/${state.resumeAcquisitionThresholdPixels.toFixed(0)}px`;
-  output.textContent = `QA trace · build ${APP_BUILD_ID} · selected ${qaInputModeState.active === QA_INPUT_MODES.CONTINUOUS_STEERING ? 'steering' : 'direct'} · gesture controller ${state.gestureInputMode ?? 'idle'} · zoom ${preferences.zoomAssist ? `${cameraPosition.zoom}× close view (${cameraPosition.x.toFixed(0)},${cameraPosition.y.toFixed(0)})` : 'off'} · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · resume distance/limit ${resume} · gesture ${state.lockedOut ? `locked until release (${state.lockedOutMovementCount} ignored)` : state.active ? (state.recovering ? 'recovering' : 'active') : 'idle'} · resumed after wall ${state.resumeAfterWallCollision ? 'yes' : 'no'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  output.textContent = `QA trace · build ${APP_BUILD_ID} · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · zoom ${preferences.zoomAssist ? `${cameraPosition.zoom}× close view (${cameraPosition.x.toFixed(0)},${cameraPosition.y.toFixed(0)})` : 'off'} · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -289,7 +255,7 @@ function openQaConfiguration() {
     $('#qa-config-notice').textContent = 'Gameplay is suspended while these controls are open. Your maze, pencil position, and ink are preserved.';
   } else {
     $('#qa-config-return').textContent = '← Return to Home';
-    $('#qa-config-notice').textContent = 'Choose QA input and review reports here. Gameplay remains untouched until you return to the game.';
+    $('#qa-config-notice').textContent = 'Review tracing behavior and reports here. Gameplay remains untouched until you return to the game.';
   }
   activeScreen($('#qa-config'));
   $('#qa-config-title').focus({ preventScroll: true });
@@ -332,27 +298,7 @@ function pointAt(event, screenToSvg = null) {
   return clientToViewBoxPoint(client, svg.getBoundingClientRect(), { x: 0, y: 0, width: SIZE, height: SIZE });
 }
 function pointInMaze(event, screenToSvg = null) { return svgToMazePoint(pointAt(event, screenToSvg), gridGeometry.x, gridGeometry.cellSize, gridGeometry.y); }
-function inputPointInMaze(event) {
-  return pointInMaze(event, preferences.zoomAssist ? gestureScreenToSvg : null);
-}
-function clearGestureMapping() {
-  gestureScreenToSvg = null;
-}
 function svgPoint(point) { return mazeToSvgPoint(point, gridGeometry.x, gridGeometry.cellSize, gridGeometry.y); }
-function pencilAcquisitionOptions() {
-  const rect = svg.getBoundingClientRect();
-  let pixelsPerSvgUnit = rect.width / (svg.viewBox.baseVal.width || SIZE);
-  try {
-    const matrix = svg.getScreenCTM();
-    if (matrix) pixelsPerSvgUnit = Math.hypot(matrix.a, matrix.b);
-  } catch { /* The element bounding box remains a safe transform fallback. */ }
-  const { mazeUnits: radius, pixelsPerMazeUnit } = mazeDistanceForScreenPixels(
-    PENCIL_ACQUISITION_RADIUS_PX, gridGeometry.cellSize, pixelsPerSvgUnit,
-  );
-  return {
-    radius, pixelsPerMazeUnit,
-  };
-}
 
 function renderTrace() {
   if (!traceSession) return;
@@ -367,7 +313,7 @@ function renderTrace() {
   $('#overview-player').setAttribute('cy', endpoint.y);
   svg.dataset.visited = String(new Set(traceSession.path.map(point => `${point.x},${point.y}`)).size);
   // Steering remains screen-space while the camera follows the accepted pencil.
-  if (preferences.zoomAssist && (activePointerId === null || gestureScreenToSvg || steeringPointerId !== null)) cameraPosition = mazeCamera.follow(endpoint);
+  if (preferences.zoomAssist && (activePointerId === null || steeringPointerId !== null)) cameraPosition = mazeCamera.follow(endpoint);
   svg.setAttribute('viewBox', preferences.zoomAssist ? cameraPosition.viewBox : `0 0 ${SIZE} ${SIZE}`);
 }
 
@@ -424,31 +370,18 @@ function updateSettingsControls() {
   $('#paper-theme').value = preferences.paperTheme;
   $('#visual-theme').value = preferences.themePreference;
   $('#zoom-assist').checked = preferences.zoomAssist;
-  $('#control-mode').value = preferences.controlMode;
-  $('#control-mode-description').textContent = preferences.controlMode === QA_INPUT_MODES.CONTINUOUS_STEERING
-    ? `Touch ${preferences.zoomAssist ? 'the Close View' : 'the maze'} to set a steering origin. Move farther from your first touch to steer faster; return to center or lift to stop.`
-    : 'Trace the passages directly with your finger. After a wall collision, lift and re-tap near the pencil tip.';
   setTheme();
 }
 function savePreferences(update) {
   const zoomChanged = Object.hasOwn(update, 'zoomAssist') && preferences.zoomAssist !== update.zoomAssist;
-  const controlModeChanged = Object.hasOwn(update, 'controlMode') && preferences.controlMode !== update.controlMode;
-  if ((zoomChanged || controlModeChanged) && activePointerId !== null) clearPointer();
+  if (zoomChanged && activePointerId !== null) clearPointer();
   preferences = writePreferences({ ...preferences, ...update });
-  if (controlModeChanged) qaInputModeState.setPlayerMode(preferences.controlMode);
   updateSettingsControls();
-  if (controlModeChanged) {
-    syncQaControls();
-    updateTraceDiagnostics();
-    queueQaPersistence();
-  }
   if (zoomChanged) {
     document.body.dataset.zoomAssist = String(preferences.zoomAssist);
     if (mazeCompleted) $('#maze-paper').hidden = preferences.zoomAssist;
     if (preferences.zoomAssist && traceSession) cameraPosition = mazeCamera.center(svgPoint(traceSession.position));
-    if (!mazeCompleted && !$('#play').hidden) $('#play-hint').textContent = preferences.zoomAssist
-      ? 'Follow the full maze above; trace in the Close View below.'
-      : 'Trace from the entrance to the flower. Lift and tap the pencil tip to continue.';
+    if (!mazeCompleted && !$('#play').hidden) $('#play-hint').textContent = `Touch ${preferences.zoomAssist ? 'the Close View' : 'the maze'} to set a steering origin. Move away to guide the pencil; return to center or lift to stop.`;
     if (traceSession) renderTrace();
   }
 }
@@ -512,15 +445,13 @@ function makeMaze(reuse = false) {
   currentLayoutId = mazeLayoutId(maze);
   traceSession = createTraceSession(maze);
   activePointerId = null; elapsed = 0; paused = false; displayTime();
-  $('#play-hint').textContent = preferences.controlMode === QA_INPUT_MODES.CONTINUOUS_STEERING
-    ? `Touch ${preferences.zoomAssist ? 'the Close View' : 'the maze'} to set a steering origin. Move away to guide the pencil; return to center or lift to stop.`
-    : 'Trace from the entrance to the flower. Lift and tap the pencil tip to continue.';
+  $('#play-hint').textContent = `Touch ${preferences.zoomAssist ? 'the Close View' : 'the maze'} to set a steering origin. Move away to guide the pencil; return to center or lift to stop.`;
   renderMaze(); activeScreen($('#play')); syncQaControls(); updateTraceDiagnostics(); queueQaPersistence(); $('#play-title').focus({ preventScroll: true }); startTimer();
 }
 
 function updateSteeringIndicator(point) {
   const indicator = $('#steering-indicator');
-  if (!qaEnabled || !point || !steeringController.active || qaInputModeState.active !== QA_INPUT_MODES.CONTINUOUS_STEERING) {
+  if (!qaEnabled || !point || !steeringController.active) {
     indicator.hidden = true;
     return;
   }
@@ -563,7 +494,7 @@ function scheduleSteeringFrameLoop(id) {
   const frame = timestamp => {
     steeringFrameId = null;
     if (id !== steeringPointerId || activePointerId !== id
-      || qaInputModeState.active !== QA_INPUT_MODES.CONTINUOUS_STEERING || $('#play').hidden || paused || activeOverlay || document.hidden || mazeCompleted) {
+      || $('#play').hidden || paused || activeOverlay || document.hidden || mazeCompleted) {
       if (id === steeringPointerId && activePointerId === id) clearPointer();
       return;
     }
@@ -627,30 +558,23 @@ function clearPointer() {
   }, lastRawPointer, false, 'application-interruption', true);
   if (steeringPointerId === id) endSteeringGesture(id);
   traceSession?.cancel(id); activePointerId = null;
-  clearGestureMapping();
   try { if (svg.hasPointerCapture?.(id)) svg.releasePointerCapture(id); } catch { /* Capture may already be gone. */ }
   renderTrace();
   updateTraceDiagnostics();
 }
 function finishPointer(event, cancel = false) {
   if (activePointerId !== event.pointerId) return;
-  const steeringGesture = steeringPointerId === event.pointerId;
   lastClientPointer = { x: event.clientX, y: event.clientY };
-  lastRawPointer = inputPointInMaze(event);
-  const finalMove = !cancel && !steeringGesture ? finalPointerMovement(traceSession, event.pointerId, event, lastRawPointer) : null;
-  if (finalMove?.moved) renderTrace();
-  recordTraceEvent(event.type ?? (cancel ? 'pointercancel' : 'pointerup'), event, lastRawPointer,
-    finalMove ? finalMove.moved : true,
-    finalMove?.reason ?? (!finalMove?.moved && finalMove ? 'no-route-or-stroke-change' : null), cancel, finalMove);
-  if (steeringGesture) endSteeringGesture(event.pointerId);
+  lastRawPointer = pointInMaze(event);
+  recordTraceEvent(event.type ?? (cancel ? 'pointercancel' : 'pointerup'), event, lastRawPointer, true, null, cancel);
+  endSteeringGesture(event.pointerId);
   if (cancel) traceSession.cancel(event.pointerId);
   else traceSession.end(event.pointerId);
   activePointerId = null;
-  clearGestureMapping();
   renderTrace();
   try { if (svg.hasPointerCapture?.(event.pointerId)) svg.releasePointerCapture(event.pointerId); } catch { /* Capture may already be released by the browser. */ }
   updateTraceDiagnostics();
-  return Boolean(finalMove?.complete);
+  return false;
 }
 function completeMaze() {
   if (mazeCompleted) return;
@@ -714,26 +638,19 @@ svg.addEventListener('pointerdown', event => {
   if (paused || activeOverlay) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'game-not-interactive'); return; }
   if (!event.isPrimary) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'non-primary-pointer'); return; }
   if (activePointerId !== null) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'another-pointer-owns-gesture'); return; }
-  let began;
-  if (qaInputModeState.active === QA_INPUT_MODES.CONTINUOUS_STEERING) {
-    began = traceSession.beginSteering(event.pointerId);
+  let began = traceSession.beginSteering(event.pointerId);
+  if (began) {
+    began = steeringController.begin(event.pointerId, { x: event.clientX, y: event.clientY });
     if (began) {
-      began = steeringController.begin(event.pointerId, { x: event.clientX, y: event.clientY });
-      if (began) {
-        steeringPointerId = event.pointerId;
-        steeringHadBlock = false;
-        lastSteeringBlockReason = null;
-      } else traceSession.cancel(event.pointerId);
-    }
-  } else began = traceSession.begin(event.pointerId, lastRawPointer, pencilAcquisitionOptions());
+      steeringPointerId = event.pointerId;
+      steeringHadBlock = false;
+      lastSteeringBlockReason = null;
+    } else traceSession.cancel(event.pointerId);
+  }
   if (began) {
     activePointerId = event.pointerId;
-    if (qaInputModeState.active === QA_INPUT_MODES.CONTINUOUS_STEERING) {
-      updateSteeringIndicator({ x: event.clientX, y: event.clientY });
-      scheduleSteeringFrameLoop(event.pointerId);
-    } else if (preferences.zoomAssist) {
-      try { gestureScreenToSvg = svg.getScreenCTM()?.inverse() ?? null; } catch { gestureScreenToSvg = null; }
-    }
+    updateSteeringIndicator({ x: event.clientX, y: event.clientY });
+    scheduleSteeringFrameLoop(event.pointerId);
     try { svg.setPointerCapture(event.pointerId); } catch { /* Older embedded WebViews may lack pointer capture. */ }
     updateTraceDiagnostics(lastRawPointer);
   }
@@ -742,33 +659,14 @@ svg.addEventListener('pointerdown', event => {
 window.addEventListener('pointermove', event => {
   if (mazeCompleted || activePointerId !== event.pointerId || $('#play').hidden || paused) return;
   event.preventDefault();
-  if (steeringPointerId === event.pointerId) {
-    for (const sample of pointerMovementSamples(event)) {
-      lastClientPointer = { x: sample.clientX, y: sample.clientY };
-      lastRawPointer = pointInMaze(sample);
-      steeringController.update(event.pointerId, { x: sample.clientX, y: sample.clientY });
-    }
-    updateSteeringIndicator(lastClientPointer);
-    updateTraceDiagnostics(lastRawPointer);
-    return;
-  }
-  let moved = false, complete = false;
-  const samples = pointerMovementSamples(event);
-  for (const [sampleIndex, sample] of samples.entries()) {
+  if (steeringPointerId !== event.pointerId) return;
+  for (const sample of pointerMovementSamples(event)) {
     lastClientPointer = { x: sample.clientX, y: sample.clientY };
-    lastRawPointer = inputPointInMaze(sample);
-    const result = traceSession.move(event.pointerId, lastRawPointer);
-    moved ||= result.moved;
-    if (!result.ignored || result.firstLockedOutMove) {
-      recordTraceEvent('pointermove', sample, lastRawPointer, result.moved, result.reason ?? (!result.moved ? 'no-route-or-stroke-change' : null), false, result,
-        sample === event ? 'dispatched' : 'coalesced', sampleIndex);
-    }
-    if (result.complete) { complete = true; break; }
+    lastRawPointer = pointInMaze(sample);
+    steeringController.update(event.pointerId, { x: sample.clientX, y: sample.clientY });
   }
-  if (moved) renderTrace();
-  if (complete) {
-    finishPointer(event); completeMaze();
-  }
+  updateSteeringIndicator(lastClientPointer);
+  updateTraceDiagnostics(lastRawPointer);
 });
 // A rotation can change the SVG's screen transform between pointer samples.
 // End that gesture safely; the next touch resumes from the accepted endpoint.
@@ -809,7 +707,6 @@ $('#pause-game').addEventListener('click', () => openOverlay($('#pause-dialog'),
 $('#qa-open-home').addEventListener('click', openQaConfiguration);
 $('#qa-open-game').addEventListener('click', openQaConfiguration);
 $('#qa-config-return').addEventListener('click', returnFromQaConfiguration);
-$('#qa-input-mode').addEventListener('change', event => selectQaInputMode(event.currentTarget.value));
 $('#pause-settings').addEventListener('click', openSettingsFromPause);
 function resumeFromPause() { paused = false; closeOverlay(); startTimer(); }
 $('#resume-game').addEventListener('click', resumeFromPause);
@@ -831,13 +728,11 @@ $('#open-credits').addEventListener('click', () => { activeScreen($('#about')); 
 $('#sound-effects').addEventListener('change', event => savePreferences({ soundEffects: event.currentTarget.checked }));
 $('#zoom-assist').addEventListener('change', event => savePreferences({ zoomAssist: event.currentTarget.checked }));
 $('#paper-theme').addEventListener('change', event => savePreferences({ paperTheme: event.currentTarget.value }));
-$('#control-mode').addEventListener('change', event => savePreferences({ controlMode: event.currentTarget.value }));
 $('#visual-theme').addEventListener('change', event => saveThemePreference(event.currentTarget.value));
 $('#reset-settings').addEventListener('click', () => openOverlay($('#reset-dialog')));
 $('#cancel-reset').addEventListener('click', () => closeOverlay());
 $('#confirm-reset').addEventListener('click', () => {
   preferences = writePreferences({ ...DEFAULT_PREFERENCES }, deviceStorage);
-  qaInputModeState.setPlayerMode(preferences.controlMode);
   activeVisualTheme = chooseLaunchTheme('auto', activeVisualTheme, Math.random, canPersistPreferences);
   preferences = writePreferences({ ...preferences, lastAutoTheme: activeVisualTheme }, deviceStorage);
   applyVisualTheme(document, activeVisualTheme);

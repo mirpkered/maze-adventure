@@ -1,15 +1,5 @@
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-/** Convert a physical CSS-pixel touch radius into the maze's cell units. */
-export function mazeDistanceForScreenPixels(distancePixels, cellSize, pixelsPerSvgUnit) {
-  if (![distancePixels, cellSize, pixelsPerSvgUnit].every(Number.isFinite)
-    || distancePixels < 0 || cellSize <= 0 || pixelsPerSvgUnit <= 0) {
-    throw new TypeError('Touch distance conversion requires nonnegative pixels and positive geometry scales.');
-  }
-  const pixelsPerMazeUnit = cellSize * pixelsPerSvgUnit;
-  return { mazeUnits: distancePixels / pixelsPerMazeUnit, pixelsPerMazeUnit };
-}
-
 /**
  * A square, bounded 2D camera over the maze's existing SVG coordinate space.
  * It only changes the presentation viewBox; it never mutates tracing state.
