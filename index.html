@@ -125,6 +125,17 @@
       <section id="qa-config" class="screen info-screen qa-config-screen" aria-labelledby="qa-config-title" hidden>
         <header class="view-header qa-config-header"><button class="back-button" id="qa-config-return">← Return to Game</button><div><p class="eyebrow">INTERNAL TESTING</p><h1 id="qa-config-title" tabindex="-1">QA configuration</h1></div></header>
         <p class="qa-config-notice" id="qa-config-notice">Gameplay is suspended while these controls are open. Your maze and pencil marks are preserved.</p>
+        <section id="qa-zoom-controls" class="settings-panel qa-zoom-controls" aria-labelledby="qa-zoom-title" hidden>
+          <h2 id="qa-zoom-title">Zoom Assist comparison</h2>
+          <p>Compare how much of the maze you can see while keeping the same maze and pencil position. This test setting applies only during QA.</p>
+          <label for="qa-zoom-magnification">Close View magnification</label>
+          <select id="qa-zoom-magnification" aria-describedby="qa-zoom-status">
+            <option value="2">2.0× — Current</option>
+            <option value="1.75">1.75× — Candidate</option>
+            <option value="1.5">1.5× — Wide</option>
+          </select>
+          <output id="qa-zoom-status" class="qa-zoom-status" aria-live="polite">Selected for this QA session: 2.0×. Ordinary play remains at 2.0×.</output>
+        </section>
         <output id="trace-diagnostics" class="trace-diagnostics" hidden aria-live="off"></output>
         <section id="trace-diagnostic-tools" class="trace-diagnostic-tools" hidden aria-label="QA tracing diagnostics">
           <div class="diagnostic-actions"><button id="copy-qa-summary" class="small-button">Copy quick summary</button><button id="copy-qa-incident" class="small-button">Copy recent incident</button><button id="copy-trace-report" class="small-button">Share / export full report</button><button id="reset-trace-log" class="small-button">Reset current log</button><button id="clear-qa-sessions" class="small-button">Clear saved QA sessions</button><button id="disable-qa-mode" class="small-button">Exit QA mode</button></div>

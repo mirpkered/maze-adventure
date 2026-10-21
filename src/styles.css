@@ -334,6 +334,8 @@ body[data-qa="true"] #qa-config .trace-diagnostic-tools:not([hidden]) { display:
 #trace-diagnostic-status { color: #533c31; font-size: 12px; }
 #qa-retention-status,.qa-privacy-note { color: #533c31; font-size: 11px; margin: 2px 0; }
 .qa-session-picker { font-size: 11px; color: #533c31; }
+.qa-zoom-controls { margin-top: 8px; }
+.qa-zoom-status { display: block; margin-top: 9px; color: var(--muted); font-size: 12px; }
 #qa-session-history { max-width: 100%; padding: 6px; border: 1px solid #b8aa96; border-radius: 6px; color: #3f5147; background: #fbf7ef; }
 #trace-diagnostic-fallback { box-sizing: border-box; width: 100%; min-height: 120px; padding: 8px; font: 11px/1.4 ui-monospace, monospace; }
 button:focus-visible, a:focus-visible { outline-offset: 4px; }

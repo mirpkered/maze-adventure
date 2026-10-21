@@ -2,7 +2,7 @@ import { createMazeForDifficulty, FREE_PLAY_DIFFICULTIES, getShortestPath, getWa
 import { createTraceSession } from './tracing.js';
 import { DEFAULT_PREFERENCES, PREFERENCES_KEY, readPreferences, writePreferences } from './preferences.js';
 import { clientToViewBoxPoint, getMazeGridGeometry, mazeToSvgPoint, svgToMazePoint, transformPoint } from './coordinates.js';
-import { createMazeCamera } from './maze-camera.js';
+import { createMazeCamera, createQaZoomState, effectiveCameraZoom } from './maze-camera.js';
 import { tracePathData } from './trace-rendering.js';
 import { createTraceRecorder, mazeLayoutId } from './trace-diagnostics.js';
 import { bindEmblemQaTrigger, closeQaSession, startQaSession } from './qa-mode.js';
@@ -21,7 +21,7 @@ let deviceStorage = null;
 try { deviceStorage = window.localStorage; } catch { /* Private or embedded contexts may block storage. */ }
 const SIZE = 400, PAD = 24;
 let gridGeometry = getMazeGridGeometry(7, 7, SIZE, PAD);
-const mazeCamera = createMazeCamera({ viewSize: SIZE, zoom: 2 });
+let mazeCamera = createMazeCamera({ viewSize: SIZE, zoom: 2 });
 let cameraPosition = mazeCamera.snapshot();
 let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, timerId, mazeCompleted = false;
 let selectedDifficulty = 'easy';
@@ -53,6 +53,7 @@ for (const { value, label } of THEME_PREFERENCE_OPTIONS) {
 }
 let settingsReturnToPlay = false;
 let qaEnabled = startQaSession(location, history, deviceStorage);
+const qaZoomState = createQaZoomState();
 const steeringController = createSteeringController();
 let steeringPointerId = null, steeringFrameId = null, steeringHadBlock = false, lastSteeringBlockReason = null;
 let lastRawPointer = null, lastClientPointer = null;
@@ -63,6 +64,42 @@ let persistTimer = null;
 let currentLayoutId = null;
 if (qaEnabled) document.body.dataset.qa = 'true';
 
+function currentCameraZoom() {
+  return effectiveCameraZoom({ qaEnabled, qaZoom: qaZoomState.value, ordinaryZoom: 2 });
+}
+
+function refreshCameraForZoom() {
+  mazeCamera = createMazeCamera({ viewSize: SIZE, zoom: currentCameraZoom() });
+  cameraPosition = traceSession
+    ? mazeCamera.center(svgPoint(traceSession.position))
+    : mazeCamera.snapshot();
+  $('#zoom-factor-label').textContent = `· ${cameraPosition.zoom}×`;
+  if (traceSession) renderTrace();
+}
+
+function syncQaZoomControls() {
+  const selector = $('#qa-zoom-magnification');
+  const zoom = qaZoomState.value;
+  if (selector) selector.value = String(zoom);
+  const status = $('#qa-zoom-status');
+  if (status) status.textContent = `Selected for this QA session: ${zoom.toFixed(2).replace(/0$/, '')}×. Ordinary play remains at 2.0×.`;
+  const indicator = $('#qa-active-mode-indicator');
+  if (indicator) {
+    indicator.hidden = !qaEnabled;
+    indicator.textContent = `QA · Steering · ${zoom}×`;
+  }
+}
+
+function selectQaZoom(value) {
+  if (!qaEnabled || $('#qa-config').hidden) return;
+  stopActiveInput();
+  if (!qaZoomState.select(value, { qaEnabled })) return;
+  refreshCameraForZoom();
+  syncQaZoomControls();
+  updateTraceDiagnostics();
+  queueQaPersistence();
+}
+
 function stopActiveInput() {
   if (activePointerId !== null) clearPointer();
   else {
@@ -72,6 +109,8 @@ function stopActiveInput() {
 }
 
 function setQaMode(enabled) {
+  const previouslyEffectiveZoom = currentCameraZoom();
+  const wasEnabled = qaEnabled;
   if (qaEnabled && !enabled) {
     clearTimeout(persistTimer);
     if (traceRecorder && traceSession && qaSessionId) qaStore.save(diagnosticReportObject(), { sessionId: qaSessionId, buildId: APP_BUILD_ID });
@@ -79,6 +118,8 @@ function setQaMode(enabled) {
   const nextEnabled = Boolean(enabled);
   if (!nextEnabled) stopActiveInput();
   qaEnabled = nextEnabled;
+  if (wasEnabled && !nextEnabled) qaZoomState.reset();
+  if (previouslyEffectiveZoom !== currentCameraZoom()) refreshCameraForZoom();
   if (qaEnabled) {
     traceRecorder ??= createTraceRecorder({ limit: 400 });
     qaSessionId ??= `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -105,8 +146,9 @@ function syncQaControls() {
   $('#qa-open-home').hidden = !qaEnabled || $('#home').hidden;
   $('#qa-open-game').hidden = !qaEnabled;
   $('#qa-active-input-mode').textContent = 'Control system: Continuous Steering';
-  $('#qa-active-mode-indicator').textContent = 'QA · Steering';
-  $('#qa-active-mode-indicator').hidden = !qaEnabled;
+  $('#qa-zoom-controls').hidden = !qaEnabled;
+  $('#qa-zoom-magnification').value = String(qaZoomState.value);
+  syncQaZoomControls();
   if (qaEnabled) refreshQaSessions();
 }
 
@@ -150,6 +192,7 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
     interpolationCount: movement?.interpolatedSamples ?? 0,
     zoomAssist: preferences.zoomAssist,
     zoomFactor: preferences.zoomAssist ? cameraPosition.zoom : 1,
+    qaSelectedZoomFactor: qaEnabled ? qaZoomState.value : null,
     cameraPosition: preferences.zoomAssist ? { x: Math.round(cameraPosition.x * 100) / 100, y: Math.round(cameraPosition.y * 100) / 100 } : null,
     inputPanel: preferences.zoomAssist ? 'close-view' : 'full-maze',
     attemptedTransitions: movement?.attemptedTransitions ?? [],
@@ -195,6 +238,7 @@ function diagnosticReportObject() {
     buildId: APP_BUILD_ID,
     zoomAssist: preferences.zoomAssist,
     zoomFactor: preferences.zoomAssist ? cameraPosition.zoom : 1,
+    qaSelectedZoomFactor: qaEnabled ? qaZoomState.value : null,
     cameraPosition: preferences.zoomAssist ? { x: cameraPosition.x, y: cameraPosition.y } : null,
     controlSystem: 'continuous-steering',
     activeController: state?.active ? 'continuous-steering' : 'idle',
@@ -220,7 +264,7 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   const state = traceSession.diagnostics;
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
   const reversal = state.candidateReversal ? `${state.candidateReversal.x},${state.candidateReversal.y} (${state.candidateReversalOpen ? 'open' : 'closed'})` : 'none';
-  output.textContent = `QA trace · build ${APP_BUILD_ID} · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · zoom ${preferences.zoomAssist ? `${cameraPosition.zoom}× close view (${cameraPosition.x.toFixed(0)},${cameraPosition.y.toFixed(0)})` : 'off'} · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  output.textContent = `QA trace · build ${APP_BUILD_ID} · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · zoom ${preferences.zoomAssist ? `${cameraPosition.zoom}× close view (${cameraPosition.x.toFixed(0)},${cameraPosition.y.toFixed(0)})` : 'off'} · QA selection ${qaZoomState.value}× · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -258,6 +302,7 @@ function openQaConfiguration() {
     $('#qa-config-notice').textContent = 'Review tracing behavior and reports here. Gameplay remains untouched until you return to the game.';
   }
   activeScreen($('#qa-config'));
+  updateTraceDiagnostics();
   $('#qa-config-title').focus({ preventScroll: true });
 }
 
@@ -319,6 +364,7 @@ function renderTrace() {
 
 function renderMaze() {
   gridGeometry = getMazeGridGeometry(maze.width, maze.height, SIZE, PAD);
+  mazeCamera = createMazeCamera({ viewSize: SIZE, zoom: currentCameraZoom() });
   const startPoint = svgPoint(maze.start);
   cameraPosition = mazeCamera.center(startPoint);
   $('#zoom-factor-label').textContent = `· ${cameraPosition.zoom}×`;
@@ -383,6 +429,8 @@ function savePreferences(update) {
     if (preferences.zoomAssist && traceSession) cameraPosition = mazeCamera.center(svgPoint(traceSession.position));
     if (!mazeCompleted && !$('#play').hidden) $('#play-hint').textContent = `Touch ${preferences.zoomAssist ? 'the Close View' : 'the maze'} to set a steering origin. Move away to guide the pencil; return to center or lift to stop.`;
     if (traceSession) renderTrace();
+    updateTraceDiagnostics();
+    queueQaPersistence();
   }
 }
 function saveThemePreference(themePreference) {
@@ -707,6 +755,7 @@ $('#pause-game').addEventListener('click', () => openOverlay($('#pause-dialog'),
 $('#qa-open-home').addEventListener('click', openQaConfiguration);
 $('#qa-open-game').addEventListener('click', openQaConfiguration);
 $('#qa-config-return').addEventListener('click', returnFromQaConfiguration);
+$('#qa-zoom-magnification').addEventListener('change', event => selectQaZoom(Number(event.currentTarget.value)));
 $('#pause-settings').addEventListener('click', openSettingsFromPause);
 function resumeFromPause() { paused = false; closeOverlay(); startTimer(); }
 $('#resume-game').addEventListener('click', resumeFromPause);

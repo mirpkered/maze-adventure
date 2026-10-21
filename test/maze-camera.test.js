@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMazeCamera } from '../src/maze-camera.js';
+import { createMazeCamera, createQaZoomState, effectiveCameraZoom, QA_ZOOM_LEVELS } from '../src/maze-camera.js';
 import { transformPoint } from '../src/coordinates.js';
+import { createSteeringController } from '../src/continuous-steering.js';
+import { createTraceSession } from '../src/tracing.js';
 
 test('close camera stays at 2x magnification and follows each maze boundary within padded limits', () => {
   const camera = createMazeCamera({ viewSize: 400, zoom: 2 });
@@ -87,4 +89,75 @@ test('repeated corner turns do not accumulate camera-relative coordinate drift',
   assert.deepEqual(steps.map(point => ({ x: Math.round(point.x * 1e10) / 1e10, y: Math.round(point.y * 1e10) / 1e10 })), [
     { x: 1.25, y: 0 }, { x: 0, y: 1.25 }, { x: 0, y: 1.25 }, { x: 1.25, y: 0 }, { x: 1.25, y: 0 },
   ]);
+});
+
+test('QA magnification offers only the three comparison values and stays isolated from ordinary play', () => {
+  assert.deepEqual(QA_ZOOM_LEVELS.map(level => level.value), [2, 1.75, 1.5]);
+  const selection = createQaZoomState();
+  assert.equal(selection.value, 2);
+  assert.equal(selection.select(1.75), false, 'a disabled QA session cannot set an override');
+  assert.equal(selection.value, 2);
+  assert.equal(selection.select(1.75, { qaEnabled: true }), true);
+  assert.equal(selection.value, 1.75);
+  assert.equal(effectiveCameraZoom({ qaEnabled: true, qaZoom: selection.value }), 1.75);
+  assert.equal(effectiveCameraZoom({ qaEnabled: false, qaZoom: selection.value }), 2,
+    'the QA choice cannot alter ordinary gameplay magnification');
+  selection.reset();
+  assert.equal(selection.value, 2, 'ending QA discards its in-memory selection');
+  assert.equal(selection.select(1.25, { qaEnabled: true }), false, 'unsupported values are rejected');
+});
+
+test('each QA magnification computes a correctly centered and clamped square camera at all maze edges', () => {
+  for (const zoom of QA_ZOOM_LEVELS.map(level => level.value)) {
+    const camera = createMazeCamera({ viewSize: 400, zoom });
+    const expectedSpan = 400 / zoom;
+    assert.ok(Math.abs(camera.snapshot().width - expectedSpan) < 1e-9);
+    assert.ok(Math.abs(camera.snapshot().height - expectedSpan) < 1e-9);
+    for (const point of [{ x: 0, y: 200 }, { x: 400, y: 200 }, { x: 200, y: 0 }, { x: 200, y: 400 }]) {
+      const view = camera.center(point);
+      assert.ok(view.x >= -26 && view.x <= 426 - expectedSpan);
+      assert.ok(view.y >= -26 && view.y <= 426 - expectedSpan);
+      assert.ok(point.x >= view.x && point.x <= view.x + view.width);
+      assert.ok(point.y >= view.y && point.y <= view.y + view.height);
+      assert.equal(view.zoom, zoom);
+    }
+  }
+});
+
+test('changing camera magnification cannot change authoritative Steering/tracer movement', () => {
+  const cells = Array.from({ length: 3 }, (_, y) => Array.from({ length: 3 }, (_, x) => ({
+    x, y, walls: { N: true, E: true, S: true, W: true },
+  })));
+  for (const [from, to, direction, opposite] of [
+    [{ x: 1, y: 0 }, { x: 1, y: 1 }, 'S', 'N'],
+    [{ x: 1, y: 1 }, { x: 1, y: 2 }, 'S', 'N'],
+  ]) {
+    cells[from.y][from.x].walls[direction] = false;
+    cells[to.y][to.x].walls[opposite] = false;
+  }
+  cells[0][1].walls.N = false;
+  const maze = { width: 3, height: 3, cells, start: { x: 1, y: 0 }, end: { x: 1, y: 2 },
+    entrance: { cell: { x: 1, y: 0 }, side: 'N' }, exit: { cell: { x: 1, y: 2 }, side: 'S' } };
+
+  function run(zoom) {
+    const camera = createMazeCamera({ viewSize: 400, zoom });
+    const session = createTraceSession(maze), controller = createSteeringController(), pointer = 12;
+    session.beginSteering(pointer);
+    controller.begin(pointer, { x: 80, y: 80 });
+    controller.update(pointer, { x: 80, y: 156 });
+    controller.advance(pointer, 0);
+    camera.center(session.position);
+    for (let frame = 1; frame <= 48; frame++) {
+      const movement = controller.advance(pointer, frame * (1000 / 60));
+      const accepted = session.steer(pointer, movement);
+      assert.equal(accepted.blocked, false, `same open path remains legal at ${zoom}×`);
+      camera.follow(session.position);
+    }
+    return { position: session.position, route: session.path, ink: session.stroke };
+  }
+
+  const results = QA_ZOOM_LEVELS.map(level => run(level.value));
+  assert.deepEqual(results[1], results[0]);
+  assert.deepEqual(results[2], results[0]);
+  assert.ok(results[0].position.y > 1, 'the integration crosses an open cell edge');
 });

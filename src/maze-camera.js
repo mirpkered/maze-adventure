@@ -42,3 +42,31 @@ export function createMazeCamera({ viewSize = 400, zoom = 2, edgePadding = 26, f
   return { center: centered, follow, snapshot };
 }
 
+export const QA_ZOOM_LEVELS = Object.freeze([
+  Object.freeze({ value: 2, label: '2.0× — Current' }),
+  Object.freeze({ value: 1.75, label: '1.75× — Candidate' }),
+  Object.freeze({ value: 1.5, label: '1.5× — Wide' }),
+]);
+export const DEFAULT_QA_ZOOM = 2;
+
+const isSupportedQaZoom = value => QA_ZOOM_LEVELS.some(level => level.value === value);
+
+/** Ephemeral QA-only selection. It intentionally has no storage integration. */
+export function createQaZoomState(initial = DEFAULT_QA_ZOOM) {
+  let selected = isSupportedQaZoom(initial) ? initial : DEFAULT_QA_ZOOM;
+  return {
+    get value() { return selected; },
+    select(value, { qaEnabled = false } = {}) {
+      if (!qaEnabled || !isSupportedQaZoom(value)) return false;
+      selected = value;
+      return true;
+    },
+    reset() { selected = DEFAULT_QA_ZOOM; },
+  };
+}
+
+/** Normal play always uses the established 2× camera, regardless of QA state. */
+export function effectiveCameraZoom({ qaEnabled = false, qaZoom = DEFAULT_QA_ZOOM, ordinaryZoom = 2 } = {}) {
+  return qaEnabled && isSupportedQaZoom(qaZoom) ? qaZoom : ordinaryZoom;
+}
+
