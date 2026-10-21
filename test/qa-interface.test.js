@@ -15,6 +15,8 @@ test('QA configuration is a separate screen and no diagnostic controls live in g
   assert.match(config, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(config, /id="qa-zoom-controls"[^>]*hidden[\s\S]*?id="qa-zoom-magnification"[\s\S]*?value="2"[\s\S]*?value="1\.75"[\s\S]*?value="1\.5"/);
   assert.match(config, /Ordinary play remains at 2\.0×/);
+  assert.match(config, /id="qa-layout-controls"[^>]*hidden[\s\S]*?id="qa-close-view-size"[\s\S]*?value="current"[\s\S]*?value="compact"[\s\S]*?value="extra-compact"/);
+  assert.match(config, /id="qa-close-view-status"/);
   assert.doesNotMatch(config, /<select[^>]*(?:input|mode)|Direct Touch/i, 'QA has no retired input-mode controls');
   assert.match(config, /Control system: Continuous Steering/);
   assert.match(config, /id="qa-config-return"/);
@@ -27,7 +29,22 @@ test('QA zoom comparison is isolated to the Close View camera and reports the se
   assert.match(game, /function refreshCameraForZoom\(\)[\s\S]*?createMazeCamera\(\{ viewSize: SIZE, zoom: currentCameraZoom\(\) \}\)[\s\S]*?mazeCamera\.center\(svgPoint\(traceSession\.position\)\)/);
   assert.match(game, /qaSelectedZoomFactor: qaEnabled \? qaZoomState\.value : null/);
   assert.match(camera, /effectiveCameraZoom\([\s\S]*?qaEnabled && isSupportedQaZoom\(qaZoom\) \? qaZoom : ordinaryZoom/);
-  assert.match(worker, /shell-v38/);
+  assert.match(worker, /shell-v39/);
+});
+
+test('QA panel-size selection is independent from magnification and leaves gameplay state authoritative', async () => {
+  const game = await read('src/game.js'), css = await read('src/styles.css'), worker = await read('service-worker.js');
+  assert.match(game, /createQaCloseViewLayoutState\(\)/);
+  assert.match(game, /qaCloseViewLayout\.select\(event\.currentTarget\.value, \{ qaEnabled \}\)/);
+  assert.match(game, /qaCloseViewLayout\.reset\(\)/);
+  assert.match(game, /renderTrace\(\);\s*updateTraceDiagnostics\(\);\s*queueQaPersistence\(\);/);
+  assert.match(game, /qaCloseViewPanelSize: qaEnabled \? qaCloseViewLayout\.value : null/);
+  assert.match(game, /qaLayoutMeasurements: qaLayoutMeasurements\(\)/);
+  assert.match(game, /applyQaOverviewSizing\(\)[\s\S]*?calculateQaOverviewSize\(/);
+  assert.match(css, /body\[data-qa="true"\]\[data-zoom-assist="true"\]\[data-screen="play"\]\[data-qa-close-view-size="compact"\] \.maze-close-panel/);
+  assert.match(css, /data-qa-close-view-size="extra-compact"/);
+  assert.match(worker, /\.\/src\/qa-layout-state\.js/);
+  assert.match(worker, /shell-v39/);
 });
 
 test('opening QA pauses the game and cancels input; returning preserves the same screen and resumes only a running timer', async () => {

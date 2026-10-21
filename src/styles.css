@@ -644,6 +644,33 @@ body[data-visual-theme="camp-dusk"] .maze-paper { border: 5px solid #60472f; bor
   .theme-artwork { filter: none !important; }
 }
 
+/* QA-only panel comparison. These square surfaces keep their aspect ratio;
+   the candidate overview grows only into actual workspace space calculated
+   by the layout observer. Current remains byte-for-byte equivalent in size. */
+body[data-qa="true"][data-zoom-assist="true"][data-screen="play"][data-qa-close-view-size="compact"] .maze-close-panel {
+  width: min(100%, 32dvh);
+  height: auto;
+}
+body[data-qa="true"][data-zoom-assist="true"][data-screen="play"][data-qa-close-view-size="extra-compact"] .maze-close-panel {
+  width: min(100%, 28.5dvh);
+  height: auto;
+}
+body[data-qa="true"][data-zoom-assist="true"][data-screen="play"][data-qa-close-view-size="compact"] .maze-overview-panel,
+body[data-qa="true"][data-zoom-assist="true"][data-screen="play"][data-qa-close-view-size="extra-compact"] .maze-overview-panel {
+  width: min(100%, var(--qa-overview-panel-size, 100%));
+  height: auto;
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  body[data-qa="true"][data-zoom-assist="true"][data-screen="play"][data-qa-close-view-size="compact"] .maze-close-panel {
+    width: min(100%, 34.4dvh);
+    height: auto;
+  }
+  body[data-qa="true"][data-zoom-assist="true"][data-screen="play"][data-qa-close-view-size="extra-compact"] .maze-close-panel {
+    width: min(100%, 30.64dvh);
+    height: auto;
+  }
+}
+
 /* Organic journal pass: keep the shared layout, and let each world shape its surfaces. */
 body[data-visual-theme] .home-copy {
   position: relative;

@@ -9,6 +9,7 @@ import { bindEmblemQaTrigger, closeQaSession, startQaSession } from './qa-mode.j
 import { pointerMovementSamples } from './pointer-samples.js';
 import { APP_BUILD_ID } from './build-info.js';
 import { createQaDiagnosticsStore, createQuickSummary, createRecentIncident } from './qa-diagnostics-store.js';
+import { calculateQaOverviewSize, createQaCloseViewLayoutState, getQaCloseViewTargetHeight } from './qa-layout-state.js';
 import { applyVisualTheme, chooseLaunchTheme, THEME_PREFERENCE_OPTIONS } from './themes.js';
 import { createSteeringController } from './continuous-steering.js';
 import { captureQaReturnState, restoreQaReturnState } from './qa-view-state.js';
@@ -54,6 +55,7 @@ for (const { value, label } of THEME_PREFERENCE_OPTIONS) {
 let settingsReturnToPlay = false;
 let qaEnabled = startQaSession(location, history, deviceStorage);
 const qaZoomState = createQaZoomState();
+const qaCloseViewLayout = createQaCloseViewLayoutState();
 const steeringController = createSteeringController();
 let steeringPointerId = null, steeringFrameId = null, steeringHadBlock = false, lastSteeringBlockReason = null;
 let lastRawPointer = null, lastClientPointer = null;
@@ -62,6 +64,9 @@ const qaStore = createQaDiagnosticsStore(deviceStorage);
 let qaSessionId = qaEnabled ? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` : null;
 let persistTimer = null;
 let currentLayoutId = null;
+let lastQaWorkspaceSize = null;
+let lastQaLayoutMeasurements = null;
+let lastQaMeasuredLayout = null;
 if (qaEnabled) document.body.dataset.qa = 'true';
 
 function currentCameraZoom() {
@@ -118,7 +123,13 @@ function setQaMode(enabled) {
   const nextEnabled = Boolean(enabled);
   if (!nextEnabled) stopActiveInput();
   qaEnabled = nextEnabled;
-  if (wasEnabled && !nextEnabled) qaZoomState.reset();
+  if (wasEnabled && !nextEnabled) {
+    qaZoomState.reset();
+    qaCloseViewLayout.reset();
+    lastQaMeasuredLayout = null;
+    lastQaLayoutMeasurements = null;
+    $('#maze-workspace').style.removeProperty('--qa-overview-panel-size');
+  }
   if (previouslyEffectiveZoom !== currentCameraZoom()) refreshCameraForZoom();
   if (qaEnabled) {
     traceRecorder ??= createTraceRecorder({ limit: 400 });
@@ -141,6 +152,8 @@ function setQaMode(enabled) {
 function syncQaControls() {
   if (qaEnabled) document.body.dataset.qa = 'true';
   else delete document.body.dataset.qa;
+  if (qaEnabled) document.body.dataset.qaCloseViewSize = qaCloseViewLayout.value;
+  else delete document.body.dataset.qaCloseViewSize;
   $('#trace-diagnostic-tools').hidden = !qaEnabled;
   $('#trace-diagnostics').hidden = !qaEnabled || !traceSession;
   $('#qa-open-home').hidden = !qaEnabled || $('#home').hidden;
@@ -148,9 +161,100 @@ function syncQaControls() {
   $('#qa-active-input-mode').textContent = 'Control system: Continuous Steering';
   $('#qa-zoom-controls').hidden = !qaEnabled;
   $('#qa-zoom-magnification').value = String(qaZoomState.value);
+  $('#qa-layout-controls').hidden = !qaEnabled;
+  $('#qa-close-view-size').value = qaCloseViewLayout.value;
+  applyQaOverviewSizing();
+  updateQaLayoutStatus();
   syncQaZoomControls();
   if (qaEnabled) refreshQaSessions();
 }
+
+function qaLayoutMeasurements() {
+  if (!qaEnabled || !preferences.zoomAssist || $('#play').hidden) return null;
+  const overview = overviewSvg.getBoundingClientRect();
+  const close = $('#maze-paper').getBoundingClientRect();
+  if (!overview.width || !close.width) return null;
+  let wallBounds = null;
+  try { wallBounds = overviewSvg.querySelector('.walls')?.getBBox?.() ?? null; } catch { /* Fall back to the SVG viewport when SVG geometry measurement is unavailable. */ }
+  const view = overviewSvg.viewBox.baseVal;
+  const mazeScaleX = view.width ? overview.width / view.width : 1;
+  const mazeScaleY = view.height ? overview.height / view.height : 1;
+  return {
+    overviewMaze: wallBounds
+      ? { width: Math.round(wallBounds.width * mazeScaleX), height: Math.round(wallBounds.height * mazeScaleY) }
+      : { width: Math.round(overview.width), height: Math.round(overview.height) },
+    closeViewPanel: { width: Math.round(close.width), height: Math.round(close.height) },
+  };
+}
+
+function applyQaOverviewSizing() {
+  const workspace = $('#maze-workspace');
+  if ($('#play').hidden || !preferences.zoomAssist) {
+    if (!qaEnabled || !preferences.zoomAssist) workspace.style.removeProperty('--qa-overview-panel-size');
+    return;
+  }
+  const bounds = workspace.getBoundingClientRect();
+  const closeHeight = $('#maze-paper').getBoundingClientRect().height;
+  if (!bounds.width || !bounds.height || !closeHeight) return;
+  lastQaWorkspaceSize = { width: bounds.width, height: bounds.height };
+  if (!qaEnabled || qaCloseViewLayout.value === 'current') {
+    workspace.style.removeProperty('--qa-overview-panel-size');
+  } else {
+    const gap = Number.parseFloat(getComputedStyle(workspace).rowGap) || 0;
+    const size = calculateQaOverviewSize({
+      layout: qaCloseViewLayout.value,
+      workspaceWidth: bounds.width,
+      workspaceHeight: bounds.height,
+      closeViewHeight: closeHeight,
+      viewportHeight: window.innerHeight,
+      gap,
+    });
+    if (size > 0) workspace.style.setProperty('--qa-overview-panel-size', `${size}px`);
+  }
+  if (qaEnabled) {
+    const measurements = qaLayoutMeasurements();
+    if (measurements) {
+      lastQaLayoutMeasurements = measurements;
+      lastQaMeasuredLayout = qaCloseViewLayout.value;
+    }
+  }
+}
+
+function updateQaLayoutStatus() {
+  const status = $('#qa-close-view-status');
+  if (!status || !qaEnabled) return;
+  const selected = qaCloseViewLayout.value;
+  if (!preferences.zoomAssist) {
+    const label = selected === 'extra-compact' ? 'Extra Compact' : selected === 'compact' ? 'Compact' : 'Current';
+    status.textContent = `Selected: ${label}. Zoom Assist is off, so split-screen panel sizing is inactive; the full-maze view remains unchanged.`;
+    return;
+  }
+  const measured = qaLayoutMeasurements() ?? (lastQaMeasuredLayout === selected ? lastQaLayoutMeasurements : null);
+  if (measured) {
+    status.textContent = `Selected: ${selected === 'extra-compact' ? 'Extra Compact' : selected === 'compact' ? 'Compact' : 'Current'} · Close View ${measured.closeViewPanel.width} × ${measured.closeViewPanel.height} CSS px · overview maze ${measured.overviewMaze.width} × ${measured.overviewMaze.height} CSS px. Panel size is independent of magnification; set the separate Zoom Assist comparison to 2.0×.`;
+    return;
+  }
+  const workspaceWidth = lastQaWorkspaceSize?.width ?? window.innerWidth;
+  const landscapeBaseDvh = window.matchMedia('(orientation: landscape) and (max-height: 520px)').matches ? 43 : 40;
+  const target = getQaCloseViewTargetHeight(selected, window.innerHeight, workspaceWidth, landscapeBaseDvh);
+  const overviewSize = lastQaWorkspaceSize ? calculateQaOverviewSize({
+    layout: selected,
+    workspaceWidth: lastQaWorkspaceSize.width,
+    workspaceHeight: lastQaWorkspaceSize.height,
+    closeViewHeight: target,
+    viewportHeight: window.innerHeight,
+    gap: 6,
+  }) : null;
+  const label = selected === 'extra-compact' ? 'Extra Compact' : selected === 'compact' ? 'Compact' : 'Current';
+  const estimate = selected === 'current' ? '' : ` · Close View target about ${Math.round(target)}px${overviewSize ? ` · overview panel up to ${Math.round(overviewSize)}px` : ''}`;
+  status.textContent = `Selected: ${label}${estimate}. Panel size is independent of magnification; set the separate Zoom Assist comparison to 2.0×. Ordinary play keeps the Current layout.`;
+}
+
+const qaWorkspaceResizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
+  applyQaOverviewSizing();
+  updateQaLayoutStatus();
+});
+qaWorkspaceResizeObserver?.observe($('#maze-workspace'));
 
 function refreshQaSessions() {
   const picker = $('#qa-session-history');
@@ -193,6 +297,7 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
     zoomAssist: preferences.zoomAssist,
     zoomFactor: preferences.zoomAssist ? cameraPosition.zoom : 1,
     qaSelectedZoomFactor: qaEnabled ? qaZoomState.value : null,
+    qaCloseViewPanelSize: qaEnabled ? qaCloseViewLayout.value : null,
     cameraPosition: preferences.zoomAssist ? { x: Math.round(cameraPosition.x * 100) / 100, y: Math.round(cameraPosition.y * 100) / 100 } : null,
     inputPanel: preferences.zoomAssist ? 'close-view' : 'full-maze',
     attemptedTransitions: movement?.attemptedTransitions ?? [],
@@ -239,6 +344,8 @@ function diagnosticReportObject() {
     zoomAssist: preferences.zoomAssist,
     zoomFactor: preferences.zoomAssist ? cameraPosition.zoom : 1,
     qaSelectedZoomFactor: qaEnabled ? qaZoomState.value : null,
+    qaCloseViewPanelSize: qaEnabled ? qaCloseViewLayout.value : null,
+    qaLayoutMeasurements: qaLayoutMeasurements() ?? (lastQaMeasuredLayout === qaCloseViewLayout.value ? lastQaLayoutMeasurements : null),
     cameraPosition: preferences.zoomAssist ? { x: cameraPosition.x, y: cameraPosition.y } : null,
     controlSystem: 'continuous-steering',
     activeController: state?.active ? 'continuous-steering' : 'idle',
@@ -264,7 +371,9 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   const state = traceSession.diagnostics;
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
   const reversal = state.candidateReversal ? `${state.candidateReversal.x},${state.candidateReversal.y} (${state.candidateReversalOpen ? 'open' : 'closed'})` : 'none';
-  output.textContent = `QA trace · build ${APP_BUILD_ID} · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · zoom ${preferences.zoomAssist ? `${cameraPosition.zoom}× close view (${cameraPosition.x.toFixed(0)},${cameraPosition.y.toFixed(0)})` : 'off'} · QA selection ${qaZoomState.value}× · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  const dimensions = qaLayoutMeasurements() ?? (lastQaMeasuredLayout === qaCloseViewLayout.value ? lastQaLayoutMeasurements : null);
+  const measuredLayout = dimensions ? ` · Close View ${dimensions.closeViewPanel.width}×${dimensions.closeViewPanel.height}px · overview ${dimensions.overviewMaze.width}×${dimensions.overviewMaze.height}px` : '';
+  output.textContent = `QA trace · build ${APP_BUILD_ID} · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · zoom ${preferences.zoomAssist ? `${cameraPosition.zoom}× close view (${cameraPosition.x.toFixed(0)},${cameraPosition.y.toFixed(0)})` : 'off'} · QA zoom ${qaZoomState.value}× · panel ${qaCloseViewLayout.value}${measuredLayout} · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -314,6 +423,16 @@ function returnFromQaConfiguration() {
   activeScreen(targetScreen);
   paused = restoreState.paused;
   if (restoreState.resumeTimer) startTimer();
+  if (targetScreen === $('#play')) requestAnimationFrame(() => {
+    applyQaOverviewSizing();
+    // A square panel keeps the same square 2× viewBox; preserve the camera
+    // origin so a layout comparison never moves the authoritative pencil.
+    renderTrace();
+    lastQaLayoutMeasurements = qaLayoutMeasurements() ?? lastQaLayoutMeasurements;
+    updateQaLayoutStatus();
+    updateTraceDiagnostics();
+    queueQaPersistence();
+  });
   const opener = qaReturnFocus;
   qaReturnFocus = null;
   const focusTarget = opener?.isConnected && !opener.closest('[hidden]')
@@ -756,6 +875,17 @@ $('#qa-open-home').addEventListener('click', openQaConfiguration);
 $('#qa-open-game').addEventListener('click', openQaConfiguration);
 $('#qa-config-return').addEventListener('click', returnFromQaConfiguration);
 $('#qa-zoom-magnification').addEventListener('change', event => selectQaZoom(Number(event.currentTarget.value)));
+$('#qa-close-view-size').addEventListener('change', event => {
+  if (!qaEnabled || $('#qa-config').hidden) return;
+  stopActiveInput();
+  if (!qaCloseViewLayout.select(event.currentTarget.value, { qaEnabled })) return;
+  document.body.dataset.qaCloseViewSize = qaCloseViewLayout.value;
+  applyQaOverviewSizing();
+  updateQaLayoutStatus();
+  renderTrace();
+  updateTraceDiagnostics();
+  queueQaPersistence();
+});
 $('#pause-settings').addEventListener('click', openSettingsFromPause);
 function resumeFromPause() { paused = false; closeOverlay(); startTimer(); }
 $('#resume-game').addEventListener('click', resumeFromPause);

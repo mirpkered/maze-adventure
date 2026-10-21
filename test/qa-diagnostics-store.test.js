@@ -35,6 +35,7 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
   const zoomSummary = createQuickSummary({ ...report, zoomAssist: true, zoomFactor: 1.75, qaSelectedZoomFactor: 1.75 });
   assert.match(zoomSummary, /QA Zoom Assist 1\.75× \| Close View 1\.75×/);
   assert.match(createQuickSummary({ ...report, zoomAssist: false, zoomFactor: 1, qaSelectedZoomFactor: 1.5 }), /QA Zoom Assist off \| 1\.5× selected/);
+  assert.match(createQuickSummary({ ...report, qaCloseViewPanelSize: 'compact', qaLayoutMeasurements: { closeViewPanel: { width: 270, height: 270 }, overviewMaze: { width: 340, height: 340 } } }), /QA Close View compact \| panel 270×270px \| overview maze 340×340px/);
   const explicitMode = createQuickSummary({ ...report, inputMode: 'direct-touch', selectedInputMode: 'continuous-steering', activeController: 'continuous-steering' });
   assert.match(explicitMode, /selected Continuous Steering \| gesture controller continuous-steering/,
     'historical reports retain the mode and controller they recorded');

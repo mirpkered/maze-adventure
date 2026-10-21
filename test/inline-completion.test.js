@@ -27,7 +27,7 @@ test('completion is an inline play-screen state with a single accessible result 
   assert.match(game, /mazeCompleted = false;\s*delete document\.body\.dataset\.completed;\s*\$\('#completion-panel'\)\.hidden = true/);
   assert.match(game, /\$\('#restart-maze'\)\.addEventListener\('click', \(\) => makeMaze\(true\)\)/);
   assert.match(game, /\$\('#new-maze'\)\.addEventListener\('click', \(\) => makeMaze\(\)\)/);
-  assert.match(worker, /shell-v38/);
+  assert.match(worker, /shell-v39/);
 });
 
 test('Zoom Assist and steering completion preserve an appropriately sized maze layout', async () => {

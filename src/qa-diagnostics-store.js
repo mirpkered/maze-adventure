@@ -70,6 +70,12 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
       ? `QA Zoom Assist ${report.qaSelectedZoomFactor}× | Close View ${report.zoomFactor ?? report.qaSelectedZoomFactor}×`
       : `QA Zoom Assist off | ${report.qaSelectedZoomFactor}× selected`
     : null;
+  const measuredLayout = report.qaLayoutMeasurements;
+  const layoutSummary = report.qaCloseViewPanelSize
+    ? `QA Close View ${report.qaCloseViewPanelSize}${measuredLayout?.closeViewPanel && measuredLayout?.overviewMaze
+      ? ` | panel ${measuredLayout.closeViewPanel.width}×${measuredLayout.closeViewPanel.height}px | overview maze ${measuredLayout.overviewMaze.width}×${measuredLayout.overviewMaze.height}px`
+      : ''}`
+    : null;
   const steeringSummary = report.controlSystem
     ? `control system ${report.controlSystem} | active controller ${activeController}`
     : `${historicalMode === 'continuous-steering' ? 'selected Continuous Steering' : historicalMode === 'direct-touch' ? 'selected Direct Touch' : `selected ${historicalMode ?? 'unknown (legacy report)'}`} | gesture controller ${activeController}`;
@@ -81,6 +87,7 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
     ...(endpointSummary ? [endpointSummary] : []),
     steeringSummary,
     ...(zoomSummary ? [zoomSummary] : []),
+    ...(layoutSummary ? [layoutSummary] : []),
     ...(steeringMetrics ? [steeringMetrics] : []),
     `pencil ${current?.authoritativePosition?.x?.toFixed?.(3) ?? '?'} ${current?.authoritativePosition?.y?.toFixed?.(3) ?? '?'} | cell ${current?.logicalCell?.x ?? '?'},${current?.logicalCell?.y ?? '?'} | gesture ${current?.active ? current.recovering ? 'recovering' : 'active' : 'idle'}`,
     `last rejection ${latestReject?.rejectedReason ?? 'none'} | ${status}`,
