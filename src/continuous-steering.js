@@ -8,11 +8,24 @@ export const DEFAULT_STEERING_SETTINGS = Object.freeze({
   maxFrameSeconds: 0.05,
 });
 
+// The active maze difficulty selects exactly one cap. Keep this table as the
+// single source of truth; Expert has no production speed until it is shipped.
+export const STEERING_SPEED_BY_DIFFICULTY = Object.freeze({
+  easy: 1.725,
+  medium: 2,
+  hard: 2.5,
+});
+
+export function steeringDeflectionForDisplacement(magnitude, settings = DEFAULT_STEERING_SETTINGS) {
+  if (!Number.isFinite(magnitude) || magnitude <= settings.deadZonePixels) return 0;
+  return Math.min(1, (magnitude - settings.deadZonePixels)
+    / (settings.maxDeflectionPixels - settings.deadZonePixels));
+}
+
 /** Continuous, bounded speed response shared by the controller and QA tools. */
 export function steeringSpeedForDisplacement(magnitude, settings = DEFAULT_STEERING_SETTINGS) {
-  if (!Number.isFinite(magnitude) || magnitude <= settings.deadZonePixels) return 0;
-  const strength = Math.min(1, (magnitude - settings.deadZonePixels)
-    / (settings.maxDeflectionPixels - settings.deadZonePixels));
+  const strength = steeringDeflectionForDisplacement(magnitude, settings);
+  if (strength === 0) return 0;
   return settings.maxSpeedMazeUnitsPerSecond * (strength ** settings.speedResponseExponent);
 }
 
@@ -27,7 +40,7 @@ export function createSteeringController(settings = {}) {
     throw new RangeError('Steering settings must have a nonnegative dead zone and positive limits.');
   }
 
-  let pointerId = null, origin = null, finger = null, lastTimestamp = null;
+  let pointerId = null, origin = null, finger = null, lastTimestamp = null, difficulty = 'easy';
   let frames = 0, activeFrames = 0, clampedFrames = 0;
   const copy = point => ({ x: point.x, y: point.y });
   const neutral = () => ({ x: 0, y: 0, speed: 0, active: false, frameSeconds: 0, clamped: false });
@@ -35,14 +48,31 @@ export function createSteeringController(settings = {}) {
   return {
     get active() { return pointerId !== null; },
     get pointerId() { return pointerId; },
+    get difficulty() { return difficulty; },
     get settings() { return { ...config }; },
     get snapshot() {
+      const fingerDisplacementPixels = origin && finger ? Math.hypot(finger.x - origin.x, finger.y - origin.y) : 0;
+      const normalizedDeflection = steeringDeflectionForDisplacement(fingerDisplacementPixels, config);
       return {
         active: pointerId !== null,
         origin: origin ? copy(origin) : null,
         finger: finger ? copy(finger) : null,
+        difficulty,
+        maxSpeedMazeUnitsPerSecond: config.maxSpeedMazeUnitsPerSecond,
+        fingerDisplacementPixels,
+        normalizedDeflection,
+        speedDemand: normalizedDeflection ** config.speedResponseExponent,
         frames, activeFrames, clampedFrames,
       };
+    },
+    setDifficulty(value) {
+      if (pointerId !== null) return false;
+      if (!Object.hasOwn(STEERING_SPEED_BY_DIFFICULTY, value)) {
+        throw new RangeError(`No production steering speed is configured for difficulty: ${value}`);
+      }
+      difficulty = value;
+      config.maxSpeedMazeUnitsPerSecond = STEERING_SPEED_BY_DIFFICULTY[value];
+      return true;
     },
     begin(id, point) {
       if (pointerId !== null || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return false;

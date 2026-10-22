@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
-  createSteeringController, DEFAULT_STEERING_SETTINGS, steeringSpeedForDisplacement,
+  createSteeringController, DEFAULT_STEERING_SETTINGS, STEERING_SPEED_BY_DIFFICULTY,
+  steeringDeflectionForDisplacement, steeringSpeedForDisplacement,
 } from '../src/continuous-steering.js';
 import { createTraceSession } from '../src/tracing.js';
 import { createTraceRecorder } from '../src/trace-diagnostics.js';
-import { canMove, createMazeForDifficulty } from '../src/maze.js';
+import { canMove, createMazeForDifficulty, getShortestPath } from '../src/maze.js';
 
 function mazeWithOpenRoute(route, width = 7, height = 7, entranceSide = 'N') {
   const cells = Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => ({ x, y, walls: { N: true, E: true, S: true, W: true } })));
@@ -25,6 +26,7 @@ function mazeWithOpenRoute(route, width = 7, height = 7, entranceSide = 'N') {
 
 function steeringHarness(maze, pointer = 500, settings = {}) {
   const controller = createSteeringController(settings), session = createTraceSession(maze);
+  if (maze.difficulty) assert.equal(controller.setDifficulty(maze.difficulty), true);
   const origin = { x: 200, y: 200 };
   let timestamp = 0;
   assert.equal(session.beginSteering(pointer), true);
@@ -116,6 +118,38 @@ test('greater finger displacement increases speed up to the configured bound', (
   assert.ok(maximum <= DEFAULT_STEERING_SETTINGS.maxSpeedMazeUnitsPerSecond);
 });
 
+test('difficulty selects the centralized steering cap and cannot change during an active gesture', () => {
+  const controller = createSteeringController();
+  assert.deepEqual(STEERING_SPEED_BY_DIFFICULTY, { easy: 1.725, medium: 2, hard: 2.5 });
+  for (const difficulty of ['easy', 'medium', 'hard']) {
+    assert.equal(controller.setDifficulty(difficulty), true);
+    assert.equal(controller.difficulty, difficulty);
+    assert.equal(controller.settings.maxSpeedMazeUnitsPerSecond, STEERING_SPEED_BY_DIFFICULTY[difficulty]);
+    assert.equal(controller.begin(7, { x: 0, y: 0 }), true);
+    assert.equal(controller.setDifficulty('easy'), false, 'difficulty changes wait until the active gesture is ended');
+    assert.equal(controller.difficulty, difficulty);
+    controller.end(7);
+  }
+  assert.throws(() => controller.setDifficulty('expert'), /No production steering speed/);
+});
+
+test('difficulty caps preserve the dead zone, full-speed threshold, and response curve', () => {
+  assert.equal(DEFAULT_STEERING_SETTINGS.deadZonePixels, 10);
+  assert.equal(DEFAULT_STEERING_SETTINGS.maxDeflectionPixels, 76);
+  assert.equal(DEFAULT_STEERING_SETTINGS.speedResponseExponent, 1.15);
+  assert.equal(DEFAULT_STEERING_SETTINGS.maxFrameSeconds, 0.05);
+  for (const [difficulty, cap] of Object.entries(STEERING_SPEED_BY_DIFFICULTY)) {
+    const controller = createSteeringController();
+    controller.setDifficulty(difficulty);
+    const settings = controller.settings;
+    assert.equal(steeringSpeedForDisplacement(10, settings), 0);
+    assert.ok(steeringSpeedForDisplacement(10.01, settings) > 0);
+    assert.equal(steeringSpeedForDisplacement(76, settings), cap);
+    assert.equal(steeringSpeedForDisplacement(100, settings), cap);
+    assert.equal(steeringDeflectionForDisplacement(76, settings), 1);
+  }
+});
+
 test('steering speed curve has a quiet dead zone, smooth precision onset, and increasing fast range', () => {
   const settings = DEFAULT_STEERING_SETTINGS;
   const sample = displacement => steeringSpeedForDisplacement(displacement, settings);
@@ -148,20 +182,74 @@ test('bounded QA events can distinguish requested steering speed from collision-
   let now = 0;
   const recorder = createTraceRecorder({ now: () => now });
   recorder.record({
+    difficulty: 'hard',
     eventType: 'steering-blocked', selectedInputMode: 'continuous-steering', activeController: 'continuous-steering',
-    steeringMetrics: { fingerDisplacementPixels: 50.04, speedDemand: 0.517, requestedSpeed: 0.775, acceptedSpeed: 0 },
+    steeringMetrics: { difficulty: 'hard', fingerDisplacementPixels: 50.04, normalizedDeflection: 0.589, speedDemand: 0.517, maxSpeedMazeUnitsPerSecond: 2.5, requestedSpeed: 1.293, acceptedSpeed: 0 },
     rejectedReason: 'closed-wall-collision', blocked: true, accepted: false,
   });
   now = 5;
   const report = recorder.report({ layoutId: 'maze-test', dimensions: { width: 7, height: 7 }, route: [], ink: [], state: null });
   assert.deepEqual(report.events[0].steeringMetrics, {
+    difficulty: 'hard',
     fingerDisplacementPixels: 50,
+    normalizedDeflection: 0.589,
     speedDemand: 0.517,
-    requestedSpeed: 0.775,
+    maxSpeedMazeUnitsPerSecond: 2.5,
+    requestedSpeed: 1.293,
     acceptedSpeed: 0,
   });
+  assert.equal(report.events[0].difficulty, 'hard');
   assert.equal(report.events[0].activeController, 'continuous-steering');
   assert.equal(report.events[0].rejectedReason, 'closed-wall-collision');
+});
+
+test('maximum-speed controller and authoritative tracer complete generated Easy, Medium, and Hard mazes', () => {
+  for (const [index, difficulty] of ['easy', 'medium', 'hard'].entries()) {
+    const maze = createMazeForDifficulty(difficulty, seeded(720 + index));
+    const { controller, session, drive } = steeringHarness(maze, 800 + index);
+    assert.equal(controller.settings.maxSpeedMazeUnitsPerSecond, STEERING_SPEED_BY_DIFFICULTY[difficulty]);
+    const solution = getShortestPath(maze);
+    assert.ok(solution && solution.length > 2);
+    for (const [step, target] of solution.slice(1).entries()) {
+      const previous = solution[step];
+      const direction = target.x > previous.x ? 'E' : target.x < previous.x ? 'W'
+        : target.y > previous.y ? 'S' : 'N';
+      const results = drive(direction, state => state.path.some(cell => cell.x === target.x && cell.y === target.y)
+        && Math.hypot(state.position.x - target.x, state.position.y - target.y) < 0.4, 120);
+      assert.ok(results.length > 0, `${difficulty}: controller produces movement along solution step ${step}`);
+      assert.ok(results.every(result => !result.wallCollision), `${difficulty}: shortest-path steering never crosses a wall`);
+      const frameDistanceLimit = STEERING_SPEED_BY_DIFFICULTY[difficulty] / 60 + 1e-9;
+      for (let index = 1; index < results.length; index++) {
+        assert.ok(Math.hypot(results[index].position.x - results[index - 1].position.x,
+          results[index].position.y - results[index - 1].position.y) <= frameDistanceLimit,
+        `${difficulty}: accepted route movement is bounded to one 60Hz frame`);
+      }
+    }
+    assert.equal(session.path.at(-1).x, maze.end.x);
+    assert.equal(session.path.at(-1).y, maze.end.y);
+    assert.ok(session.stroke.length > solution.length, `${difficulty}: permanent sampled ink remains present`);
+    assert.equal(controller.active, true, `${difficulty}: reaching the finish leaves the gesture lifecycle under normal caller completion handling`);
+    controller.end(800 + index); session.end(800 + index);
+  }
+});
+
+test('Hard maximum frame movement stays bounded and the shared swept tracer blocks a closed wall', () => {
+  const controller = createSteeringController();
+  controller.setDifficulty('hard');
+  controller.begin(901, { x: 0, y: 0 }); controller.update(901, { x: 76, y: 0 });
+  controller.advance(901, 0);
+  const delta = controller.advance(901, 50);
+  assert.equal(delta.speed, 2.5);
+  assert.ok(Math.hypot(delta.x, delta.y) <= 2.5 * 0.05 + 1e-12);
+  assert.ok(Math.hypot(delta.x, delta.y) <= 0.125 + 1e-12);
+
+  const maze = mazeWithOpenRoute([{ x: 2, y: 0 }, { x: 2, y: 1 }], 7, 7, 'N');
+  maze.difficulty = 'hard';
+  const { session, drive } = steeringHarness(maze, 902);
+  drive('S', state => state.position.y > 1.02 && state.path.at(-1).y === 1);
+  const blocked = drive('E', state => state.diagnostics.blocked, 60);
+  assert.ok(blocked.some(result => result.wallCollision && result.reason === 'closed-wall-collision'));
+  assert.ok(session.position.x <= 2 + 0.46 + 1e-9, 'the increased speed retains the legal-side wall clamp');
 });
 
 test('refined faster speed remains bounded by the shared tracer at a wall and redirects legally', () => {
@@ -351,7 +439,9 @@ test('Steering is the only gameplay controller and QA diagnostics identify it wi
   assert.match(css, /\.steering-indicator\[hidden\]\s*\{\s*display:\s*none/);
   assert.match(worker, /\.\/src\/continuous-steering\.js/);
   const steeringSource = await readFile(new URL('../src/continuous-steering.js', import.meta.url), 'utf8');
-  assert.match(steeringSource, /maxSpeedMazeUnitsPerSecond: 1\.725/);
+  assert.match(steeringSource, /easy: 1\.725,[\s\S]*medium: 2,[\s\S]*hard: 2\.5/);
+  assert.match(game, /steeringController\.setDifficulty\(selectedDifficulty\)/,
+    'new and restarted mazes apply the cap from their current difficulty');
   assert.doesNotMatch(steeringSource, /cameraPosition|viewBox/, 'camera updates cannot feed back into steering direction');
   assert.match(packageJson, /continuous-steering\.js/);
 });

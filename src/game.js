@@ -136,6 +136,7 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
   try { captured = event?.pointerId !== undefined && Boolean(steeringPad.hasPointerCapture?.(event.pointerId)); } catch { /* Capture state is unavailable in some embedded WebViews. */ }
   traceRecorder.record({
     eventType,
+    difficulty: maze?.difficulty ?? selectedDifficulty,
     pointerType: event?.pointerType ?? 'unknown',
     sampleType,
     sampleIndex,
@@ -218,7 +219,7 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   const state = traceSession.diagnostics;
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
   const reversal = state.candidateReversal ? `${state.candidateReversal.x},${state.candidateReversal.y} (${state.candidateReversalOpen ? 'open' : 'closed'})` : 'none';
-  output.textContent = `QA trace · build ${APP_BUILD_ID} · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · input surface steering-pad · client px ${point(lastClientPointer)} · raw pad px ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  output.textContent = `QA trace · build ${APP_BUILD_ID} · ${maze?.difficulty ?? selectedDifficulty} · cap ${steeringController.settings.maxSpeedMazeUnitsPerSecond.toFixed(3)} cells/s · deflection ${(steeringController.snapshot.normalizedDeflection * 100).toFixed(0)}% · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · input surface steering-pad · client px ${point(lastClientPointer)} · raw pad px ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -417,6 +418,9 @@ function makeMaze(reuse = false) {
   $('#completion-panel').hidden = true;
   steeringPad.hidden = false;
   selectedDifficulty = maze.difficulty ?? selectedDifficulty;
+  // Keep the steering cap synchronized with the maze instance itself so
+  // restart, new-maze, and difficulty selection cannot retain a stale value.
+  steeringController.setDifficulty(selectedDifficulty);
   $('#play-difficulty').textContent = FREE_PLAY_DIFFICULTIES[selectedDifficulty].label.toUpperCase();
   currentLayoutId = mazeLayoutId(maze);
   traceSession = createTraceSession(maze);
@@ -484,8 +488,11 @@ function scheduleSteeringFrameLoop(id) {
       const fingerDisplacementPixels = steeringState.origin && steeringState.finger
         ? Math.hypot(steeringState.finger.x - steeringState.origin.x, steeringState.finger.y - steeringState.origin.y) : 0;
       movement.steeringMetrics = {
+        difficulty: maze.difficulty,
         fingerDisplacementPixels,
-        speedDemand: delta.speed / steeringController.settings.maxSpeedMazeUnitsPerSecond,
+        normalizedDeflection: steeringState.normalizedDeflection,
+        speedDemand: steeringState.speedDemand,
+        maxSpeedMazeUnitsPerSecond: steeringController.settings.maxSpeedMazeUnitsPerSecond,
         requestedSpeed: delta.speed,
         acceptedSpeed: delta.frameSeconds > 0
           ? Math.hypot(movement.acceptedMovement.x, movement.acceptedMovement.y) / delta.frameSeconds : 0,

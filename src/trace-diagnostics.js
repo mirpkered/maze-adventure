@@ -23,6 +23,7 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
       const entry = {
         t: Math.max(0, Math.round(now() - startedAt)),
         eventType: String(event.eventType ?? 'unknown').slice(0, 32),
+        difficulty: typeof event.difficulty === 'string' ? event.difficulty.slice(0, 16) : null,
         pointerType: String(event.pointerType ?? 'unknown').slice(0, 16),
         sampleType: String(event.sampleType ?? 'dispatched').slice(0, 16),
         sampleIndex: Number.isInteger(event.sampleIndex) ? event.sampleIndex : null,
@@ -46,8 +47,11 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
         requestedMovement: point(event.requestedMovement),
         acceptedMovement: point(event.acceptedMovement),
         steeringMetrics: event.steeringMetrics && typeof event.steeringMetrics === 'object' ? {
+          difficulty: typeof event.steeringMetrics.difficulty === 'string' ? event.steeringMetrics.difficulty.slice(0, 16) : null,
           fingerDisplacementPixels: Number.isFinite(event.steeringMetrics.fingerDisplacementPixels) ? Math.round(event.steeringMetrics.fingerDisplacementPixels * 10) / 10 : null,
+          normalizedDeflection: Number.isFinite(event.steeringMetrics.normalizedDeflection) ? Math.round(event.steeringMetrics.normalizedDeflection * 1000) / 1000 : null,
           speedDemand: Number.isFinite(event.steeringMetrics.speedDemand) ? Math.round(event.steeringMetrics.speedDemand * 1000) / 1000 : null,
+          maxSpeedMazeUnitsPerSecond: Number.isFinite(event.steeringMetrics.maxSpeedMazeUnitsPerSecond) ? Math.round(event.steeringMetrics.maxSpeedMazeUnitsPerSecond * 1000) / 1000 : null,
           requestedSpeed: Number.isFinite(event.steeringMetrics.requestedSpeed) ? Math.round(event.steeringMetrics.requestedSpeed * 1000) / 1000 : null,
           acceptedSpeed: Number.isFinite(event.steeringMetrics.acceptedSpeed) ? Math.round(event.steeringMetrics.acceptedSpeed * 1000) / 1000 : null,
         } : null,

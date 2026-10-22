@@ -31,7 +31,10 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
   assert.ok(recovered.length < 2000);
   const steering = createQuickSummary({ ...report, controlSystem: 'continuous-steering', activeController: 'idle', steering: { settings: { deadZonePixels: 10, speedResponseExponent: 1.15, maxSpeedMazeUnitsPerSecond: 1.725 }, frames: 60, activeFrames: 40, clampedFrames: 1 } });
   assert.match(steering, /control system continuous-steering \| active controller idle/);
-  assert.match(steering, /steering dead-zone 10px, curve x\^1.15, max 1.725 cells\/s \| last gesture frames 40\/60, capped 1/);
+  assert.match(steering, /steering easy · deflection 0% · dead-zone 10px · curve x\^1.15 · max 1.725 cells\/s \| last gesture frames 40\/60, capped 1/);
+  const measuredSteering = createQuickSummary({ ...report, controlSystem: 'continuous-steering', activeController: 'continuous-steering', steering: { difficulty: 'hard', normalizedDeflection: 0.589, maxSpeedMazeUnitsPerSecond: 2.5, settings: { deadZonePixels: 10, speedResponseExponent: 1.15 } }, events: [{ steeringMetrics: { requestedSpeed: 1.473 }, requestedMovement: { x: 0.024, y: 0 }, acceptedMovement: { x: 0, y: 0 }, movementClassification: 'closed-wall-collision' }] });
+  assert.match(measuredSteering, /steering hard · deflection 59% · dead-zone 10px · curve x\^1\.15 · max 2\.5 cells\/s/);
+  assert.match(measuredSteering, /last steering request 0\.024 0\.000 · accepted 0\.000 0\.000 · closed-wall-collision/);
   const currentLayout = createQuickSummary({ ...report, inputPanel: 'steering-pad', zoomAssist: true, zoomFactor: 1.75, qaSelectedZoomFactor: 1.75, qaCloseViewPanelSize: 'compact' });
   assert.match(currentLayout, /input surface steering-pad/);
   assert.doesNotMatch(currentLayout, /Zoom Assist|Close View|panel compact/,
