@@ -83,11 +83,12 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
       previous = entry;
     },
     reset() { events = []; checkpoints = []; dropped = 0; droppedCheckpoints = 0; observed = 0; acceptedCount = 0; canceledCount = 0; for (const key of Object.keys(rejectedCounts)) delete rejectedCounts[key]; previous = null; startedAt = now(); },
-    report({ layoutId, dimensions, difficulty = null, start = null, finish = null, shortestSolutionLength = null, exitInternalDegree = null, exitGatedCells = null, generationAttempts = null, generationDurationMs = null, generationQuality = null, mazeDefinition, route, ink, state, inkCellAssociation, buildId = null }) {
+    report({ layoutId, dimensions, difficulty = null, start = null, finish = null, shortestSolutionLength = null, exitInternalDegree = null, exitGatedCells = null, generationAttempts = null, generationDurationMs = null, generationQuality = null, mazeDefinition, route, ink, state, inkCellAssociation, buildId = null, layout = null }) {
       return {
         format: 'maze-adventure-trace-qa-v1',
         buildId,
         privacy: 'Pointer coordinates are maze-local; no name, account, URL, or pointer identifier is recorded.',
+        layout,
         maze: { layoutId, dimensions, difficulty, start, finish, shortestSolutionLength, exitInternalDegree, exitGatedCells, generationAttempts, generationDurationMs, generationQuality, definition: mazeDefinition },
       current: { route, ink, inkCellAssociation, state },
         events: [...events],

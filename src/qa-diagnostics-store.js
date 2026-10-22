@@ -78,6 +78,9 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
   const steeringMovement = latestSteering?.steeringMetrics;
   const movementSummary = steeringMovement
     ? `last steering request ${latestSteering.requestedMovement?.x?.toFixed?.(3) ?? '?'} ${latestSteering.requestedMovement?.y?.toFixed?.(3) ?? '?'} · accepted ${latestSteering.acceptedMovement?.x?.toFixed?.(3) ?? '?'} ${latestSteering.acceptedMovement?.y?.toFixed?.(3) ?? '?'} · ${latestSteering.movementClassification ?? latestSteering.rejectedReason ?? 'unknown'}` : null;
+  const layout = report.layout;
+  const layoutSummary = layout?.viewport && layout.mazeSvg
+    ? `layout ${layout.viewport.width}x${layout.viewport.height} · maze ${layout.mazeSvg.width.toFixed(1)}x${layout.mazeSvg.height.toFixed(1)} at ${layout.mazeSvg.x.toFixed(1)},${layout.mazeSvg.y.toFixed(1)} · pad ${layout.steeringPad?.height.toFixed(1) ?? '?'}px · completion ${layout.completionPanel?.height.toFixed(1) ?? '?'}px${layout.completionCheck?.stable === null ? '' : ` · geometry ${layout.completionCheck.stable ? 'stable' : 'changed'} (${layout.completionCheck.maxDeltaPx?.toFixed(3) ?? '?'}px)`}` : null;
   return [
     `Maze Adventure QA ${report.buildId ?? 'build unknown'} | ${report.maze?.layoutId ?? 'maze unknown'}`,
     `${dimensions?.width ?? '?'}x${dimensions?.height ?? '?'} ${difficulty} | ${(durationMs / 1000).toFixed(1)}s | events ${observed}, accepted ${accepted}, rejected ${Object.values(rejectedByReason).reduce((a, b) => a + b, 0)} (${counts}), canceled ${canceled}`,
@@ -87,6 +90,7 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
     ...(inputSurfaceSummary ? [inputSurfaceSummary] : []),
     ...(steeringMetrics ? [steeringMetrics] : []),
     ...(movementSummary ? [movementSummary] : []),
+    ...(layoutSummary ? [layoutSummary] : []),
     `pencil ${current?.authoritativePosition?.x?.toFixed?.(3) ?? '?'} ${current?.authoritativePosition?.y?.toFixed?.(3) ?? '?'} | cell ${current?.logicalCell?.x ?? '?'},${current?.logicalCell?.y ?? '?'} | gesture ${current?.active ? current.recovering ? 'recovering' : 'active' : 'idle'}`,
     `last rejection ${latestReject?.rejectedReason ?? 'none'} | ${status}`,
   ].join('\n').slice(0, 1900);

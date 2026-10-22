@@ -238,10 +238,11 @@ body[data-screen="play"] .timer-wrap { padding: 4px 9px; }
 body[data-screen="play"] .timer-wrap output { font-size: 18px; }
 .pause-tool { width: 44px; height: 44px; padding: 0; font-size: 17px; }
 body[data-screen="play"] .play-hint { margin: 2px 0 5px; flex: 0 0 auto; font-size: 11px; line-height: 1.2; }
-.maze-workspace { display: grid; min-height: 0; flex: 1 1 auto; grid-template-rows: minmax(0, 1fr) clamp(112px, 17dvh, 150px); justify-items: center; align-content: stretch; gap: 8px; }
-.maze-display-panel { position: relative; box-sizing: border-box; display: grid; width: min(100%, 60dvh, 620px); max-height: 100%; min-width: 0; min-height: 0; aspect-ratio: 1; padding: 7px; place-items: center; }
+body[data-screen="play"] .play-hint { display: grid; place-items: center; text-wrap: pretty; }
+.maze-workspace { --game-control-height: clamp(92px, 13dvh, 116px); display: grid; min-height: 0; flex: 1 1 auto; grid-template-rows: minmax(0, 1fr) var(--game-control-height); justify-items: center; align-content: stretch; gap: 8px; }
+.maze-display-panel { position: relative; box-sizing: border-box; display: grid; width: min(100%, 60dvh, 620px); max-height: 100%; min-width: 0; min-height: 0; align-self: center; aspect-ratio: 1; padding: 7px; place-items: center; }
 .maze-display-panel svg { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; touch-action: none; }
-.steering-pad { position: relative; isolation: isolate; box-sizing: border-box; width: min(100%, 560px); min-height: 112px; height: clamp(112px, 17dvh, 150px); max-height: 100%; margin: 0 auto; overflow: hidden; border: 1px solid color-mix(in srgb, var(--theme-line, var(--line)) 82%, transparent); border-radius: 24px; background: radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--theme-surface, var(--paper)) 94%, transparent) 0 28%, transparent 70%), linear-gradient(145deg, color-mix(in srgb, var(--theme-surface, var(--paper)) 73%, transparent), color-mix(in srgb, var(--theme-green, #64765f) 11%, transparent)); box-shadow: inset 0 1px rgba(255,255,255,.48), inset 0 -8px 20px color-mix(in srgb, var(--theme-pageInk, #334b3c) 5%, transparent), 0 5px 16px var(--theme-shadow, rgba(48,66,52,.12)); color: var(--theme-ink, var(--ink)); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: contain; }
+.steering-pad { position: relative; isolation: isolate; box-sizing: border-box; width: min(100%, 560px); min-height: 0; height: 100%; max-height: 100%; margin: 0 auto; overflow: hidden; border: 1px solid color-mix(in srgb, var(--theme-line, var(--line)) 82%, transparent); border-radius: 24px; background: radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--theme-surface, var(--paper)) 94%, transparent) 0 28%, transparent 70%), linear-gradient(145deg, color-mix(in srgb, var(--theme-surface, var(--paper)) 73%, transparent), color-mix(in srgb, var(--theme-green, #64765f) 11%, transparent)); box-shadow: inset 0 1px rgba(255,255,255,.48), inset 0 -8px 20px color-mix(in srgb, var(--theme-pageInk, #334b3c) 5%, transparent), 0 5px 16px var(--theme-shadow, rgba(48,66,52,.12)); color: var(--theme-ink, var(--ink)); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: contain; }
 .steering-pad::before { position: absolute; z-index: -1; inset: 8px; border: 1px dashed color-mix(in srgb, var(--theme-line, var(--line)) 70%, transparent); border-radius: 18px; content: ""; pointer-events: none; }
 .steering-pad-label { position: absolute; top: 12px; left: 16px; color: var(--theme-muted, var(--muted)); font-size: 8px; font-weight: 800; letter-spacing: .16em; pointer-events: none; }
 .steering-pad-mark { position: absolute; top: 50%; left: 50%; display: grid; width: 58px; aspect-ratio: 1; place-items: center; border: 1px solid color-mix(in srgb, var(--theme-accent, var(--rust)) 30%, transparent); border-radius: 50%; background: color-mix(in srgb, var(--theme-surface, var(--paper)) 38%, transparent); transform: translate(-50%,-50%); pointer-events: none; }
@@ -260,14 +261,22 @@ body[data-screen="play"] .play-hint { margin: 2px 0 5px; flex: 0 0 auto; font-si
 .game-actions { display: grid; width: min(100%, 390px); grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 body[data-screen="play"] .play-footer { width: 100%; max-width: none; flex: 0 0 auto; justify-content: center; margin: 5px auto 0; }
 body[data-screen="play"] .game-actions .small-button { min-width: 44px; min-height: 44px; padding: 5px 8px; font-size: 11px; }
-body[data-completed="true"] .maze-workspace { grid-template-rows: minmax(0, 1fr) auto; }
-.completion-panel { grid-row: 2; width: min(100%, 560px); min-height: 112px; }
+.completion-panel { grid-row: 2; width: min(100%, 560px); min-height: 0; }
 body[data-completed="true"] .completion-panel { display: flex; }
 @media (max-width: 420px) {
   body[data-screen="play"] .app-shell { padding-right: max(10px, calc(env(safe-area-inset-right) + 10px)); padding-left: max(10px, calc(env(safe-area-inset-left) + 10px)); }
   body[data-screen="play"] .play-title-block h1 { font-size: 18px; }
   .maze-display-panel { width: min(100%, 60dvh); }
-  .steering-pad { width: 100%; height: clamp(112px, 17dvh, 145px); }
+  .maze-workspace { --game-control-height: clamp(92px, 13dvh, 110px); }
+  .steering-pad { width: 100%; }
+}
+@media (orientation: portrait) {
+  .completion-panel { height: 100%; aspect-ratio: auto; flex-direction: row; justify-content: center; gap: 12px; padding: 8px 14px; }
+  .completion-flower { flex: 0 0 auto; font-size: 27px; }
+  .completion-message { min-width: 0; gap: 2px; }
+  .completion-panel .eyebrow { margin: 0; font-size: 8px; }
+  .completion-panel h2 { max-width: none; font-size: clamp(18px, 5vw, 24px); line-height: 1.05; }
+  .completion-copy { font-size: 11px; line-height: 1.15; }
 }
 @media (orientation: landscape) and (max-height: 520px) {
   body[data-screen="play"] .play-screen { width: 100%; padding-top: 2px; }
@@ -275,14 +284,14 @@ body[data-completed="true"] .completion-panel { display: flex; }
   .maze-workspace { grid-template-columns: minmax(0, 1fr) minmax(170px, 30vw); grid-template-rows: minmax(0, 1fr); gap: 12px; }
   .maze-display-panel { grid-column: 1; grid-row: 1; width: auto; height: min(100%, 80dvh); justify-self: center; }
   .steering-pad { grid-column: 2; grid-row: 1; width: 100%; height: min(100%, 190px); align-self: center; }
-  .completion-panel { grid-column: 2; grid-row: 1; width: 100%; align-self: center; }
+  .completion-panel { grid-column: 2; grid-row: 1; width: 100%; height: auto; min-height: 112px; aspect-ratio: 1; align-self: center; }
 }
 @media (orientation: landscape) and (max-height: 520px) {
   .play-screen { max-width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 170px; grid-template-rows: auto auto 1fr; column-gap: 12px; align-items: center; padding-top: 6px; }
   .play-heading { position: relative; z-index: 1; }
   .play-heading, .play-hint { grid-column: 1 / -1; }
   .play-hint { margin: 4px 0; }
-  .completion-panel { grid-column: 2; grid-row: 1; justify-self: stretch; width: 100%; max-height: 100%; margin: 0; }
+  .completion-panel { grid-column: 2; grid-row: 1; justify-self: stretch; width: 100%; height: auto; min-height: 0; aspect-ratio: 1; max-height: 100%; margin: 0; }
   .play-footer { position: static; grid-column: 2; grid-row: 3; width: 100%; margin: 0; transform: none; flex-direction: column; }
   .game-actions { display: grid; grid-template-columns: 1fr; width: 100%; }
 }

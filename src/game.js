@@ -11,6 +11,7 @@ import { createQaDiagnosticsStore, createQuickSummary, createRecentIncident } fr
 import { applyVisualTheme, chooseLaunchTheme, THEME_PREFERENCE_OPTIONS } from './themes.js';
 import { createSteeringController } from './continuous-steering.js';
 import { captureQaReturnState, restoreQaReturnState } from './qa-view-state.js';
+import { captureGameplayLayout, compareMazeLayout } from './game-layout.js';
 
 const $ = selector => document.querySelector(selector);
 const screens = ['home', 'difficulty', 'play', 'qa-config', 'settings', 'help', 'about'].map(id => $(`#${id}`));
@@ -203,6 +204,7 @@ function diagnosticReportObject() {
     controlSystem: 'continuous-steering',
     activeController: state?.active ? 'continuous-steering' : 'idle',
     steering: qaEnabled ? { settings: steeringController.settings, ...steeringController.snapshot } : null,
+    layout: qaEnabled ? captureGameplayLayout(document, window) : null,
   });
 }
 function diagnosticReport() { return JSON.stringify(diagnosticReportObject(), null, 2); }
@@ -420,6 +422,9 @@ function makeMaze(reuse = false) {
   if (!reuse || !maze) maze = createMazeForDifficulty(selectedDifficulty);
   mazeCompleted = false;
   delete document.body.dataset.completed;
+  delete document.body.dataset.completionLayoutStable;
+  delete document.body.dataset.completionLayoutDelta;
+  delete document.body.dataset.completionLayoutScaleDelta;
   $('#completion-panel').hidden = true;
   steeringPad.hidden = false;
   selectedDifficulty = maze.difficulty ?? selectedDifficulty;
@@ -430,7 +435,9 @@ function makeMaze(reuse = false) {
   currentLayoutId = mazeLayoutId(maze);
   traceSession = createTraceSession(maze);
   activePointerId = null; elapsed = 0; paused = false; displayTime();
-  $('#play-hint').textContent = 'Touch anywhere in the steering field, then move your finger to guide the pencil above. Move farther for more speed; return to your touch point or lift to stop.';
+  const playHint = $('#play-hint');
+  playHint.style.height = '';
+  playHint.textContent = 'Touch the field below, then move to guide the pencil. Move farther for speed; return or lift to stop.';
   renderMaze(); activeScreen($('#play')); syncQaControls(); updateTraceDiagnostics(); queueQaPersistence(); $('#play-title').focus({ preventScroll: true }); startTimer();
 }
 
@@ -566,12 +573,22 @@ function finishPointer(event, cancel = false) {
 }
 function completeMaze() {
   if (mazeCompleted) return;
+  const layoutBefore = captureGameplayLayout(document, window);
   mazeCompleted = true;
   pauseTimer(); displayTime();
   document.body.dataset.completed = 'true';
   steeringPad.hidden = true;
   $('#completion-panel').hidden = false;
-  $('#play-hint').textContent = 'Your finished route stays visible in the map above.';
+  const playHint = $('#play-hint');
+  playHint.style.height = `${layoutBefore.playHint.height}px`;
+  playHint.textContent = 'Your finished route stays visible in the map above.';
+  window.requestAnimationFrame(() => {
+    const layoutAfter = captureGameplayLayout(document, window);
+    const comparison = compareMazeLayout(layoutBefore, layoutAfter);
+    document.body.dataset.completionLayoutStable = String(comparison.stable);
+    document.body.dataset.completionLayoutDelta = comparison.maxDeltaPx.toFixed(3);
+    document.body.dataset.completionLayoutScaleDelta = comparison.maxScaleDelta.toFixed(6);
+  });
   $('#completion-title').focus({ preventScroll: true });
   playCompletionSound();
 }

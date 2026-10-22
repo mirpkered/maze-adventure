@@ -6,6 +6,6 @@
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "test": "node --test",
-    "check": "node --check src/maze.js && node --check src/tracing.js && node --check src/trace-rendering.js && node --check src/trace-diagnostics.js && node --check src/qa-diagnostics-store.js && node --check src/coordinates.js && node --check src/pointer-samples.js && node --check src/continuous-steering.js && node --check src/qa-view-state.js && node --check src/build-info.js && node --check src/update-policy.js && node --check src/game.js && node --check src/preferences.js && node --check src/themes.js && node --check src/qa-mode.js && node --check src/pwa.js && node --check service-worker.js && npm test"
+    "check": "node --check src/maze.js && node --check src/tracing.js && node --check src/trace-rendering.js && node --check src/trace-diagnostics.js && node --check src/qa-diagnostics-store.js && node --check src/coordinates.js && node --check src/pointer-samples.js && node --check src/continuous-steering.js && node --check src/qa-view-state.js && node --check src/game-layout.js && node --check src/build-info.js && node --check src/update-policy.js && node --check src/game.js && node --check src/preferences.js && node --check src/themes.js && node --check src/qa-mode.js && node --check src/pwa.js && node --check service-worker.js && npm test"
   }
 }
