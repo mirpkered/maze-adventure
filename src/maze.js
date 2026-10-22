@@ -69,7 +69,7 @@ function graphDegree(maze, cell) {
   return DIRECTIONS.reduce((degree, direction) => degree + Number(canMove(maze, cell, { x: cell.x + direction.dx, y: cell.y + direction.dy })), 0);
 }
 
-function chooseEndpointPair(maze, random, minimumLength) {
+function chooseEndpointPair(maze, random, minimumLength, requireTerminalExit = false) {
   const openings = perimeterOpenings(maze.width, maze.height, maze.width <= 2 || maze.height <= 2);
   const pairs = [];
   for (const entrance of openings) {
@@ -78,6 +78,10 @@ function chooseEndpointPair(maze, random, minimumLength) {
       if (entrance === exit || (entrance.cell.x === exit.cell.x && entrance.cell.y === exit.cell.y)) continue;
       const path = reconstructPath(parents, exit.cell);
       if (!path || path.length - 1 < minimumLength) continue;
+      // Shipped difficulties use a leaf finish so completing cannot strand
+      // branches beyond the flower. Generic custom grids retain their prior
+      // endpoint policy.
+      if (requireTerminalExit && graphDegree(maze, exit.cell) !== 1) continue;
       const junctions = path.slice(1, -1).filter(cell => graphDegree(maze, cell) >= 3).length;
       pairs.push({ entrance, exit, junctions });
     }
@@ -122,6 +126,7 @@ function chooseHardEndpointPair(maze, random) {
       const exitIndex = exit.cell.y * maze.width + exit.cell.x;
       const length = distance[exitIndex];
       if (length < MIN_SOLUTION_LENGTH['15x15']) continue;
+      if (graphDegree(maze, exit.cell) !== 1) continue;
       const junctions = junctionPrefix[exitIndex] - Number(graphDegree(maze, entrance.cell) >= 3)
         - Number(graphDegree(maze, exit.cell) >= 3);
       if (junctions >= HARD_MIN_ROUTE_JUNCTIONS) candidates.push({ entrance, exit, length, junctions });
@@ -154,7 +159,9 @@ export function createMaze(width = 7, height = 7, random = Math.random) {
       stack.push(cells[next.y][next.x]);
     }
     const maze = { width, height, cells };
-    let pair = isHard ? chooseHardEndpointPair(maze, random) : chooseEndpointPair(maze, random, minimumLength);
+    const isShippedDifficulty = Object.hasOwn(MIN_SOLUTION_LENGTH, `${width}x${height}`);
+    let pair = isHard ? chooseHardEndpointPair(maze, random)
+      : chooseEndpointPair(maze, random, minimumLength, isShippedDifficulty);
     if (!pair) continue;
     maze.start = { ...pair.entrance.cell };
     maze.end = { ...pair.exit.cell };
@@ -163,7 +170,7 @@ export function createMaze(width = 7, height = 7, random = Math.random) {
     cells[maze.start.y][maze.start.x].walls[maze.entrance.side] = false;
     cells[maze.end.y][maze.end.x].walls[maze.exit.side] = false;
     if (!validateMaze(maze)) throw new Error('Generated maze failed validation.');
-    if (isHard) maze.generationAttempts = attempt + 1;
+    maze.generationAttempts = attempt + 1;
     return maze;
   }
   throw new Error(`Could not generate a ${width}x${height} maze meeting its bounded endpoint quality requirements after ${maxAttempts} attempts.`);

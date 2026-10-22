@@ -183,6 +183,43 @@ test('Hard meets seeded path and navigation quality targets on 256 deterministic
   assert.ok(totalAttempts <= sampleCount * 8, 'the quality search has a strict maximum of eight generated candidates per maze');
 });
 
+test('Easy, Medium, and Hard use terminal exits with zero exit-gated cells across 500 seeds each', () => {
+  const samples = 500;
+  for (const difficulty of ['easy', 'medium', 'hard']) {
+    const maxAttempts = difficulty === 'hard' ? 8 : 32;
+    for (let seed = 0; seed < samples; seed++) {
+      const maze = createMazeForDifficulty(difficulty, seeded(seed));
+      const exitDegree = [
+        { x: maze.end.x, y: maze.end.y - 1 }, { x: maze.end.x + 1, y: maze.end.y },
+        { x: maze.end.x, y: maze.end.y + 1 }, { x: maze.end.x - 1, y: maze.end.y },
+      ].filter(next => canMove(maze, maze.end, next)).length;
+      assert.equal(exitDegree, 1, `${difficulty} seed ${seed}: exit is a terminal cell`);
+      assert.equal(isConnected(maze), true, `${difficulty} seed ${seed}: generated graph is connected`);
+      assert.equal(validateMaze(maze), true, `${difficulty} seed ${seed}: walls and completion route validate`);
+      const route = getShortestPath(maze);
+      assert.ok(route && route.at(-1).x === maze.end.x && route.at(-1).y === maze.end.y,
+        `${difficulty} seed ${seed}: solution reaches the selected exit`);
+      if (difficulty === 'hard') {
+        const routeJunctions = route.slice(1, -1).filter(cell => [
+          { x: cell.x, y: cell.y - 1 }, { x: cell.x + 1, y: cell.y },
+          { x: cell.x, y: cell.y + 1 }, { x: cell.x - 1, y: cell.y },
+        ].filter(next => canMove(maze, cell, next)).length >= 3).length;
+        assert.ok(routeJunctions >= 6, `Hard seed ${seed}: route keeps the six-junction minimum`);
+      }
+      let logicalRoute = [{ ...maze.start }];
+      for (const [index, cell] of route.slice(1).entries()) {
+        const result = advancePath(maze, logicalRoute, cell);
+        assert.equal(result.moved, true, `${difficulty} seed ${seed}: completion path step ${index + 1} is legal`);
+        assert.equal(result.complete, index === route.length - 2,
+          `${difficulty} seed ${seed}: completion occurs only on the final exit step`);
+        logicalRoute = result.path;
+      }
+      assert.ok(maze.generationAttempts >= 1 && maze.generationAttempts <= maxAttempts,
+        `${difficulty} seed ${seed}: generation stays within its retry bound`);
+    }
+  }
+});
+
 test('endpoint arrangements vary across every edge while staying distinct, non-cornered, and graph-distant', () => {
   const edgeNames = ['N', 'E', 'S', 'W'], startCounts = Object.fromEntries(edgeNames.map(side => [side, 0]));
   const finishCounts = Object.fromEntries(edgeNames.map(side => [side, 0]));
