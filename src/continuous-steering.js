@@ -9,11 +9,12 @@ export const DEFAULT_STEERING_SETTINGS = Object.freeze({
 });
 
 // The active maze difficulty selects exactly one cap. Keep this table as the
-// single source of truth; Expert has no production speed until it is shipped.
+// single source of truth for player controls and QA reporting.
 export const STEERING_SPEED_BY_DIFFICULTY = Object.freeze({
   easy: 1.725,
   medium: 2,
   hard: 2.5,
+  expert: 3,
 });
 
 export function steeringDeflectionForDisplacement(magnitude, settings = DEFAULT_STEERING_SETTINGS) {

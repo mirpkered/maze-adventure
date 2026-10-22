@@ -183,10 +183,47 @@ test('Hard meets seeded path and navigation quality targets on 256 deterministic
   assert.ok(totalAttempts <= sampleCount * 8, 'the quality search has a strict maximum of eight generated candidates per maze');
 });
 
-test('Easy, Medium, and Hard use terminal exits with zero exit-gated cells across 500 seeds each', () => {
+test('Expert 20x20 uses bounded optimized generation with a longer, decision-rich route', () => {
+  const sampleCount = 256, lengths = [], routeJunctionCounts = [], layouts = new Set();
+  const starts = Object.fromEntries(['N', 'E', 'S', 'W'].map(side => [side, 0]));
+  const finishes = Object.fromEntries(['N', 'E', 'S', 'W'].map(side => [side, 0]));
+  for (let seed = 0; seed < sampleCount; seed++) {
+    const maze = createMazeForDifficulty('expert', seeded(seed)), route = getShortestPath(maze);
+    assert.equal(maze.width, 20); assert.equal(maze.height, 20);
+    assert.equal(maze.difficulty, 'expert');
+    assert.equal(validateMaze(maze), true, `Expert seed ${seed} has a connected graph, reciprocal walls, and valid boundaries`);
+    assert.equal(isConnected(maze), true, `Expert seed ${seed} is solvable`);
+    assert.ok(route && route.length - 1 >= 100, `Expert seed ${seed} meets the 100-edge route floor`);
+    const routeJunctions = route.slice(1, -1).filter(cell => [
+      { x: cell.x, y: cell.y - 1 }, { x: cell.x + 1, y: cell.y },
+      { x: cell.x, y: cell.y + 1 }, { x: cell.x - 1, y: cell.y },
+    ].filter(next => canMove(maze, cell, next)).length >= 3).length;
+    assert.ok(routeJunctions >= 12, `Expert seed ${seed} route crosses at least 12 decision junctions`);
+    assert.ok(maze.generationQuality.solutionPathEdges >= 100);
+    assert.ok(maze.generationQuality.optionalAccessibleCells >= 140);
+    assert.ok(maze.generationQuality.optionalBranchCount >= 8);
+    assert.ok(maze.generationQuality.largestOptionalBranch <= 200,
+      `Expert seed ${seed} does not leave one oversized optional branch`);
+    assert.equal(maze.generationQuality.solutionRouteJunctions, routeJunctions);
+    assert.ok(maze.generationAttempts >= 1 && maze.generationAttempts <= 12,
+      `Expert seed ${seed} stays within the bounded retry count`);
+    starts[maze.entrance.side]++; finishes[maze.exit.side]++;
+    lengths.push(route.length - 1); routeJunctionCounts.push(routeJunctions); layouts.add(mazeLayoutId(maze));
+    assert.equal(getWallSegments(maze).length, new Set(getWallSegments(maze).map(edge => `${edge.orientation}:${edge.x},${edge.y}`)).size);
+  }
+  assert.ok(percentile(lengths, .5) >= 120, 'Expert prefers a solution of at least 120 edges');
+  assert.ok(percentile(routeJunctionCounts, .5) >= 14, 'typical Expert route offers more decisions than Hard');
+  assert.equal(layouts.size, sampleCount, 'all Expert seeds produce varied layouts');
+  for (const side of ['N', 'E', 'S', 'W']) {
+    assert.ok(starts[side] >= 20, `Expert starts appear on ${side}`);
+    assert.ok(finishes[side] >= 20, `Expert finishes appear on ${side}`);
+  }
+});
+
+test('all shipped difficulties use terminal exits with zero exit-gated cells across 500 seeds each', () => {
   const samples = 500;
-  for (const difficulty of ['easy', 'medium', 'hard']) {
-    const maxAttempts = difficulty === 'hard' ? 8 : 32;
+  for (const difficulty of ['easy', 'medium', 'hard', 'expert']) {
+    const maxAttempts = difficulty === 'expert' ? 12 : difficulty === 'hard' ? 8 : 32;
     for (let seed = 0; seed < samples; seed++) {
       const maze = createMazeForDifficulty(difficulty, seeded(seed));
       const exitDegree = [
@@ -199,12 +236,12 @@ test('Easy, Medium, and Hard use terminal exits with zero exit-gated cells acros
       const route = getShortestPath(maze);
       assert.ok(route && route.at(-1).x === maze.end.x && route.at(-1).y === maze.end.y,
         `${difficulty} seed ${seed}: solution reaches the selected exit`);
-      if (difficulty === 'hard') {
+      if (difficulty === 'hard' || difficulty === 'expert') {
         const routeJunctions = route.slice(1, -1).filter(cell => [
           { x: cell.x, y: cell.y - 1 }, { x: cell.x + 1, y: cell.y },
           { x: cell.x, y: cell.y + 1 }, { x: cell.x - 1, y: cell.y },
         ].filter(next => canMove(maze, cell, next)).length >= 3).length;
-        assert.ok(routeJunctions >= 6, `Hard seed ${seed}: route keeps the six-junction minimum`);
+        assert.ok(routeJunctions >= (difficulty === 'expert' ? 12 : 6), `${difficulty} seed ${seed}: route keeps its junction minimum`);
       }
       let logicalRoute = [{ ...maze.start }];
       for (const [index, cell] of route.slice(1).entries()) {

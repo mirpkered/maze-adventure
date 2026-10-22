@@ -10,7 +10,7 @@ test('title screen exposes the playable mode and functional supporting controls'
   assert.match(html, /id="quick-play-description">Choose your maze challenge\./);
   assert.doesNotMatch(html.match(/<section id="home"[\s\S]*?<\/section>/)?.[0] ?? '', /difficulty-picker|data-start-difficulty|Easy|Medium|7×7|10×10/);
   assert.match(html, /<section id="difficulty"[^>]*hidden/);
-  assert.match(html, /data-start-difficulty="easy"[\s\S]*?Easy[\s\S]*?7×7 maze[\s\S]*?data-start-difficulty="medium"[\s\S]*?Medium[\s\S]*?10×10 maze[\s\S]*?data-start-difficulty="hard"[\s\S]*?Hard[\s\S]*?15×15 maze/);
+  assert.match(html, /data-start-difficulty="easy"[\s\S]*?Easy[\s\S]*?7×7 maze[\s\S]*?data-start-difficulty="medium"[\s\S]*?Medium[\s\S]*?10×10 maze[\s\S]*?data-start-difficulty="hard"[\s\S]*?Hard[\s\S]*?15×15 maze[\s\S]*?data-start-difficulty="expert"[\s\S]*?Expert[\s\S]*?20×20 maze/);
   assert.match(html, /id="difficulty-home">← Home/);
   assert.match(html, /id="play-difficulty">EASY/);
   assert.match(html, /id="open-settings"/);
@@ -41,7 +41,7 @@ test('canonical Mirpworks launch splash covers startup, then reveals the title o
   assert.equal((html.match(/id="launch-splash"/g) || []).length, 1, 'the initial document must contain one splash layer');
   assert.ok(html.indexOf("querySelector('#launch-splash')") < html.indexOf('src="./src/game.js"'), 'splash startup must be initialized before the game module');
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.launch-splash \{ transition: opacity 100ms ease !important/);
-  assert.match(worker, /shell-v42/);
+  assert.match(worker, /shell-v43/);
   assert.match(worker, /\.\/branding\/mirpworks-logo\.jpg/);
   assert.match(styles, /body\[data-screen="home"\]/);
 });
@@ -88,7 +88,7 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v42/);
+  assert.match(worker, /shell-v43/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);
@@ -151,10 +151,11 @@ test('Free Play difficulty screen offers large shared-theme cards and only start
   const html = await read('index.html'), css = await read('src/styles.css'), game = await read('src/game.js');
   assert.match(html, /class="screen info-screen difficulty-screen"/);
   assert.match(html, /class="difficulty-card-list"/);
-  assert.equal((html.match(/data-start-difficulty=/g) ?? []).length, 3, 'Easy, Medium, and Hard are immediately available');
+  assert.equal((html.match(/data-start-difficulty=/g) ?? []).length, 4, 'Easy, Medium, Hard, and Expert are immediately available');
   assert.match(html, /data-start-difficulty="hard"[\s\S]*?Start Hard/);
   assert.match(html, /Hard[\s\S]*?15×15 maze[\s\S]*?deeper wrong turns and more decisions/);
-  assert.match(css, /\.difficulty-card-list \{ display: grid; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(html, /data-start-difficulty="expert"[\s\S]*?Expert[\s\S]*?20×20 maze[\s\S]*?Start Expert/);
+  assert.match(css, /\.difficulty-card-list \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.difficulty-card-list \{ grid-template-columns: 1fr;/, 'the difficulty list stays touch-friendly in phone layouts');
   assert.match(html, /id="difficulty-title"[^>]*>Choose a difficulty/);
   assert.match(css, /\.difficulty-card\s*\{[^}]*min-height:\s*190px/s);

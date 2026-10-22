@@ -1,3 +1,3 @@
 // Change with each published application update; included in QA exports so a
 // Home Screen PWA report can be matched to the deployed JavaScript build.
-export const APP_BUILD_ID = '2026.10.22-difficulty-steering-speed-1';
+export const APP_BUILD_ID = '2026.10.22-expert-20x20-1';

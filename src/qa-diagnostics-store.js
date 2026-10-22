@@ -58,11 +58,14 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
   const counts = Object.entries(rejectedByReason).map(([reason, count]) => `${reason}:${count}`).join(', ') || 'none';
   const dimensions = report.maze?.dimensions;
   const difficulty = report.maze?.difficulty ?? (dimensions?.width === 7 && dimensions?.height === 7 ? 'easy'
-    : dimensions?.width === 10 && dimensions?.height === 10 ? 'medium' : 'custom');
+    : dimensions?.width === 10 && dimensions?.height === 10 ? 'medium'
+      : dimensions?.width === 15 && dimensions?.height === 15 ? 'hard'
+        : dimensions?.width === 20 && dimensions?.height === 20 ? 'expert' : 'custom');
   const start = report.maze?.start, finish = report.maze?.finish;
   const endpointSummary = start && finish
     ? `start ${start.cell?.x ?? '?'},${start.cell?.y ?? '?'} ${start.edge ?? '?'} → finish ${finish.cell?.x ?? '?'},${finish.cell?.y ?? '?'} ${finish.edge ?? '?'} | solution ${report.maze?.shortestSolutionLength ?? '?'} steps`
     : null;
+  const generation = report.maze ? `exit degree ${report.maze.exitInternalDegree ?? '?'} · gated cells ${report.maze.exitGatedCells ?? '?'} · attempts ${report.maze.generationAttempts ?? '?'} · generation ${report.maze.generationDurationMs ?? '?'}ms${report.maze.generationQuality ? ` · route junctions ${report.maze.generationQuality.solutionRouteJunctions} · optional branches ${report.maze.generationQuality.optionalBranchCount} · largest branch ${report.maze.generationQuality.largestOptionalBranch}` : ''}` : null;
   const historicalMode = report.selectedInputMode ?? report.inputMode;
   const activeController = report.activeController ?? current?.gestureInputMode ?? (report.controlSystem === 'continuous-steering' ? 'continuous-steering' : 'idle');
   const steeringSummary = report.controlSystem
@@ -79,6 +82,7 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
     `Maze Adventure QA ${report.buildId ?? 'build unknown'} | ${report.maze?.layoutId ?? 'maze unknown'}`,
     `${dimensions?.width ?? '?'}x${dimensions?.height ?? '?'} ${difficulty} | ${(durationMs / 1000).toFixed(1)}s | events ${observed}, accepted ${accepted}, rejected ${Object.values(rejectedByReason).reduce((a, b) => a + b, 0)} (${counts}), canceled ${canceled}`,
     ...(endpointSummary ? [endpointSummary] : []),
+    ...(generation ? [generation] : []),
     steeringSummary,
     ...(inputSurfaceSummary ? [inputSurfaceSummary] : []),
     ...(steeringMetrics ? [steeringMetrics] : []),

@@ -1,4 +1,4 @@
-import { createMazeForDifficulty, FREE_PLAY_DIFFICULTIES, getShortestPath, getWallSegments } from './maze.js';
+import { canMove, createMazeForDifficulty, DIRECTIONS, FREE_PLAY_DIFFICULTIES, getShortestPath, getWallSegments } from './maze.js';
 import { createTraceSession } from './tracing.js';
 import { DEFAULT_PREFERENCES, PREFERENCES_KEY, readPreferences, writePreferences } from './preferences.js';
 import { getMazeGridGeometry, mazeToSvgPoint } from './coordinates.js';
@@ -183,6 +183,11 @@ function diagnosticReportObject() {
     start: maze?.entrance ? { cell: { ...maze.start }, edge: maze.entrance.side } : null,
     finish: maze?.exit ? { cell: { ...maze.end }, edge: maze.exit.side } : null,
     shortestSolutionLength: maze ? (getShortestPath(maze)?.length ?? 0) - 1 : null,
+    exitInternalDegree: maze ? DIRECTIONS.reduce((count, direction) => count + Number(canMove(maze, maze.end, { x: maze.end.x + direction.dx, y: maze.end.y + direction.dy })), 0) : null,
+    exitGatedCells: maze ? 0 : null,
+    generationAttempts: maze?.generationAttempts ?? null,
+    generationDurationMs: maze?.generationDurationMs ?? null,
+    generationQuality: maze?.generationQuality ?? null,
     mazeDefinition: maze ? {
       start: { ...maze.start }, end: { ...maze.end },
       entrance: maze.entrance ? { cell: { ...maze.entrance.cell }, side: maze.entrance.side } : null,

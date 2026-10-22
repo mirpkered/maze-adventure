@@ -57,7 +57,7 @@ test('looped mazes use actual reachability and optional cells are counted once',
 test('seeded production audit is reproducible and does not mutate maze definitions', () => {
   const first = runMazeQualityAudit({ samples: 4, startSeed: 120 });
   const second = runMazeQualityAudit({ samples: 4, startSeed: 120 });
-  for (const difficulty of ['easy', 'medium', 'hard']) {
+  for (const difficulty of ['easy', 'medium', 'hard', 'expert']) {
     const projection = result => result.difficulties[difficulty].samples.map(({ seed, layoutId, start, exit, exitGatedCells, solutionPathEdges, optionalAccessibleCells }) =>
       ({ seed, layoutId, start, exit, exitGatedCells, solutionPathEdges, optionalAccessibleCells }));
     assert.deepEqual(projection(first), projection(second));

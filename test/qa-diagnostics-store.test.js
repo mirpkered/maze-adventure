@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createQaDiagnosticsStore, createQuickSummary, createRecentIncident, QA_DIAGNOSTICS_STORAGE_KEY } from '../src/qa-diagnostics-store.js';
+import { createTraceRecorder } from '../src/trace-diagnostics.js';
 
 function memoryStorage() {
   const values = new Map();
@@ -47,6 +48,47 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
   const legacy = createQuickSummary({ ...report, inputMode: undefined });
   assert.match(legacy, /selected unknown \(legacy report\)/, 'legacy reports do not invent a Direct Touch selection');
   assert.match(createQuickSummary({ ...report, events: [] }), /INSUFFICIENT EVIDENCE/);
+});
+
+test('Expert QA summary identifies 20x20 dimensions, terminal exit, quality, attempts, and speed', () => {
+  const report = {
+    buildId: '2026.10.22-expert-20x20-1',
+    controlSystem: 'continuous-steering', activeController: 'continuous-steering',
+    steering: { difficulty: 'expert', normalizedDeflection: 1, maxSpeedMazeUnitsPerSecond: 3, settings: { deadZonePixels: 10, speedResponseExponent: 1.15 } },
+    maze: {
+      layoutId: 'maze-20x20-a1b2c3d4', dimensions: { width: 20, height: 20 },
+      start: { cell: { x: 5, y: 0 }, edge: 'N' }, finish: { cell: { x: 19, y: 8 }, edge: 'E' },
+      shortestSolutionLength: 158, exitInternalDegree: 1, exitGatedCells: 0, generationAttempts: 2, generationDurationMs: 8.12,
+      generationQuality: { solutionRouteJunctions: 16, optionalBranchCount: 17, largestOptionalBranch: 99 },
+    },
+    current: { state: { authoritativePosition: { x: 19, y: 8 }, logicalCell: { x: 19, y: 8 }, active: false } }, events: [],
+  };
+  const summary = createQuickSummary(report);
+  assert.match(summary, /20x20 expert/);
+  assert.match(summary, /maze-20x20-a1b2c3d4/);
+  assert.match(summary, /solution 158 steps/);
+  assert.match(summary, /exit degree 1 · gated cells 0 · attempts 2 · generation 8\.12ms/);
+  assert.match(summary, /route junctions 16 · optional branches 17 · largest branch 99/);
+  assert.match(summary, /max 3 cells\/s/);
+  assert.ok(summary.length < 2000);
+});
+
+test('trace report serialization retains Expert generator and endpoint measurements', () => {
+  const report = createTraceRecorder().report({
+    layoutId: 'maze-20x20-seed-fixture', dimensions: { width: 20, height: 20 }, difficulty: 'expert',
+    start: { cell: { x: 5, y: 0 }, edge: 'N' }, finish: { cell: { x: 19, y: 8 }, edge: 'E' },
+    shortestSolutionLength: 158, exitInternalDegree: 1, exitGatedCells: 0,
+    generationAttempts: 2, generationDurationMs: 8.12,
+    generationQuality: { solutionPathEdges: 158, solutionRouteJunctions: 16, optionalAccessibleCells: 241, optionalBranchCount: 17, largestOptionalBranch: 99 },
+    route: [], ink: [], state: null,
+  });
+  assert.equal(report.maze.difficulty, 'expert');
+  assert.deepEqual(report.maze.dimensions, { width: 20, height: 20 });
+  assert.equal(report.maze.exitInternalDegree, 1);
+  assert.equal(report.maze.exitGatedCells, 0);
+  assert.equal(report.maze.generationAttempts, 2);
+  assert.equal(report.maze.generationDurationMs, 8.12);
+  assert.equal(report.maze.generationQuality.largestOptionalBranch, 99);
 });
 
 test('recent incident report provides a bounded event window and recovery evidence', () => {

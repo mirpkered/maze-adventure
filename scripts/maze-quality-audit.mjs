@@ -1,11 +1,12 @@
 import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
-import { canMove, createMazeForDifficulty, DIRECTIONS, FREE_PLAY_DIFFICULTIES, getShortestPath } from '../src/maze.js';
+import { canMove, createMazeForDifficulty, DIRECTIONS, FREE_PLAY_DIFFICULTIES, getShortestPath, isConnected, validateMaze, validatePath } from '../src/maze.js';
 import { mazeLayoutId } from '../src/trace-diagnostics.js';
 
-const MINIMUM_ROUTE_LENGTH = { easy: 18, medium: 28, hard: 42 };
+const MINIMUM_ROUTE_LENGTH = { easy: 18, medium: 28, hard: 42, expert: 100 };
 const HARD_MIN_ROUTE_JUNCTIONS = 6;
-const DIFFICULTIES = ['easy', 'medium', 'hard'];
+const EXPERT_MIN_ROUTE_JUNCTIONS = 12;
+const DIFFICULTIES = ['easy', 'medium', 'hard', 'expert'];
 const GATE_THRESHOLDS = [0, 2, 5];
 
 export function seededRandom(seed) {
@@ -95,6 +96,7 @@ function candidateEndpointPairs(maze, difficulty) {
   const degreeByCell = new Map(allCells(maze).map(cell => [key(cell), neighbors(maze, cell).length]));
   const degree = cell => degreeByCell.get(key(cell));
   const hard = difficulty === 'hard';
+  const expert = difficulty === 'expert';
   for (const entrance of openings) {
     const routeDistance = new Map([[key(entrance.cell), 0]]);
     const junctionPrefix = new Map([[key(entrance.cell), Number(degree(entrance.cell) >= 3)]]);
@@ -115,11 +117,13 @@ function candidateEndpointPairs(maze, difficulty) {
       if (length === undefined || length < MINIMUM_ROUTE_LENGTH[difficulty]) continue;
       const junctions = junctionPrefix.get(exitKey) - Number(degree(entrance.cell) >= 3) - Number(degree(exit.cell) >= 3);
       if (hard && junctions < HARD_MIN_ROUTE_JUNCTIONS) continue;
+      if (expert && (junctions < EXPERT_MIN_ROUTE_JUNCTIONS || degree(exit.cell) !== 1)) continue;
       pairs.push({ entrance, exit, junctions, length, exitDegree: degree(exit.cell) });
     }
   }
-  if (hard) {
-    const target = pairs.filter(pair => pair.length >= 50);
+  if (hard || expert) {
+    const targetLength = expert ? 120 : 50;
+    const target = pairs.filter(pair => pair.length >= targetLength);
     return target.length ? target : pairs;
   }
   const withDecisions = pairs.filter(pair => pair.junctions >= 2);
@@ -207,11 +211,14 @@ function percentile(values, fraction) {
 }
 
 function summarize(values) {
+  const ordered = [...values].sort((a, b) => a - b);
   return {
     mean: values.reduce((sum, value) => sum + value, 0) / values.length,
     median: percentile(values, 0.5),
+    p10: percentile(values, 0.1),
     p90: percentile(values, 0.9),
     p95: percentile(values, 0.95),
+    min: ordered[0] ?? null,
     max: values.reduce((largest, value) => Math.max(largest, value), -Infinity),
   };
 }
@@ -251,6 +258,16 @@ export function runMazeQualityAudit({ samples = 500, startSeed = 0 } = {}) {
       generationTimes.push(performance.now() - started);
       const analysisStarted = performance.now();
       const metrics = analyzeMazeQuality(maze);
+      const solution = getShortestPath(maze);
+      const completionPathValid = validatePath(maze, solution);
+      const valid = validateMaze(maze) && isConnected(maze) && completionPathValid;
+      if (!valid) throw new Error(`${difficulty} seed ${seed} failed connectivity, wall, or completion validation.`);
+      if (difficulty === 'expert' && (metrics.exitDegree !== 1 || metrics.exitGatedCells !== 0
+        || metrics.solutionPathEdges < 100 || metrics.solutionRouteJunctions < 12
+        || metrics.optionalAccessibleCells < 140 || metrics.optionalBranchCount < 8
+        || metrics.largestOptionalBranch > 200 || maze.generationAttempts > 12)) {
+        throw new Error(`Expert seed ${seed} failed the production quality thresholds.`);
+      }
       const candidates = candidateEndpointPairs(maze, difficulty);
       const componentMemo = new Map();
       for (const pair of candidates) {
@@ -288,13 +305,15 @@ export function runMazeQualityAudit({ samples = 500, startSeed = 0 } = {}) {
         generationAttempts: maze.generationAttempts ?? (randomCalls - 1) / (maze.width * maze.height - 1),
         generationMs: generationTimes.at(-1),
         analysisMs: analysisTimes.at(-1),
+        generationQuality: maze.generationQuality ?? null,
+        completionPathValid,
         ...metrics,
       });
     }
     const gated = mazes.map(maze => maze.exitGatedPercent);
     const candidateThresholds = Object.fromEntries(GATE_THRESHOLDS.map(threshold => {
       const { viable, eligiblePairs, eligibleRouteLengths, startSideMazes, exitSideMazes, arrangements } = candidateTotals[threshold];
-      const maxAttempts = difficulty === 'hard' ? 8 : 32;
+      const maxAttempts = difficulty === 'expert' ? 12 : difficulty === 'hard' ? 8 : 32;
       return [`${threshold}%`, {
         mazesWithAtLeastOneCandidate: viable,
         viabilityPercent: viable / samples * 100,
@@ -325,6 +344,8 @@ export function runMazeQualityAudit({ samples = 500, startSeed = 0 } = {}) {
       generationAttempts: { mean: mazes.reduce((sum, maze) => sum + maze.generationAttempts, 0) / samples, max: Math.max(...mazes.map(maze => maze.generationAttempts)), retriesObserved: mazes.filter(maze => maze.generationAttempts > 1).length },
       generationAttemptCounts: Object.fromEntries([...new Set(mazes.map(maze => maze.generationAttempts))].sort((a, b) => a - b).map(attempts => [attempts, mazes.filter(maze => maze.generationAttempts === attempts).length])),
       fallbackFrequency: { count: 0, percent: 0, policy: 'No fallback path; bounded retry exhaustion throws.' },
+      terminalExitPercent: mazes.filter(maze => maze.exitDegree === 1).length / samples * 100,
+      invalidSampleCount: mazes.filter(maze => maze.fullReachableCells !== maze.width * maze.height || maze.exitDegree !== 1 || maze.exitGatedCells !== 0).length,
       selectedStartSideCounts: Object.fromEntries(['N', 'E', 'S', 'W'].map(side => [side, mazes.filter(maze => maze.start.edge === side).length])),
       selectedExitSideCounts: Object.fromEntries(['N', 'E', 'S', 'W'].map(side => [side, mazes.filter(maze => maze.exit.edge === side).length])),
       exitsWithAdditionalInternalBranches: mazes.filter(maze => maze.exitDegree > 1).length,
@@ -336,8 +357,11 @@ export function runMazeQualityAudit({ samples = 500, startSeed = 0 } = {}) {
       solutionRouteJunctions: summarize(mazes.map(maze => maze.solutionRouteJunctions)),
       meanSolutionCoveragePercent: mazes.reduce((sum, maze) => sum + maze.solutionPathCoveragePercent, 0) / samples,
       meanOptionalAccessibleCells: mazes.reduce((sum, maze) => sum + maze.optionalAccessibleCells, 0) / samples,
+      optionalAccessibleCells: summarize(mazes.map(maze => maze.optionalAccessibleCells)),
       meanOptionalBranchCount: mazes.reduce((sum, maze) => sum + maze.optionalBranchCount, 0) / samples,
+      optionalBranchCount: summarize(mazes.map(maze => maze.optionalBranchCount)),
       meanLargestOptionalBranch: mazes.reduce((sum, maze) => sum + maze.largestOptionalBranch, 0) / samples,
+      largestOptionalBranch: summarize(mazes.map(maze => maze.largestOptionalBranch)),
       meanGraphLeaves: mazes.reduce((sum, maze) => sum + maze.graphLeafCount, 0) / samples,
       meanExitDistanceToNearestLeaf: mazes.reduce((sum, maze) => sum + maze.exitDistanceToNearestLeaf, 0) / samples,
       endpointQualityCandidatePairs: { mean: candidatePairTotal / samples, gateThresholds: candidateThresholds },

@@ -1,6 +1,6 @@
 # Maze Adventure — Game Design
 
-**Status:** Current Free Play supports Easy, Medium, and Hard and uses Continuous Steering as its only pointer-based gameplay controller. Historical phase notes below describe the implementation at that time.
+**Status:** Current Free Play supports Easy, Medium, Hard, and Expert and uses Continuous Steering as its only pointer-based gameplay controller. Historical phase notes below describe the implementation at that time.
 
 ## Confirmed
 
@@ -16,13 +16,13 @@
 
 ### Modes and difficulty
 
-- Free Play offers immediately selectable Easy, Medium, and Hard choices. There are no difficulty unlocks or progression gates.
-- Easy is 7×7, Medium is 10×10, and Hard is 15×15. All use the same generator, authoritative tracer, collision rules, and Continuous Steering controller.
-- Expert and custom mode remain future possibilities and are not implemented.
+- Free Play offers immediately selectable Easy, Medium, Hard, and Expert choices. There are no difficulty unlocks or progression gates.
+- Easy is 7×7, Medium is 10×10, Hard is 15×15, and Expert is 20×20. All use the same generator, authoritative tracer, collision rules, and Continuous Steering controller.
+- Custom mode remains a future possibility and is not implemented.
 - Custom mode is intended to let players choose dimensions and difficulty independently.
 - Free Play primarily uses procedural mazes. Generated mazes must be validated as solvable.
 - Core difficulties are not locked behind progression.
-- Current iPhone Free Play sizes are 7×7 and 10×10. Larger sizes require separate mobile usability testing before implementation.
+- Expert 20×20 has been inspected in a 390×844 browser viewport. Physical iPhone usability for Expert remains unverified.
 
 ### Adventure
 

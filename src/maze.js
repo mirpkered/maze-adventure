@@ -13,12 +13,19 @@ export const FREE_PLAY_DIFFICULTIES = Object.freeze({
   easy: Object.freeze({ width: 7, height: 7, label: 'Easy' }),
   medium: Object.freeze({ width: 10, height: 10, label: 'Medium' }),
   hard: Object.freeze({ width: 15, height: 15, label: 'Hard' }),
+  expert: Object.freeze({ width: 20, height: 20, label: 'Expert' }),
 });
 
-const MIN_SOLUTION_LENGTH = Object.freeze({ '7x7': 18, '10x10': 28, '15x15': 42 });
+const MIN_SOLUTION_LENGTH = Object.freeze({ '7x7': 18, '10x10': 28, '15x15': 42, '20x20': 100 });
 const HARD_TARGET_LENGTH = 50;
 const HARD_MIN_ROUTE_JUNCTIONS = 6;
 const HARD_MAX_GENERATION_ATTEMPTS = 8;
+const EXPERT_TARGET_LENGTH = 120;
+const EXPERT_MIN_ROUTE_JUNCTIONS = 12;
+const EXPERT_MIN_OPTIONAL_BRANCHES = 8;
+const EXPERT_MIN_OPTIONAL_CELLS = 140;
+const EXPERT_MAX_OPTIONAL_BRANCH_CELLS = 200;
+const EXPERT_MAX_GENERATION_ATTEMPTS = 12;
 
 function pathsFrom(maze, start) {
   const queue = [{ ...start }], parents = new Map([[`${start.x},${start.y}`, null]]);
@@ -138,11 +145,112 @@ function chooseHardEndpointPair(maze, random) {
   return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))];
 }
 
+function getPathFromParents(parents, startIndex, finishIndex, width) {
+  const path = [];
+  for (let cursor = finishIndex; cursor !== -1; cursor = parents[cursor]) {
+    path.push({ x: cursor % width, y: Math.floor(cursor / width) });
+    if (cursor === startIndex) break;
+  }
+  return path.reverse();
+}
+
+function optionalBranchSizes(maze, route) {
+  const routeCells = new Uint8Array(maze.width * maze.height);
+  for (const cell of route) routeCells[cell.y * maze.width + cell.x] = 1;
+  const seen = new Uint8Array(routeCells.length), sizes = [];
+  for (let y = 0; y < maze.height; y++) for (let x = 0; x < maze.width; x++) {
+    const root = y * maze.width + x;
+    if (routeCells[root] || seen[root]) continue;
+    seen[root] = 1;
+    const queue = [{ x, y }];
+    for (let index = 0; index < queue.length; index++) {
+      const here = queue[index];
+      for (const direction of DIRECTIONS) {
+        const next = { x: here.x + direction.dx, y: here.y + direction.dy };
+        if (!inBounds(maze, next) || !canMove(maze, here, next)) continue;
+        const nextIndex = next.y * maze.width + next.x;
+        if (routeCells[nextIndex] || seen[nextIndex]) continue;
+        seen[nextIndex] = 1;
+        queue.push(next);
+      }
+    }
+    sizes.push(queue.length);
+  }
+  return sizes.sort((a, b) => b - a);
+}
+
+/**
+ * Expert reuses the same DFS maze and terminal perimeter exit model. Its
+ * endpoint search uses typed-array BFS state, then checks optional branch
+ * quality only for route candidates that meet the stronger distance/decision
+ * thresholds. This avoids the generic all-pairs path reconstruction that made
+ * 20x20 generation unnecessarily expensive.
+ */
+function chooseExpertEndpointPair(maze, random) {
+  const openings = perimeterOpenings(maze.width, maze.height), size = maze.width * maze.height;
+  const degree = new Uint8Array(size);
+  for (const opening of openings) degree[opening.cell.y * maze.width + opening.cell.x] = graphDegree(maze, opening.cell);
+  // Interior degrees are also needed to count route junctions.
+  for (let y = 0; y < maze.height; y++) for (let x = 0; x < maze.width; x++) {
+    degree[y * maze.width + x] = graphDegree(maze, { x, y });
+  }
+  const candidates = [];
+  for (const entrance of openings) {
+    const parents = new Int16Array(size), distance = new Int16Array(size), junctionPrefix = new Int16Array(size);
+    parents.fill(-2); distance.fill(-1);
+    const startIndex = entrance.cell.y * maze.width + entrance.cell.x;
+    parents[startIndex] = -1; distance[startIndex] = 0;
+    junctionPrefix[startIndex] = Number(degree[startIndex] >= 3);
+    const queue = new Int16Array(size); queue[0] = startIndex;
+    let head = 0, tail = 1;
+    while (head < tail) {
+      const hereIndex = queue[head++], here = { x: hereIndex % maze.width, y: Math.floor(hereIndex / maze.width) };
+      for (const direction of DIRECTIONS) {
+        const next = { x: here.x + direction.dx, y: here.y + direction.dy };
+        if (!inBounds(maze, next) || !canMove(maze, here, next)) continue;
+        const nextIndex = next.y * maze.width + next.x;
+        if (distance[nextIndex] !== -1) continue;
+        parents[nextIndex] = hereIndex;
+        distance[nextIndex] = distance[hereIndex] + 1;
+        junctionPrefix[nextIndex] = junctionPrefix[hereIndex] + Number(degree[nextIndex] >= 3);
+        queue[tail++] = nextIndex;
+      }
+    }
+    for (const exit of openings) {
+      const exitIndex = exit.cell.y * maze.width + exit.cell.x;
+      if (exitIndex === startIndex || degree[exitIndex] !== 1) continue;
+      const length = distance[exitIndex];
+      if (length < MIN_SOLUTION_LENGTH['20x20']) continue;
+      const junctions = junctionPrefix[exitIndex] - Number(degree[startIndex] >= 3) - Number(degree[exitIndex] >= 3);
+      if (junctions < EXPERT_MIN_ROUTE_JUNCTIONS) continue;
+      candidates.push({ entrance, exit, startIndex, exitIndex, length, junctions, parents });
+    }
+  }
+  if (!candidates.length) return null;
+  const targeted = candidates.filter(candidate => candidate.length >= EXPERT_TARGET_LENGTH);
+  const candidatePools = targeted.length ? [targeted, candidates.filter(candidate => candidate.length < EXPERT_TARGET_LENGTH)] : [candidates];
+  for (const pool of candidatePools) {
+    const offset = Math.floor(random() * pool.length);
+    for (let index = 0; index < pool.length; index++) {
+      const candidate = pool[(offset + index) % pool.length];
+      const route = getPathFromParents(candidate.parents, candidate.startIndex, candidate.exitIndex, maze.width);
+      const branches = optionalBranchSizes(maze, route);
+      const optionalCells = size - route.length;
+      if (optionalCells < EXPERT_MIN_OPTIONAL_CELLS || branches.length < EXPERT_MIN_OPTIONAL_BRANCHES
+        || (branches[0] ?? 0) > EXPERT_MAX_OPTIONAL_BRANCH_CELLS) continue;
+      return { ...candidate, optionalAccessibleCells: optionalCells, optionalBranchSizes: branches };
+    }
+  }
+  return null;
+}
+
 export function createMaze(width = 7, height = 7, random = Math.random) {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 2 || height < 2) throw new RangeError('Maze dimensions must be integers of at least 2.');
+  const generationStartedAt = globalThis.performance?.now?.() ?? null;
   const isHard = width === 15 && height === 15;
+  const isExpert = width === 20 && height === 20;
   const minimumLength = MIN_SOLUTION_LENGTH[`${width}x${height}`] ?? 1;
-  const maxAttempts = isHard ? HARD_MAX_GENERATION_ATTEMPTS : 32;
+  const maxAttempts = isExpert ? EXPERT_MAX_GENERATION_ATTEMPTS : isHard ? HARD_MAX_GENERATION_ATTEMPTS : 32;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const cells = Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => ({ x, y, walls: { N: true, E: true, S: true, W: true } })));
     const visited = new Set(['0,0']);
@@ -160,7 +268,8 @@ export function createMaze(width = 7, height = 7, random = Math.random) {
     }
     const maze = { width, height, cells };
     const isShippedDifficulty = Object.hasOwn(MIN_SOLUTION_LENGTH, `${width}x${height}`);
-    let pair = isHard ? chooseHardEndpointPair(maze, random)
+    let pair = isExpert ? chooseExpertEndpointPair(maze, random)
+      : isHard ? chooseHardEndpointPair(maze, random)
       : chooseEndpointPair(maze, random, minimumLength, isShippedDifficulty);
     if (!pair) continue;
     maze.start = { ...pair.entrance.cell };
@@ -171,6 +280,15 @@ export function createMaze(width = 7, height = 7, random = Math.random) {
     cells[maze.end.y][maze.end.x].walls[maze.exit.side] = false;
     if (!validateMaze(maze)) throw new Error('Generated maze failed validation.');
     maze.generationAttempts = attempt + 1;
+    maze.generationDurationMs = generationStartedAt === null
+      ? null : Math.round((globalThis.performance.now() - generationStartedAt) * 100) / 100;
+    if (isExpert) maze.generationQuality = {
+      solutionPathEdges: pair.length,
+      solutionRouteJunctions: pair.junctions,
+      optionalAccessibleCells: pair.optionalAccessibleCells,
+      optionalBranchCount: pair.optionalBranchSizes.length,
+      largestOptionalBranch: pair.optionalBranchSizes[0] ?? 0,
+    };
     return maze;
   }
   throw new Error(`Could not generate a ${width}x${height} maze meeting its bounded endpoint quality requirements after ${maxAttempts} attempts.`);

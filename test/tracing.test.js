@@ -820,7 +820,7 @@ test('QA steering can backtrack to a junction while retaining permanent ink', ()
 });
 
 test('the shared steering tracer accepts legal movement in Easy, Medium, and Hard layouts', () => {
-  for (const [index, difficulty] of ['easy', 'medium', 'hard'].entries()) {
+  for (const [index, difficulty] of ['easy', 'medium', 'hard', 'expert'].entries()) {
     const maze = createMazeForDifficulty(difficulty, seeded(4300 + index));
     const solution = findSolution(maze), session = createTraceSession(maze), pointer = 995 + index;
     assert.ok(solution && solution.length > 2);
