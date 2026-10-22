@@ -14,10 +14,10 @@ test('sound, paper, manual theme and automatic rotation history persist and norm
   const storage = memoryStorage();
   assert.deepEqual(readPreferences(storage), DEFAULT_PREFERENCES);
   const saved = writePreferences({ soundEffects: false, paperTheme: 'light', themePreference: 'camp-dusk', lastAutoTheme: 'traveler-map', zoomAssist: false, controlMode: 'direct-touch', ignored: true }, storage);
-  assert.deepEqual(saved, { soundEffects: false, paperTheme: 'light', themePreference: 'camp-dusk', lastAutoTheme: 'traveler-map', zoomAssist: false });
+  assert.deepEqual(saved, { soundEffects: false, paperTheme: 'light', themePreference: 'camp-dusk', lastAutoTheme: 'traveler-map' });
   assert.deepEqual(readPreferences(storage), saved);
-  assert.deepEqual(writePreferences({ soundEffects: true, paperTheme: 'unknown', themePreference: 'unknown', lastAutoTheme: 'unknown' }, storage), { soundEffects: true, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true });
-  assert.deepEqual(readPreferences(memoryStorage(JSON.stringify({ soundEffects: false, paperTheme: 'light', controlMode: 'direct-touch' }))), { soundEffects: false, paperTheme: 'light', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true }, 'obsolete input mode is ignored while existing preferences remain intact');
+  assert.deepEqual(writePreferences({ soundEffects: true, paperTheme: 'unknown', themePreference: 'unknown', lastAutoTheme: 'unknown' }, storage), { soundEffects: true, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null });
+  assert.deepEqual(readPreferences(memoryStorage(JSON.stringify({ soundEffects: false, paperTheme: 'light', controlMode: 'direct-touch', zoomAssist: false }))), { soundEffects: false, paperTheme: 'light', themePreference: 'auto', lastAutoTheme: null }, 'obsolete workspace and input settings are ignored while player preferences remain intact');
 });
 
 test('obsolete input-mode fields are ignored and never written back', () => {
@@ -35,5 +35,12 @@ test('obsolete input-mode fields are ignored and never written back', () => {
 test('unavailable or malformed local storage falls back safely', () => {
   assert.deepEqual(readPreferences(memoryStorage('{broken')), DEFAULT_PREFERENCES);
   const storage = { getItem() { return null; }, setItem() { throw new Error('Storage disabled'); } };
-  assert.deepEqual(writePreferences({ soundEffects: false }, storage), { soundEffects: false, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null, zoomAssist: true });
+  assert.deepEqual(writePreferences({ soundEffects: false }, storage), { soundEffects: false, paperTheme: 'warm', themePreference: 'auto', lastAutoTheme: null });
+});
+
+test('legacy Zoom Assist is retired during preference normalization without losing theme or sound settings', () => {
+  const storage = memoryStorage(JSON.stringify({ soundEffects: false, paperTheme: 'light', themePreference: 'camp-dusk', lastAutoTheme: 'traveler-map', zoomAssist: false }));
+  const migrated = writePreferences(readPreferences(storage), storage);
+  assert.deepEqual(migrated, { soundEffects: false, paperTheme: 'light', themePreference: 'camp-dusk', lastAutoTheme: 'traveler-map' });
+  assert.equal(Object.hasOwn(JSON.parse(storage.value), 'zoomAssist'), false);
 });

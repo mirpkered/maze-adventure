@@ -32,10 +32,10 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
   const steering = createQuickSummary({ ...report, controlSystem: 'continuous-steering', activeController: 'idle', steering: { settings: { deadZonePixels: 10, speedResponseExponent: 1.15, maxSpeedMazeUnitsPerSecond: 1.725 }, frames: 60, activeFrames: 40, clampedFrames: 1 } });
   assert.match(steering, /control system continuous-steering \| active controller idle/);
   assert.match(steering, /steering dead-zone 10px, curve x\^1.15, max 1.725 cells\/s \| last gesture frames 40\/60, capped 1/);
-  const zoomSummary = createQuickSummary({ ...report, zoomAssist: true, zoomFactor: 1.75, qaSelectedZoomFactor: 1.75 });
-  assert.match(zoomSummary, /QA Zoom Assist 1\.75× \| Close View 1\.75×/);
-  assert.match(createQuickSummary({ ...report, zoomAssist: false, zoomFactor: 1, qaSelectedZoomFactor: 1.5 }), /QA Zoom Assist off \| 1\.5× selected/);
-  assert.match(createQuickSummary({ ...report, qaCloseViewPanelSize: 'compact', qaLayoutMeasurements: { closeViewPanel: { width: 270, height: 270 }, overviewMaze: { width: 340, height: 340 } } }), /QA Close View compact \| panel 270×270px \| overview maze 340×340px/);
+  const currentLayout = createQuickSummary({ ...report, inputPanel: 'steering-pad', zoomAssist: true, zoomFactor: 1.75, qaSelectedZoomFactor: 1.75, qaCloseViewPanelSize: 'compact' });
+  assert.match(currentLayout, /input surface steering-pad/);
+  assert.doesNotMatch(currentLayout, /Zoom Assist|Close View|panel compact/,
+    'current reports describe the steering pad and omit retired second-view settings');
   const explicitMode = createQuickSummary({ ...report, inputMode: 'direct-touch', selectedInputMode: 'continuous-steering', activeController: 'continuous-steering' });
   assert.match(explicitMode, /selected Continuous Steering \| gesture controller continuous-steering/,
     'historical reports retain the mode and controller they recorded');

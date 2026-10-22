@@ -171,7 +171,7 @@ h1 em { color: var(--rust); font-weight: 400; }
 .reset-settings { min-height: 44px; }
 button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, #maze:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
 
-/* Gesture suppression stays on the maze; the rest of the app keeps normal page and zoom gestures. */
+/* Gesture suppression stays on the game surfaces; the rest of the app keeps normal page and zoom gestures. */
 .maze-paper,#maze { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: contain; }
 body[data-screen="play"] .topbar, body[data-screen="play"] .site-footer { display: none; }
 body[data-screen="qa-config"] { height: 100dvh; overflow: hidden; }
@@ -220,7 +220,7 @@ body[data-screen="qa-config"] .site-footer { height: 30px; flex: 0 0 30px; }
   .qa-config-header .back-button { font-size: 10px; }
 }
 
-/* Split maze workspace: two views of the same SVG geometry and trace state. */
+/* Full maze above a dedicated, input-only steering field. */
 body[data-screen="play"] { height: 100dvh; min-height: 0; overflow: hidden; }
 body[data-screen="play"] .app-shell { height: 100dvh; min-height: 0; overflow: hidden; }
 body[data-screen="play"] .play-screen {
@@ -238,55 +238,51 @@ body[data-screen="play"] .timer-wrap { padding: 4px 9px; }
 body[data-screen="play"] .timer-wrap output { font-size: 18px; }
 .pause-tool { width: 44px; height: 44px; padding: 0; font-size: 17px; }
 body[data-screen="play"] .play-hint { margin: 2px 0 5px; flex: 0 0 auto; font-size: 11px; line-height: 1.2; }
-.maze-workspace { display: grid; min-height: 0; flex: 1 1 auto; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; align-content: stretch; gap: 6px; }
-.maze-overview-panel, .maze-close-panel { position: relative; box-sizing: border-box; min-width: 0; min-height: 0; padding: 6px; }
-#maze-paper[hidden] { display: none; }
-.maze-overview-panel { display: grid; width: min(100%, 34dvh); max-height: 100%; aspect-ratio: 1; place-items: center; }
-.maze-close-panel { display: grid; width: min(100%, 40dvh); aspect-ratio: 1; place-items: center; touch-action: none; }
-.steering-indicator { position: absolute; z-index: 2; inset: 6px; overflow: hidden; pointer-events: none; color: var(--rust, #c86f4a); }
+.maze-workspace { display: grid; min-height: 0; flex: 1 1 auto; grid-template-rows: minmax(0, 1fr) clamp(112px, 17dvh, 150px); justify-items: center; align-content: stretch; gap: 8px; }
+.maze-display-panel { position: relative; box-sizing: border-box; display: grid; width: min(100%, 60dvh, 620px); max-height: 100%; min-width: 0; min-height: 0; aspect-ratio: 1; padding: 7px; place-items: center; }
+.maze-display-panel svg { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; touch-action: none; }
+.steering-pad { position: relative; isolation: isolate; box-sizing: border-box; width: min(100%, 560px); min-height: 112px; height: clamp(112px, 17dvh, 150px); max-height: 100%; margin: 0 auto; overflow: hidden; border: 1px solid color-mix(in srgb, var(--theme-line, var(--line)) 82%, transparent); border-radius: 24px; background: radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--theme-surface, var(--paper)) 94%, transparent) 0 28%, transparent 70%), linear-gradient(145deg, color-mix(in srgb, var(--theme-surface, var(--paper)) 73%, transparent), color-mix(in srgb, var(--theme-green, #64765f) 11%, transparent)); box-shadow: inset 0 1px rgba(255,255,255,.48), inset 0 -8px 20px color-mix(in srgb, var(--theme-pageInk, #334b3c) 5%, transparent), 0 5px 16px var(--theme-shadow, rgba(48,66,52,.12)); color: var(--theme-ink, var(--ink)); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: contain; }
+.steering-pad::before { position: absolute; z-index: -1; inset: 8px; border: 1px dashed color-mix(in srgb, var(--theme-line, var(--line)) 70%, transparent); border-radius: 18px; content: ""; pointer-events: none; }
+.steering-pad-label { position: absolute; top: 12px; left: 16px; color: var(--theme-muted, var(--muted)); font-size: 8px; font-weight: 800; letter-spacing: .16em; pointer-events: none; }
+.steering-pad-mark { position: absolute; top: 50%; left: 50%; display: grid; width: 58px; aspect-ratio: 1; place-items: center; border: 1px solid color-mix(in srgb, var(--theme-accent, var(--rust)) 30%, transparent); border-radius: 50%; background: color-mix(in srgb, var(--theme-surface, var(--paper)) 38%, transparent); transform: translate(-50%,-50%); pointer-events: none; }
+.steering-pad-mark::before, .steering-pad-mark::after { position: absolute; background: color-mix(in srgb, var(--theme-accent, var(--rust)) 28%, transparent); content: ""; }
+.steering-pad-mark::before { width: 1px; height: 72px; }
+.steering-pad-mark::after { width: 72px; height: 1px; }
+.steering-pad-mark span { z-index: 1; width: 8px; aspect-ratio: 1; border: 1px solid var(--theme-accent, var(--rust)); border-radius: 50%; background: var(--theme-surface, var(--paper)); }
+.steering-pad-instruction { position: absolute; bottom: 11px; left: 50%; color: var(--theme-muted, var(--muted)); font: 600 8px/1 sans-serif; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; transform: translateX(-50%); pointer-events: none; }
+.steering-indicator { position: absolute; z-index: 2; inset: 0; overflow: hidden; pointer-events: none; color: var(--theme-accent, var(--rust)); }
 .steering-indicator[hidden] { display: none; }
 .steering-indicator > span { position: absolute; display: block; border-radius: 50%; }
-.steering-origin { left: var(--origin-x); top: var(--origin-y); width: 26px; height: 26px; border: 1px solid currentColor; background: #fff8e899; transform: translate(-50%,-50%); box-shadow: 0 1px 5px #35261930; }
-.steering-vector { left: var(--origin-x); top: var(--origin-y); width: var(--vector-length); height: 2px; border-radius: 2px !important; background: currentColor; transform: rotate(var(--vector-angle)); transform-origin: 0 50%; opacity: .8; }
-.steering-finger { left: var(--finger-x); top: var(--finger-y); width: 10px; height: 10px; border: 2px solid currentColor; background: #fff8e9cc; transform: translate(-50%,-50%); }
+.steering-origin { left: var(--origin-x); top: var(--origin-y); width: 26px; height: 26px; border: 1.5px solid currentColor; background: color-mix(in srgb, var(--theme-surface, var(--paper)) 68%, transparent); transform: translate(-50%,-50%); box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 12%, transparent), 0 1px 5px #35261930; }
+.steering-vector { left: var(--origin-x); top: var(--origin-y); width: var(--vector-length); height: 2px; border-radius: 2px !important; background: currentColor; transform: rotate(var(--vector-angle)); transform-origin: 0 50%; opacity: .72; }
+.steering-finger { left: var(--finger-x); top: var(--finger-y); width: 12px; height: 12px; border: 2px solid currentColor; background: var(--theme-surface, var(--paper)); transform: translate(-50%,-50%); box-shadow: 0 1px 4px #35261930; }
 .maze-panel-label { position: absolute; z-index: 1; top: 5px; left: 8px; padding: 2px 5px; border-radius: 3px; background: color-mix(in srgb, var(--paper) 88%, transparent); color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .1em; line-height: 1.1; pointer-events: none; }
-.maze-overview-panel svg, .maze-close-panel svg { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; touch-action: none; }
-#maze-overview { pointer-events: none; }
 .game-actions { display: grid; width: min(100%, 390px); grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 body[data-screen="play"] .play-footer { width: 100%; max-width: none; flex: 0 0 auto; justify-content: center; margin: 5px auto 0; }
 body[data-screen="play"] .game-actions .small-button { min-width: 44px; min-height: 44px; padding: 5px 8px; font-size: 11px; }
-body[data-zoom-assist="false"] .maze-workspace { display: block; }
-body[data-zoom-assist="false"] .maze-overview-panel { display: none; }
-body[data-zoom-assist="false"] .maze-close-panel, body[data-zoom-assist="false"] .completion-panel { width: min(100%, calc(100dvh - 175px)); height: min(100%, calc(100dvh - 175px)); margin: 0 auto; aspect-ratio: 1; }
-body[data-zoom-assist="false"] .maze-close-panel .maze-panel-label { display: none; }
-body[data-zoom-assist="false"][data-completed="true"] .maze-workspace { display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; gap: 6px; }
-body[data-zoom-assist="false"][data-completed="true"] .maze-close-panel { width: min(100%, 65dvh); height: auto; max-height: 100%; aspect-ratio: 1; }
-body[data-zoom-assist="false"][data-completed="true"] .completion-panel { width: 100%; height: auto; min-height: 78px; aspect-ratio: auto; flex-direction: row; justify-content: flex-start; gap: 13px; padding: 10px 16px; }
-body[data-zoom-assist="false"][data-completed="true"] .completion-flower { flex: 0 0 auto; font-size: 27px; }
-body[data-zoom-assist="false"][data-completed="true"] .completion-message { justify-items: start; gap: 3px; text-align: left; }
-body[data-zoom-assist="false"][data-completed="true"] .completion-panel h2 { font-size: 22px; }
-body[data-zoom-assist="false"][data-completed="true"] .completion-copy { font-size: 12px; }
-body[data-zoom-assist="false"] .play-hint { margin: 2px 0 5px; }
+body[data-completed="true"] .maze-workspace { grid-template-rows: minmax(0, 1fr) auto; }
+.completion-panel { grid-row: 2; width: min(100%, 560px); min-height: 112px; }
+body[data-completed="true"] .completion-panel { display: flex; }
 @media (max-width: 420px) {
   body[data-screen="play"] .app-shell { padding-right: max(10px, calc(env(safe-area-inset-right) + 10px)); padding-left: max(10px, calc(env(safe-area-inset-left) + 10px)); }
   body[data-screen="play"] .play-title-block h1 { font-size: 18px; }
-  .maze-overview-panel { width: min(100%, 33dvh); }
-  .maze-close-panel { width: min(100%, 40dvh); }
-  body[data-zoom-assist="false"] .maze-close-panel, body[data-zoom-assist="false"] .completion-panel { width: min(100%, calc(100dvh - 165px)); height: min(100%, calc(100dvh - 165px)); }
+  .maze-display-panel { width: min(100%, 60dvh); }
+  .steering-pad { width: 100%; height: clamp(112px, 17dvh, 145px); }
 }
 @media (orientation: landscape) and (max-height: 520px) {
   body[data-screen="play"] .play-screen { width: 100%; padding-top: 2px; }
   body[data-screen="play"] .play-hint { margin: 1px 0 3px; }
-  .maze-workspace { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 8px; }
-  .maze-overview-panel { width: auto; height: min(100%, 43dvh); justify-self: end; }
-  .maze-close-panel, .completion-panel { width: min(100%, 43dvh); height: min(100%, 43dvh); justify-self: start; }
+  .maze-workspace { grid-template-columns: minmax(0, 1fr) minmax(170px, 30vw); grid-template-rows: minmax(0, 1fr); gap: 12px; }
+  .maze-display-panel { grid-column: 1; grid-row: 1; width: auto; height: min(100%, 80dvh); justify-self: center; }
+  .steering-pad { grid-column: 2; grid-row: 1; width: 100%; height: min(100%, 190px); align-self: center; }
+  .completion-panel { grid-column: 2; grid-row: 1; width: 100%; align-self: center; }
 }
 @media (orientation: landscape) and (max-height: 520px) {
   .play-screen { max-width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 170px; grid-template-rows: auto auto 1fr; column-gap: 12px; align-items: center; padding-top: 6px; }
   .play-heading { position: relative; z-index: 1; }
   .play-heading, .play-hint { grid-column: 1 / -1; }
   .play-hint { margin: 4px 0; }
-  .maze-paper { grid-column: 1; grid-row: 3; justify-self: end; width: min(58vw, calc(100dvh - 110px)); max-height: calc(100dvh - 110px); margin: 0; }
+  .completion-panel { grid-column: 2; grid-row: 1; justify-self: stretch; width: 100%; max-height: 100%; margin: 0; }
   .play-footer { position: static; grid-column: 2; grid-row: 3; width: 100%; margin: 0; transform: none; flex-direction: column; }
   .game-actions { display: grid; grid-template-columns: 1fr; width: 100%; }
 }
@@ -334,8 +330,6 @@ body[data-qa="true"] #qa-config .trace-diagnostic-tools:not([hidden]) { display:
 #trace-diagnostic-status { color: #533c31; font-size: 12px; }
 #qa-retention-status,.qa-privacy-note { color: #533c31; font-size: 11px; margin: 2px 0; }
 .qa-session-picker { font-size: 11px; color: #533c31; }
-.qa-zoom-controls { margin-top: 8px; }
-.qa-zoom-status { display: block; margin-top: 9px; color: var(--muted); font-size: 12px; }
 #qa-session-history { max-width: 100%; padding: 6px; border: 1px solid #b8aa96; border-radius: 6px; color: #3f5147; background: #fbf7ef; }
 #trace-diagnostic-fallback { box-sizing: border-box; width: 100%; min-height: 120px; padding: 8px; font: 11px/1.4 ui-monospace, monospace; }
 button:focus-visible, a:focus-visible { outline-offset: 4px; }
@@ -608,6 +602,10 @@ body[data-visual-theme="traveler-map"] :is(.settings-panel,.completion-panel,.di
 body[data-visual-theme="traveler-map"] :is(.small-button,.settings-panel select) { border-radius: 2px; border-color: #aa8954; background: linear-gradient(#fff8e5,#ecddb9); color: #354a38; box-shadow: inset 0 1px #fffdf4, 0 2px 0 #a58a5e; }
 body[data-visual-theme="traveler-map"] .button-primary { border: 1px solid #c6a560; border-radius: 3px; background: linear-gradient(#587452,#304c39); box-shadow: inset 0 0 0 2px #76906a, 0 4px 0 #203729, 0 8px 15px #3e302044; }
 body[data-visual-theme="traveler-map"] .maze-paper { border: 5px solid #8a683c; border-radius: 3px; box-shadow: inset 0 0 0 2px #d9bd7a, 0 4px 0 #5b4328, 0 15px 30px #37271552; }
+body[data-visual-theme="traveler-map"] .steering-pad { border: 2px solid #8a683c; border-radius: 4px 18px 4px 4px; background: radial-gradient(ellipse at 50% 48%, #fff5d8 0 27%, #f1e3c1 65%, #e4d2aa); box-shadow: inset 0 0 0 3px #f6ebcb, inset 0 0 0 4px #c8ad73, 0 4px 0 #715232, 0 11px 22px #46351e35; }
+body[data-visual-theme="traveler-map"] .steering-pad::before { border-color: #92754988; border-radius: 2px 14px 2px 2px; }
+body[data-visual-theme="traveler-map"] .steering-pad-mark { border-color: #99744388; background: #f7e9c980; }
+body[data-visual-theme="traveler-map"] .steering-pad-instruction { color: #526348; }
 
 /* Camp at Dusk: pine-shadowed sky, stitched canvas patches, and a lantern-lit trail marker. */
 body[data-visual-theme="camp-dusk"] .topbar { border-bottom: 1px solid #d6ad6b77; }
@@ -632,6 +630,10 @@ body[data-visual-theme="camp-dusk"] :is(.settings-panel,.completion-panel,.dialo
 body[data-visual-theme="camp-dusk"] :is(.small-button,.settings-panel select) { border: 1px dashed #92734c; border-radius: 4px; background: linear-gradient(#fff5dc,#ead8b5); color: #293f50; box-shadow: inset 0 0 0 2px #fff8e9, 0 3px 0 #4a3828; }
 body[data-visual-theme="camp-dusk"] .button-primary { border: 1px solid #edbd69; border-radius: 4px; background: repeating-linear-gradient(0deg,#ffffff0b 0 2px,transparent 3px 7px),linear-gradient(110deg,#8a5433,#593b2a 54%,#344936); box-shadow: inset 0 0 0 2px #e5be7655, 0 4px 0 #34251b, 0 8px 15px #07111d66; }
 body[data-visual-theme="camp-dusk"] .maze-paper { border: 5px solid #60472f; border-radius: 7px; box-shadow: inset 0 0 0 2px #e2c992, 0 4px 0 #34261b, 0 15px 28px #020a135c; }
+body[data-visual-theme="camp-dusk"] .steering-pad { border: 2px solid #76563a; border-radius: 18px 18px 8px 8px; background: radial-gradient(ellipse at 50% 42%, #ffda8a77 0 8%, #fff0cb 11% 28%, #ead8b5 62%, #dfc79e); box-shadow: inset 0 0 0 2px #fff7e6, inset 0 0 0 4px #c3a16c, 0 4px 0 #34261c, 0 12px 24px #020a135c; }
+body[data-visual-theme="camp-dusk"] .steering-pad::before { border: 1px dashed #8b6a43; border-radius: 12px 12px 5px 5px; }
+body[data-visual-theme="camp-dusk"] .steering-pad-mark { border-color: #ba8644aa; background: #fff1d8a8; box-shadow: 0 0 22px #e9ad4d42; }
+body[data-visual-theme="camp-dusk"] .steering-pad-instruction { color: #465c56; }
 @media (max-width: 760px) {
   body[data-visual-theme="traveler-map"] .home-art.title-art,
   body[data-visual-theme="camp-dusk"] .home-art.title-art { flex: 0 1 auto; width: 100%; height: clamp(128px, 20dvh, 170px); min-height: 128px; max-height: 170px; }
@@ -642,33 +644,6 @@ body[data-visual-theme="camp-dusk"] .maze-paper { border: 5px solid #60472f; bor
 }
 @media (prefers-reduced-motion: reduce) {
   .theme-artwork { filter: none !important; }
-}
-
-/* QA-only panel comparison. These square surfaces keep their aspect ratio;
-   the candidate overview grows only into actual workspace space calculated
-   by the layout observer. Current remains byte-for-byte equivalent in size. */
-body[data-qa="true"][data-zoom-assist="true"][data-screen="play"][data-qa-close-view-size="compact"] .maze-close-panel {
-  width: min(100%, 32dvh);
-  height: auto;
-}
-body[data-qa="true"][data-zoom-assist="true"][data-screen="play"][data-qa-close-view-size="extra-compact"] .maze-close-panel {
-  width: min(100%, 28.5dvh);
-  height: auto;
-}
-body[data-qa="true"][data-zoom-assist="true"][data-screen="play"][data-qa-close-view-size="compact"] .maze-overview-panel,
-body[data-qa="true"][data-zoom-assist="true"][data-screen="play"][data-qa-close-view-size="extra-compact"] .maze-overview-panel {
-  width: min(100%, var(--qa-overview-panel-size, 100%));
-  height: auto;
-}
-@media (orientation: landscape) and (max-height: 520px) {
-  body[data-qa="true"][data-zoom-assist="true"][data-screen="play"][data-qa-close-view-size="compact"] .maze-close-panel {
-    width: min(100%, 34.4dvh);
-    height: auto;
-  }
-  body[data-qa="true"][data-zoom-assist="true"][data-screen="play"][data-qa-close-view-size="extra-compact"] .maze-close-panel {
-    width: min(100%, 30.64dvh);
-    height: auto;
-  }
 }
 
 /* Organic journal pass: keep the shared layout, and let each world shape its surfaces. */

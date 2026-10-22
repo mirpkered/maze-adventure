@@ -1,15 +1,13 @@
 import { createMazeForDifficulty, FREE_PLAY_DIFFICULTIES, getShortestPath, getWallSegments } from './maze.js';
 import { createTraceSession } from './tracing.js';
 import { DEFAULT_PREFERENCES, PREFERENCES_KEY, readPreferences, writePreferences } from './preferences.js';
-import { clientToViewBoxPoint, getMazeGridGeometry, mazeToSvgPoint, svgToMazePoint, transformPoint } from './coordinates.js';
-import { createMazeCamera, createQaZoomState, effectiveCameraZoom } from './maze-camera.js';
+import { getMazeGridGeometry, mazeToSvgPoint } from './coordinates.js';
 import { tracePathData } from './trace-rendering.js';
 import { createTraceRecorder, mazeLayoutId } from './trace-diagnostics.js';
 import { bindEmblemQaTrigger, closeQaSession, startQaSession } from './qa-mode.js';
 import { pointerMovementSamples } from './pointer-samples.js';
 import { APP_BUILD_ID } from './build-info.js';
 import { createQaDiagnosticsStore, createQuickSummary, createRecentIncident } from './qa-diagnostics-store.js';
-import { calculateQaOverviewSize, createQaCloseViewLayoutState, getQaCloseViewTargetHeight } from './qa-layout-state.js';
 import { applyVisualTheme, chooseLaunchTheme, THEME_PREFERENCE_OPTIONS } from './themes.js';
 import { createSteeringController } from './continuous-steering.js';
 import { captureQaReturnState, restoreQaReturnState } from './qa-view-state.js';
@@ -17,13 +15,11 @@ import { captureQaReturnState, restoreQaReturnState } from './qa-view-state.js';
 const $ = selector => document.querySelector(selector);
 const screens = ['home', 'difficulty', 'play', 'qa-config', 'settings', 'help', 'about'].map(id => $(`#${id}`));
 const svg = $('#maze');
-const overviewSvg = $('#maze-overview');
+const steeringPad = $('#steering-pad');
 let deviceStorage = null;
 try { deviceStorage = window.localStorage; } catch { /* Private or embedded contexts may block storage. */ }
 const SIZE = 400, PAD = 24;
 let gridGeometry = getMazeGridGeometry(7, 7, SIZE, PAD);
-let mazeCamera = createMazeCamera({ viewSize: SIZE, zoom: 2 });
-let cameraPosition = mazeCamera.snapshot();
 let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, timerId, mazeCompleted = false;
 let selectedDifficulty = 'easy';
 let paused = false, activeOverlay = null, returnFocus = null, resumeAfterOverlay = false;
@@ -42,11 +38,12 @@ function preferenceStorageAvailable() {
   } catch { return false; }
 }
 const canPersistPreferences = preferenceStorageAvailable();
-let preferences = readPreferences(deviceStorage);
+// Normalize stored settings on launch; the retired Zoom Assist flag is dropped
+// while sound and theme preferences are preserved.
+let preferences = writePreferences(readPreferences(deviceStorage), deviceStorage);
 let activeVisualTheme = chooseLaunchTheme(preferences.themePreference, preferences.lastAutoTheme, Math.random, canPersistPreferences);
 if (preferences.themePreference === 'auto') preferences = writePreferences({ ...preferences, lastAutoTheme: activeVisualTheme }, deviceStorage);
 applyVisualTheme(document, activeVisualTheme);
-document.body.dataset.zoomAssist = String(preferences.zoomAssist);
 for (const { value, label } of THEME_PREFERENCE_OPTIONS) {
   const option = [...$('#visual-theme').options].find(item => item.value === value);
   if (option) option.textContent = label;
@@ -54,8 +51,6 @@ for (const { value, label } of THEME_PREFERENCE_OPTIONS) {
 }
 let settingsReturnToPlay = false;
 let qaEnabled = startQaSession(location, history, deviceStorage);
-const qaZoomState = createQaZoomState();
-const qaCloseViewLayout = createQaCloseViewLayoutState();
 const steeringController = createSteeringController();
 let steeringPointerId = null, steeringFrameId = null, steeringHadBlock = false, lastSteeringBlockReason = null;
 let lastRawPointer = null, lastClientPointer = null;
@@ -64,46 +59,7 @@ const qaStore = createQaDiagnosticsStore(deviceStorage);
 let qaSessionId = qaEnabled ? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` : null;
 let persistTimer = null;
 let currentLayoutId = null;
-let lastQaWorkspaceSize = null;
-let lastQaLayoutMeasurements = null;
-let lastQaMeasuredLayout = null;
 if (qaEnabled) document.body.dataset.qa = 'true';
-
-function currentCameraZoom() {
-  return effectiveCameraZoom({ qaEnabled, qaZoom: qaZoomState.value, ordinaryZoom: 2 });
-}
-
-function refreshCameraForZoom() {
-  mazeCamera = createMazeCamera({ viewSize: SIZE, zoom: currentCameraZoom() });
-  cameraPosition = traceSession
-    ? mazeCamera.center(svgPoint(traceSession.position))
-    : mazeCamera.snapshot();
-  $('#zoom-factor-label').textContent = `· ${cameraPosition.zoom}×`;
-  if (traceSession) renderTrace();
-}
-
-function syncQaZoomControls() {
-  const selector = $('#qa-zoom-magnification');
-  const zoom = qaZoomState.value;
-  if (selector) selector.value = String(zoom);
-  const status = $('#qa-zoom-status');
-  if (status) status.textContent = `Selected for this QA session: ${zoom.toFixed(2).replace(/0$/, '')}×. Ordinary play remains at 2.0×.`;
-  const indicator = $('#qa-active-mode-indicator');
-  if (indicator) {
-    indicator.hidden = !qaEnabled;
-    indicator.textContent = `QA · Steering · ${zoom}×`;
-  }
-}
-
-function selectQaZoom(value) {
-  if (!qaEnabled || $('#qa-config').hidden) return;
-  stopActiveInput();
-  if (!qaZoomState.select(value, { qaEnabled })) return;
-  refreshCameraForZoom();
-  syncQaZoomControls();
-  updateTraceDiagnostics();
-  queueQaPersistence();
-}
 
 function stopActiveInput() {
   if (activePointerId !== null) clearPointer();
@@ -114,8 +70,6 @@ function stopActiveInput() {
 }
 
 function setQaMode(enabled) {
-  const previouslyEffectiveZoom = currentCameraZoom();
-  const wasEnabled = qaEnabled;
   if (qaEnabled && !enabled) {
     clearTimeout(persistTimer);
     if (traceRecorder && traceSession && qaSessionId) qaStore.save(diagnosticReportObject(), { sessionId: qaSessionId, buildId: APP_BUILD_ID });
@@ -123,14 +77,6 @@ function setQaMode(enabled) {
   const nextEnabled = Boolean(enabled);
   if (!nextEnabled) stopActiveInput();
   qaEnabled = nextEnabled;
-  if (wasEnabled && !nextEnabled) {
-    qaZoomState.reset();
-    qaCloseViewLayout.reset();
-    lastQaMeasuredLayout = null;
-    lastQaLayoutMeasurements = null;
-    $('#maze-workspace').style.removeProperty('--qa-overview-panel-size');
-  }
-  if (previouslyEffectiveZoom !== currentCameraZoom()) refreshCameraForZoom();
   if (qaEnabled) {
     traceRecorder ??= createTraceRecorder({ limit: 400 });
     qaSessionId ??= `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -152,110 +98,20 @@ function setQaMode(enabled) {
 function syncQaControls() {
   if (qaEnabled) document.body.dataset.qa = 'true';
   else delete document.body.dataset.qa;
-  if (qaEnabled) document.body.dataset.qaCloseViewSize = qaCloseViewLayout.value;
-  else delete document.body.dataset.qaCloseViewSize;
   $('#trace-diagnostic-tools').hidden = !qaEnabled;
   $('#trace-diagnostics').hidden = !qaEnabled || !traceSession;
   $('#qa-open-home').hidden = !qaEnabled || $('#home').hidden;
   $('#qa-open-game').hidden = !qaEnabled;
   $('#qa-active-input-mode').textContent = 'Control system: Continuous Steering';
-  $('#qa-zoom-controls').hidden = !qaEnabled;
-  $('#qa-zoom-magnification').value = String(qaZoomState.value);
-  $('#qa-layout-controls').hidden = !qaEnabled;
-  $('#qa-close-view-size').value = qaCloseViewLayout.value;
-  applyQaOverviewSizing();
-  updateQaLayoutStatus();
-  syncQaZoomControls();
+  syncQaModeIndicator();
   if (qaEnabled) refreshQaSessions();
 }
 
-function qaLayoutMeasurements() {
-  if (!qaEnabled || !preferences.zoomAssist || $('#play').hidden) return null;
-  const overview = overviewSvg.getBoundingClientRect();
-  const close = $('#maze-paper').getBoundingClientRect();
-  if (!overview.width || !close.width) return null;
-  let wallBounds = null;
-  try { wallBounds = overviewSvg.querySelector('.walls')?.getBBox?.() ?? null; } catch { /* Fall back to the SVG viewport when SVG geometry measurement is unavailable. */ }
-  const view = overviewSvg.viewBox.baseVal;
-  const mazeScaleX = view.width ? overview.width / view.width : 1;
-  const mazeScaleY = view.height ? overview.height / view.height : 1;
-  return {
-    overviewMaze: wallBounds
-      ? { width: Math.round(wallBounds.width * mazeScaleX), height: Math.round(wallBounds.height * mazeScaleY) }
-      : { width: Math.round(overview.width), height: Math.round(overview.height) },
-    closeViewPanel: { width: Math.round(close.width), height: Math.round(close.height) },
-  };
+function syncQaModeIndicator() {
+  const indicator = $('#qa-active-mode-indicator');
+  indicator.hidden = !qaEnabled;
+  indicator.textContent = 'QA · Steering Pad';
 }
-
-function applyQaOverviewSizing() {
-  const workspace = $('#maze-workspace');
-  if ($('#play').hidden || !preferences.zoomAssist) {
-    if (!qaEnabled || !preferences.zoomAssist) workspace.style.removeProperty('--qa-overview-panel-size');
-    return;
-  }
-  const bounds = workspace.getBoundingClientRect();
-  const closeHeight = $('#maze-paper').getBoundingClientRect().height;
-  if (!bounds.width || !bounds.height || !closeHeight) return;
-  lastQaWorkspaceSize = { width: bounds.width, height: bounds.height };
-  if (!qaEnabled || qaCloseViewLayout.value === 'current') {
-    workspace.style.removeProperty('--qa-overview-panel-size');
-  } else {
-    const gap = Number.parseFloat(getComputedStyle(workspace).rowGap) || 0;
-    const size = calculateQaOverviewSize({
-      layout: qaCloseViewLayout.value,
-      workspaceWidth: bounds.width,
-      workspaceHeight: bounds.height,
-      closeViewHeight: closeHeight,
-      viewportHeight: window.innerHeight,
-      gap,
-    });
-    if (size > 0) workspace.style.setProperty('--qa-overview-panel-size', `${size}px`);
-  }
-  if (qaEnabled) {
-    const measurements = qaLayoutMeasurements();
-    if (measurements) {
-      lastQaLayoutMeasurements = measurements;
-      lastQaMeasuredLayout = qaCloseViewLayout.value;
-    }
-  }
-}
-
-function updateQaLayoutStatus() {
-  const status = $('#qa-close-view-status');
-  if (!status || !qaEnabled) return;
-  const selected = qaCloseViewLayout.value;
-  if (!preferences.zoomAssist) {
-    const label = selected === 'extra-compact' ? 'Extra Compact' : selected === 'compact' ? 'Compact' : 'Current';
-    status.textContent = `Selected: ${label}. Zoom Assist is off, so split-screen panel sizing is inactive; the full-maze view remains unchanged.`;
-    return;
-  }
-  const measured = qaLayoutMeasurements() ?? (lastQaMeasuredLayout === selected ? lastQaLayoutMeasurements : null);
-  if (measured) {
-    status.textContent = `Selected: ${selected === 'extra-compact' ? 'Extra Compact' : selected === 'compact' ? 'Compact' : 'Current'} · Close View ${measured.closeViewPanel.width} × ${measured.closeViewPanel.height} CSS px · overview maze ${measured.overviewMaze.width} × ${measured.overviewMaze.height} CSS px. Panel size is independent of magnification; set the separate Zoom Assist comparison to 2.0×.`;
-    return;
-  }
-  const workspaceWidth = lastQaWorkspaceSize?.width ?? window.innerWidth;
-  const landscapeBaseDvh = window.matchMedia('(orientation: landscape) and (max-height: 520px)').matches ? 43 : 40;
-  const target = getQaCloseViewTargetHeight(selected, window.innerHeight, workspaceWidth, landscapeBaseDvh);
-  const overviewSize = lastQaWorkspaceSize ? calculateQaOverviewSize({
-    layout: selected,
-    workspaceWidth: lastQaWorkspaceSize.width,
-    workspaceHeight: lastQaWorkspaceSize.height,
-    closeViewHeight: target,
-    viewportHeight: window.innerHeight,
-    gap: 6,
-  }) : null;
-  const label = selected === 'extra-compact' ? 'Extra Compact' : selected === 'compact' ? 'Compact' : 'Current';
-  const estimate = selected === 'current' ? '' : ` · Close View target about ${Math.round(target)}px${overviewSize ? ` · overview panel up to ${Math.round(overviewSize)}px` : ''}`;
-  status.textContent = `Selected: ${label}${estimate}. Panel size is independent of magnification; set the separate Zoom Assist comparison to 2.0×. Ordinary play keeps the Current layout.`;
-}
-
-const qaWorkspaceResizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
-  applyQaOverviewSizing();
-  updateQaLayoutStatus();
-});
-qaWorkspaceResizeObserver?.observe($('#maze-workspace'));
-
 function refreshQaSessions() {
   const picker = $('#qa-session-history');
   if (!picker) return;
@@ -277,14 +133,15 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
   if (!traceRecorder || !traceSession) return;
   const state = traceSession.diagnostics;
   let captured = false;
-  try { captured = event?.pointerId !== undefined && Boolean(svg.hasPointerCapture?.(event.pointerId)); } catch { /* Capture state is unavailable in some embedded WebViews. */ }
+  try { captured = event?.pointerId !== undefined && Boolean(steeringPad.hasPointerCapture?.(event.pointerId)); } catch { /* Capture state is unavailable in some embedded WebViews. */ }
   traceRecorder.record({
     eventType,
     pointerType: event?.pointerType ?? 'unknown',
     sampleType,
     sampleIndex,
     client: event && Number.isFinite(event.clientX) ? { x: Math.round(event.clientX * 10) / 10, y: Math.round(event.clientY * 10) / 10 } : null,
-    maze: point ? { x: Math.round(point.x * 1000) / 1000, y: Math.round(point.y * 1000) / 1000 } : null,
+    steeringPad: point ? { x: Math.round(point.x * 10) / 10, y: Math.round(point.y * 10) / 10 } : null,
+    maze: null,
     cell: { ...state.cell },
     acceptedInkEndpoint: { ...state.endpoint },
     pencilPosition: { ...state.authoritativePosition },
@@ -294,12 +151,7 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
     failureCategory: state.failureCategory,
     traceHealth: state.traceHealth,
     interpolationCount: movement?.interpolatedSamples ?? 0,
-    zoomAssist: preferences.zoomAssist,
-    zoomFactor: preferences.zoomAssist ? cameraPosition.zoom : 1,
-    qaSelectedZoomFactor: qaEnabled ? qaZoomState.value : null,
-    qaCloseViewPanelSize: qaEnabled ? qaCloseViewLayout.value : null,
-    cameraPosition: preferences.zoomAssist ? { x: Math.round(cameraPosition.x * 100) / 100, y: Math.round(cameraPosition.y * 100) / 100 } : null,
-    inputPanel: preferences.zoomAssist ? 'close-view' : 'full-maze',
+    inputPanel: 'steering-pad',
     attemptedTransitions: movement?.attemptedTransitions ?? [],
     controlSystem: 'continuous-steering',
     activeController: state.active ? 'continuous-steering' : 'idle',
@@ -341,12 +193,7 @@ function diagnosticReportObject() {
     state: state ? { ...state } : null,
     inkCellAssociation: state?.strokeCells ?? [],
     buildId: APP_BUILD_ID,
-    zoomAssist: preferences.zoomAssist,
-    zoomFactor: preferences.zoomAssist ? cameraPosition.zoom : 1,
-    qaSelectedZoomFactor: qaEnabled ? qaZoomState.value : null,
-    qaCloseViewPanelSize: qaEnabled ? qaCloseViewLayout.value : null,
-    qaLayoutMeasurements: qaLayoutMeasurements() ?? (lastQaMeasuredLayout === qaCloseViewLayout.value ? lastQaLayoutMeasurements : null),
-    cameraPosition: preferences.zoomAssist ? { x: cameraPosition.x, y: cameraPosition.y } : null,
+    inputPanel: 'steering-pad',
     controlSystem: 'continuous-steering',
     activeController: state?.active ? 'continuous-steering' : 'idle',
     steering: qaEnabled ? { settings: steeringController.settings, ...steeringController.snapshot } : null,
@@ -371,9 +218,7 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   const state = traceSession.diagnostics;
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
   const reversal = state.candidateReversal ? `${state.candidateReversal.x},${state.candidateReversal.y} (${state.candidateReversalOpen ? 'open' : 'closed'})` : 'none';
-  const dimensions = qaLayoutMeasurements() ?? (lastQaMeasuredLayout === qaCloseViewLayout.value ? lastQaLayoutMeasurements : null);
-  const measuredLayout = dimensions ? ` · Close View ${dimensions.closeViewPanel.width}×${dimensions.closeViewPanel.height}px · overview ${dimensions.overviewMaze.width}×${dimensions.overviewMaze.height}px` : '';
-  output.textContent = `QA trace · build ${APP_BUILD_ID} · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · zoom ${preferences.zoomAssist ? `${cameraPosition.zoom}× close view (${cameraPosition.x.toFixed(0)},${cameraPosition.y.toFixed(0)})` : 'off'} · QA zoom ${qaZoomState.value}× · panel ${qaCloseViewLayout.value}${measuredLayout} · client px ${point(lastClientPointer)} · raw maze ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  output.textContent = `QA trace · build ${APP_BUILD_ID} · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · input surface steering-pad · client px ${point(lastClientPointer)} · raw pad px ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -424,12 +269,7 @@ function returnFromQaConfiguration() {
   paused = restoreState.paused;
   if (restoreState.resumeTimer) startTimer();
   if (targetScreen === $('#play')) requestAnimationFrame(() => {
-    applyQaOverviewSizing();
-    // A square panel keeps the same square 2× viewBox; preserve the camera
-    // origin so a layout comparison never moves the authoritative pencil.
     renderTrace();
-    lastQaLayoutMeasurements = qaLayoutMeasurements() ?? lastQaLayoutMeasurements;
-    updateQaLayoutStatus();
     updateTraceDiagnostics();
     queueQaPersistence();
   });
@@ -452,16 +292,10 @@ function pauseTimer() {
   elapsed = Date.now() - startedAt; displayTime();
 }
 
-function pointAt(event, screenToSvg = null) {
-  const client = { x: event.clientX, y: event.clientY };
-  if (screenToSvg) return transformPoint(client, screenToSvg);
-  try {
-    const screenToSvg = svg.getScreenCTM()?.inverse();
-    if (screenToSvg) return transformPoint(client, screenToSvg);
-  } catch { /* Fall back for older or incomplete embedded SVG implementations. */ }
-  return clientToViewBoxPoint(client, svg.getBoundingClientRect(), { x: 0, y: 0, width: SIZE, height: SIZE });
+function pointInSteeringPad(event) {
+  const bounds = steeringPad.getBoundingClientRect();
+  return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
 }
-function pointInMaze(event, screenToSvg = null) { return svgToMazePoint(pointAt(event, screenToSvg), gridGeometry.x, gridGeometry.cellSize, gridGeometry.y); }
 function svgPoint(point) { return mazeToSvgPoint(point, gridGeometry.x, gridGeometry.cellSize, gridGeometry.y); }
 
 function renderTrace() {
@@ -469,24 +303,15 @@ function renderTrace() {
   const points = traceSession.stroke.map(svgPoint);
   const path = tracePathData(points, traceSession.strokeBreaks);
   $('#trail').setAttribute('d', path);
-  $('#overview-trail').setAttribute('d', path);
   const endpoint = svgPoint(traceSession.position);
   $('#player').setAttribute('cx', endpoint.x);
   $('#player').setAttribute('cy', endpoint.y);
-  $('#overview-player').setAttribute('cx', endpoint.x);
-  $('#overview-player').setAttribute('cy', endpoint.y);
   svg.dataset.visited = String(new Set(traceSession.path.map(point => `${point.x},${point.y}`)).size);
-  // Steering remains screen-space while the camera follows the accepted pencil.
-  if (preferences.zoomAssist && (activePointerId === null || steeringPointerId !== null)) cameraPosition = mazeCamera.follow(endpoint);
-  svg.setAttribute('viewBox', preferences.zoomAssist ? cameraPosition.viewBox : `0 0 ${SIZE} ${SIZE}`);
+  svg.setAttribute('viewBox', `0 0 ${SIZE} ${SIZE}`);
 }
 
 function renderMaze() {
   gridGeometry = getMazeGridGeometry(maze.width, maze.height, SIZE, PAD);
-  mazeCamera = createMazeCamera({ viewSize: SIZE, zoom: currentCameraZoom() });
-  const startPoint = svgPoint(maze.start);
-  cameraPosition = mazeCamera.center(startPoint);
-  $('#zoom-factor-label').textContent = `· ${cameraPosition.zoom}×`;
   const ns = 'http://www.w3.org/2000/svg';
   const create = (tag, attributes, text) => {
     const element = document.createElementNS(ns, tag);
@@ -494,7 +319,7 @@ function renderMaze() {
     if (text) element.textContent = text;
     return element;
   };
-  const start = svgPoint(maze.start), end = svgPoint(maze.end);
+  const start = svgPoint(maze.start);
   const markerPosition = (opening, isStart) => {
     const cell = opening.cell, x = gridGeometry.x + (cell.x + .5) * gridGeometry.cellSize;
     const y = gridGeometry.y + (cell.y + .5) * gridGeometry.cellSize;
@@ -508,24 +333,20 @@ function renderMaze() {
     x: position.x, y: position.y, 'text-anchor': 'middle', class: `marker ${className}`,
     ...(position.rotate ? { transform: `rotate(${position.rotate} ${position.x} ${position.y})` } : {}),
   }, text);
-  for (const [target, overview] of [[svg, false], [overviewSvg, true]]) {
-    target.replaceChildren();
-    const trailId = overview ? 'overview-trail' : 'trail';
-    const playerId = overview ? 'overview-player' : 'player';
-    target.append(create('path', { id: trailId, class: 'trail', fill: 'none', d: '' }));
-    const walls = create('g', { class: 'walls', 'aria-hidden': 'true' });
-    const line = (x1, y1, x2, y2) => walls.append(create('line', { x1, y1, x2, y2, class: 'wall' }));
-    for (const segment of getWallSegments(maze)) {
-      const x0 = gridGeometry.x + segment.x * gridGeometry.cellSize, y0 = gridGeometry.y + segment.y * gridGeometry.cellSize;
-      if (segment.orientation === 'horizontal') line(x0, y0, x0 + gridGeometry.cellSize, y0);
-      else line(x0, y0, x0, y0 + gridGeometry.cellSize);
-    }
-    target.append(walls);
-    target.append(marker(startMarker, 'marker-start', 'START'));
-    target.append(marker(endMarker, 'marker-end', '✿'));
-    target.append(create('circle', { id: playerId, cx: start.x, cy: start.y, r: gridGeometry.cellSize * .19, class: 'player' }));
+  svg.replaceChildren();
+  svg.append(create('path', { id: 'trail', class: 'trail', fill: 'none', d: '' }));
+  const walls = create('g', { class: 'walls', 'aria-hidden': 'true' });
+  const line = (x1, y1, x2, y2) => walls.append(create('line', { x1, y1, x2, y2, class: 'wall' }));
+  for (const segment of getWallSegments(maze)) {
+    const x0 = gridGeometry.x + segment.x * gridGeometry.cellSize, y0 = gridGeometry.y + segment.y * gridGeometry.cellSize;
+    if (segment.orientation === 'horizontal') line(x0, y0, x0 + gridGeometry.cellSize, y0);
+    else line(x0, y0, x0, y0 + gridGeometry.cellSize);
   }
-  overviewSvg.setAttribute('viewBox', `0 0 ${SIZE} ${SIZE}`);
+  svg.append(walls);
+  svg.append(marker(startMarker, 'marker-start', 'START'));
+  svg.append(marker(endMarker, 'marker-end', '✿'));
+  svg.append(create('circle', { id: 'player', cx: start.x, cy: start.y, r: gridGeometry.cellSize * .19, class: 'player' }));
+  svg.setAttribute('viewBox', `0 0 ${SIZE} ${SIZE}`);
   renderTrace();
 }
 
@@ -534,23 +355,11 @@ function updateSettingsControls() {
   $('#sound-effects').checked = preferences.soundEffects;
   $('#paper-theme').value = preferences.paperTheme;
   $('#visual-theme').value = preferences.themePreference;
-  $('#zoom-assist').checked = preferences.zoomAssist;
   setTheme();
 }
 function savePreferences(update) {
-  const zoomChanged = Object.hasOwn(update, 'zoomAssist') && preferences.zoomAssist !== update.zoomAssist;
-  if (zoomChanged && activePointerId !== null) clearPointer();
   preferences = writePreferences({ ...preferences, ...update });
   updateSettingsControls();
-  if (zoomChanged) {
-    document.body.dataset.zoomAssist = String(preferences.zoomAssist);
-    if (mazeCompleted) $('#maze-paper').hidden = preferences.zoomAssist;
-    if (preferences.zoomAssist && traceSession) cameraPosition = mazeCamera.center(svgPoint(traceSession.position));
-    if (!mazeCompleted && !$('#play').hidden) $('#play-hint').textContent = `Touch ${preferences.zoomAssist ? 'the Close View' : 'the maze'} to set a steering origin. Move away to guide the pencil; return to center or lift to stop.`;
-    if (traceSession) renderTrace();
-    updateTraceDiagnostics();
-    queueQaPersistence();
-  }
 }
 function saveThemePreference(themePreference) {
   if (themePreference === 'auto') {
@@ -606,19 +415,19 @@ function makeMaze(reuse = false) {
   mazeCompleted = false;
   delete document.body.dataset.completed;
   $('#completion-panel').hidden = true;
-  $('#maze-paper').hidden = false;
+  steeringPad.hidden = false;
   selectedDifficulty = maze.difficulty ?? selectedDifficulty;
   $('#play-difficulty').textContent = FREE_PLAY_DIFFICULTIES[selectedDifficulty].label.toUpperCase();
   currentLayoutId = mazeLayoutId(maze);
   traceSession = createTraceSession(maze);
   activePointerId = null; elapsed = 0; paused = false; displayTime();
-  $('#play-hint').textContent = `Touch ${preferences.zoomAssist ? 'the Close View' : 'the maze'} to set a steering origin. Move away to guide the pencil; return to center or lift to stop.`;
+  $('#play-hint').textContent = 'Touch anywhere in the steering field, then move your finger to guide the pencil above. Move farther for more speed; return to your touch point or lift to stop.';
   renderMaze(); activeScreen($('#play')); syncQaControls(); updateTraceDiagnostics(); queueQaPersistence(); $('#play-title').focus({ preventScroll: true }); startTimer();
 }
 
 function updateSteeringIndicator(point) {
   const indicator = $('#steering-indicator');
-  if (!qaEnabled || !point || !steeringController.active) {
+  if (!point || !steeringController.active) {
     indicator.hidden = true;
     return;
   }
@@ -653,7 +462,7 @@ function endSteeringGesture(id) {
 function recordSteeringEvent(eventType, movement, reason = null) {
   const finger = steeringController.snapshot.finger;
   const event = { pointerId: steeringPointerId, pointerType: 'touch', clientX: finger?.x, clientY: finger?.y };
-  recordTraceEvent(eventType, event, traceSession.position, Boolean(movement?.moved), reason, false, movement, 'steering-frame');
+  recordTraceEvent(eventType, event, finger ? pointInSteeringPad(event) : null, Boolean(movement?.moved), reason, false, movement, 'steering-frame');
 }
 
 function scheduleSteeringFrameLoop(id) {
@@ -707,7 +516,7 @@ function scheduleSteeringFrameLoop(id) {
         endSteeringGesture(id);
         traceSession.end(id);
         activePointerId = null;
-        try { if (svg.hasPointerCapture?.(id)) svg.releasePointerCapture(id); } catch { /* Capture may already have been released. */ }
+        try { if (steeringPad.hasPointerCapture?.(id)) steeringPad.releasePointerCapture(id); } catch { /* Capture may already have been released. */ }
         completeMaze();
         return;
       }
@@ -725,21 +534,21 @@ function clearPointer() {
   }, lastRawPointer, false, 'application-interruption', true);
   if (steeringPointerId === id) endSteeringGesture(id);
   traceSession?.cancel(id); activePointerId = null;
-  try { if (svg.hasPointerCapture?.(id)) svg.releasePointerCapture(id); } catch { /* Capture may already be gone. */ }
+  try { if (steeringPad.hasPointerCapture?.(id)) steeringPad.releasePointerCapture(id); } catch { /* Capture may already be gone. */ }
   renderTrace();
   updateTraceDiagnostics();
 }
 function finishPointer(event, cancel = false) {
   if (activePointerId !== event.pointerId) return;
   lastClientPointer = { x: event.clientX, y: event.clientY };
-  lastRawPointer = pointInMaze(event);
+  lastRawPointer = pointInSteeringPad(event);
   recordTraceEvent(event.type ?? (cancel ? 'pointercancel' : 'pointerup'), event, lastRawPointer, true, null, cancel);
   endSteeringGesture(event.pointerId);
   if (cancel) traceSession.cancel(event.pointerId);
   else traceSession.end(event.pointerId);
   activePointerId = null;
   renderTrace();
-  try { if (svg.hasPointerCapture?.(event.pointerId)) svg.releasePointerCapture(event.pointerId); } catch { /* Capture may already be released by the browser. */ }
+  try { if (steeringPad.hasPointerCapture?.(event.pointerId)) steeringPad.releasePointerCapture(event.pointerId); } catch { /* Capture may already be released by the browser. */ }
   updateTraceDiagnostics();
   return false;
 }
@@ -748,11 +557,9 @@ function completeMaze() {
   mazeCompleted = true;
   pauseTimer(); displayTime();
   document.body.dataset.completed = 'true';
-  $('#maze-paper').hidden = preferences.zoomAssist;
+  steeringPad.hidden = true;
   $('#completion-panel').hidden = false;
-  $('#play-hint').textContent = preferences.zoomAssist
-    ? 'Your finished route stays visible in the map above.'
-    : 'Your finished drawing stays here on the paper.';
+  $('#play-hint').textContent = 'Your finished route stays visible in the map above.';
   $('#completion-title').focus({ preventScroll: true });
   playCompletionSound();
 }
@@ -796,11 +603,11 @@ function openHomeConfirmation() {
 }
 function returnToHome() { showHome(); }
 
-svg.addEventListener('pointerdown', event => {
+steeringPad.addEventListener('pointerdown', event => {
   event.preventDefault();
   if ($('#play').hidden || !traceSession) return;
   lastClientPointer = { x: event.clientX, y: event.clientY };
-  lastRawPointer = pointInMaze(event);
+  lastRawPointer = pointInSteeringPad(event);
   if (mazeCompleted) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'attempt-already-completed'); return; }
   if (paused || activeOverlay) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'game-not-interactive'); return; }
   if (!event.isPrimary) { recordTraceEvent('pointerdown', event, lastRawPointer, false, 'non-primary-pointer'); return; }
@@ -818,7 +625,7 @@ svg.addEventListener('pointerdown', event => {
     activePointerId = event.pointerId;
     updateSteeringIndicator({ x: event.clientX, y: event.clientY });
     scheduleSteeringFrameLoop(event.pointerId);
-    try { svg.setPointerCapture(event.pointerId); } catch { /* Older embedded WebViews may lack pointer capture. */ }
+    try { steeringPad.setPointerCapture(event.pointerId); } catch { /* Older embedded WebViews may lack pointer capture. */ }
     updateTraceDiagnostics(lastRawPointer);
   }
   recordTraceEvent('pointerdown', event, lastRawPointer, began, began ? null : traceSession.diagnostics.reason);
@@ -829,14 +636,14 @@ window.addEventListener('pointermove', event => {
   if (steeringPointerId !== event.pointerId) return;
   for (const sample of pointerMovementSamples(event)) {
     lastClientPointer = { x: sample.clientX, y: sample.clientY };
-    lastRawPointer = pointInMaze(sample);
+    lastRawPointer = pointInSteeringPad(sample);
     steeringController.update(event.pointerId, { x: sample.clientX, y: sample.clientY });
   }
   updateSteeringIndicator(lastClientPointer);
   updateTraceDiagnostics(lastRawPointer);
 });
-// A rotation can change the SVG's screen transform between pointer samples.
-// End that gesture safely; the next touch resumes from the accepted endpoint.
+// A rotation can change screen-space steering direction between samples.
+// End safely; the next touch begins a fresh steering origin.
 window.addEventListener('resize', clearPointer);
 svg.addEventListener('keydown', event => {
   const direction = { ArrowUp: { x: 0, y: -1 }, ArrowRight: { x: 1, y: 0 }, ArrowDown: { x: 0, y: 1 }, ArrowLeft: { x: -1, y: 0 } }[event.key];
@@ -874,18 +681,6 @@ $('#pause-game').addEventListener('click', () => openOverlay($('#pause-dialog'),
 $('#qa-open-home').addEventListener('click', openQaConfiguration);
 $('#qa-open-game').addEventListener('click', openQaConfiguration);
 $('#qa-config-return').addEventListener('click', returnFromQaConfiguration);
-$('#qa-zoom-magnification').addEventListener('change', event => selectQaZoom(Number(event.currentTarget.value)));
-$('#qa-close-view-size').addEventListener('change', event => {
-  if (!qaEnabled || $('#qa-config').hidden) return;
-  stopActiveInput();
-  if (!qaCloseViewLayout.select(event.currentTarget.value, { qaEnabled })) return;
-  document.body.dataset.qaCloseViewSize = qaCloseViewLayout.value;
-  applyQaOverviewSizing();
-  updateQaLayoutStatus();
-  renderTrace();
-  updateTraceDiagnostics();
-  queueQaPersistence();
-});
 $('#pause-settings').addEventListener('click', openSettingsFromPause);
 function resumeFromPause() { paused = false; closeOverlay(); startTimer(); }
 $('#resume-game').addEventListener('click', resumeFromPause);
@@ -905,7 +700,6 @@ $('#open-about').addEventListener('click', () => { activeScreen($('#about')); $(
 $('#about-home').addEventListener('click', showHome);
 $('#open-credits').addEventListener('click', () => { activeScreen($('#about')); $('#about-title').focus({ preventScroll: true }); });
 $('#sound-effects').addEventListener('change', event => savePreferences({ soundEffects: event.currentTarget.checked }));
-$('#zoom-assist').addEventListener('change', event => savePreferences({ zoomAssist: event.currentTarget.checked }));
 $('#paper-theme').addEventListener('change', event => savePreferences({ paperTheme: event.currentTarget.value }));
 $('#visual-theme').addEventListener('change', event => saveThemePreference(event.currentTarget.value));
 $('#reset-settings').addEventListener('click', () => openOverlay($('#reset-dialog')));

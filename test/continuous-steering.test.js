@@ -338,8 +338,12 @@ test('Steering is the only gameplay controller and QA diagnostics identify it wi
     'pause and its Settings transition stop the controller');
   assert.match(game, /if \(cancel\) traceSession\.cancel\(event\.pointerId\)/,
     'pointercancel and lost capture end steering without movement');
-  assert.match(game, /if \(preferences\.zoomAssist && \(activePointerId === null \|\| steeringPointerId !== null\)\) cameraPosition = mazeCamera\.follow\(endpoint\)/,
-    'camera follows the logical pencil while steering input remains screen-space');
+  assert.match(game, /steeringPad\.addEventListener\('pointerdown'/,
+    'steering input is received by the dedicated lower pad');
+  assert.match(game, /svg\.setAttribute\('viewBox', `0 0 \$\{SIZE\} \$\{SIZE\}`\)/,
+    'the upper maze remains a stable full-maze display');
+  assert.doesNotMatch(game, /mazeCamera|preferences\.zoomAssist/,
+    'camera motion cannot feed back into screen-space steering');
   assert.match(game, /requestAnimationFrame\(frame\)/);
   assert.match(game, /cancelAnimationFrame\(steeringFrameId\)/);
   assert.match(game, /document\.hidden\) \{ pauseTimer\(\); if \(steeringPointerId !== null\) clearPointer\(\); \}/);

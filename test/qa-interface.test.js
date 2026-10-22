@@ -5,46 +5,38 @@ import { captureQaReturnState, restoreQaReturnState } from '../src/qa-view-state
 
 const read = file => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
 
-test('QA configuration is a separate screen and no diagnostic controls live in gameplay', async () => {
+test('the gameplay view has one authoritative maze and a separate steering-only input panel', async () => {
   const html = await read('index.html');
   const playStart = html.indexOf('<section id="play"'), configStart = html.indexOf('<section id="qa-config"'), settingsStart = html.indexOf('<section id="settings"');
   const play = html.slice(playStart, configStart), config = html.slice(configStart, settingsStart);
-  assert.ok(play.includes('id="maze-overview"') && play.includes('id="maze"'), 'gameplay keeps both maze views');
+  assert.equal((play.match(/<svg id="maze"/g) ?? []).length, 1, 'gameplay renders one maze SVG');
+  assert.match(play, /class="maze-display-panel maze-paper"[^>]*aria-label="Maze and pencil route"/);
+  assert.match(play, /class="steering-pad" id="steering-pad"[^>]*aria-label="Steering pad/);
+  assert.doesNotMatch(play, /maze-overview|maze-close-panel|overview-trail|Close View/i);
+  assert.match(play, /class="steering-pad-mark"/);
   assert.doesNotMatch(play, /trace-diagnostic-tools|trace-diagnostics|qa-input-mode/, 'the tracing surface has no diagnostic panel');
   assert.match(play, /id="qa-open-game"[^>]*hidden/, 'the small in-header entry is hidden unless QA is active');
   assert.match(config, /id="trace-diagnostic-tools"[^>]*hidden/);
-  assert.match(config, /id="qa-zoom-controls"[^>]*hidden[\s\S]*?id="qa-zoom-magnification"[\s\S]*?value="2"[\s\S]*?value="1\.75"[\s\S]*?value="1\.5"/);
-  assert.match(config, /Ordinary play remains at 2\.0×/);
-  assert.match(config, /id="qa-layout-controls"[^>]*hidden[\s\S]*?id="qa-close-view-size"[\s\S]*?value="current"[\s\S]*?value="compact"[\s\S]*?value="extra-compact"/);
-  assert.match(config, /id="qa-close-view-status"/);
+  assert.doesNotMatch(config, /Zoom Assist|Close View|qa-close-view-size|qa-zoom-magnification/i);
   assert.doesNotMatch(config, /<select[^>]*(?:input|mode)|Direct Touch/i, 'QA has no retired input-mode controls');
   assert.match(config, /Control system: Continuous Steering/);
   assert.match(config, /id="qa-config-return"/);
   assert.match(html, /id="qa-open-home"[^>]*hidden/);
 });
 
-test('QA zoom comparison is isolated to the Close View camera and reports the selected value', async () => {
-  const game = await read('src/game.js'), camera = await read('src/maze-camera.js'), worker = await read('service-worker.js');
-  assert.match(game, /function selectQaZoom\(value\)[\s\S]*?if \(!qaEnabled \|\| \$\('#qa-config'\)\.hidden\) return;[\s\S]*?stopActiveInput\(\)/);
-  assert.match(game, /function refreshCameraForZoom\(\)[\s\S]*?createMazeCamera\(\{ viewSize: SIZE, zoom: currentCameraZoom\(\) \}\)[\s\S]*?mazeCamera\.center\(svgPoint\(traceSession\.position\)\)/);
-  assert.match(game, /qaSelectedZoomFactor: qaEnabled \? qaZoomState\.value : null/);
-  assert.match(camera, /effectiveCameraZoom\([\s\S]*?qaEnabled && isSupportedQaZoom\(qaZoom\) \? qaZoom : ordinaryZoom/);
-  assert.match(worker, /shell-v39/);
-});
-
-test('QA panel-size selection is independent from magnification and leaves gameplay state authoritative', async () => {
-  const game = await read('src/game.js'), css = await read('src/styles.css'), worker = await read('service-worker.js');
-  assert.match(game, /createQaCloseViewLayoutState\(\)/);
-  assert.match(game, /qaCloseViewLayout\.select\(event\.currentTarget\.value, \{ qaEnabled \}\)/);
-  assert.match(game, /qaCloseViewLayout\.reset\(\)/);
-  assert.match(game, /renderTrace\(\);\s*updateTraceDiagnostics\(\);\s*queueQaPersistence\(\);/);
-  assert.match(game, /qaCloseViewPanelSize: qaEnabled \? qaCloseViewLayout\.value : null/);
-  assert.match(game, /qaLayoutMeasurements: qaLayoutMeasurements\(\)/);
-  assert.match(game, /applyQaOverviewSizing\(\)[\s\S]*?calculateQaOverviewSize\(/);
-  assert.match(css, /body\[data-qa="true"\]\[data-zoom-assist="true"\]\[data-screen="play"\]\[data-qa-close-view-size="compact"\] \.maze-close-panel/);
-  assert.match(css, /data-qa-close-view-size="extra-compact"/);
-  assert.match(worker, /\.\/src\/qa-layout-state\.js/);
-  assert.match(worker, /shell-v39/);
+test('steering input belongs exclusively to the pad; the maze stays full-frame and reports the pad surface', async () => {
+  const game = await read('src/game.js'), css = await read('src/styles.css');
+  assert.match(game, /const steeringPad = \$\('#steering-pad'\)/);
+  assert.match(game, /steeringPad\.addEventListener\('pointerdown'/);
+  assert.match(game, /steeringPad\.setPointerCapture\(event\.pointerId\)/);
+  assert.match(game, /pointInSteeringPad\(event\)/);
+  assert.match(game, /inputPanel: 'steering-pad'/);
+  assert.match(game, /svg\.setAttribute\('viewBox', `0 0 \$\{SIZE\} \$\{SIZE\}`\)/);
+  assert.doesNotMatch(game, /mazeCamera|qaZoomState|qaCloseViewLayout|overviewSvg|preferences\.zoomAssist/);
+  assert.match(css, /\.steering-pad\s*\{[^}]*touch-action:\s*none/s);
+  assert.match(css, /\.maze-display-panel\s*\{[^}]*aspect-ratio:\s*1/s);
+  assert.match(css, /body\[data-visual-theme="traveler-map"\] \.steering-pad/);
+  assert.match(css, /body\[data-visual-theme="camp-dusk"\] \.steering-pad/);
 });
 
 test('opening QA pauses the game and cancels input; returning preserves the same screen and resumes only a running timer', async () => {

@@ -41,7 +41,7 @@ test('canonical Mirpworks launch splash covers startup, then reveals the title o
   assert.equal((html.match(/id="launch-splash"/g) || []).length, 1, 'the initial document must contain one splash layer');
   assert.ok(html.indexOf("querySelector('#launch-splash')") < html.indexOf('src="./src/game.js"'), 'splash startup must be initialized before the game module');
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.launch-splash \{ transition: opacity 100ms ease !important/);
-  assert.match(worker, /shell-v39/);
+  assert.match(worker, /shell-v40/);
   assert.match(worker, /\.\/branding\/mirpworks-logo\.jpg/);
   assert.match(styles, /body\[data-screen="home"\]/);
 });
@@ -88,7 +88,7 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v39/);
+  assert.match(worker, /shell-v40/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);
@@ -124,10 +124,11 @@ test('gameplay actions keep restart, new maze, pause, and guarded Home behavior 
   assert.match(game, /if \(!direction \|\| mazeCompleted \|\|/);
   assert.match(game, /mazeCompleted = false;[\s\S]*?\$\('#completion-panel'\)\.hidden = true/);
   assert.match(html, /id="completion-panel"[^>]*aria-live="polite"[^>]*hidden/);
-  assert.match(html, /id="maze-overview"/);
+  assert.match(html, /class="maze-display-panel maze-paper"[^>]*aria-label="Maze and pencil route"/);
   assert.match(html, /id="timer" aria-label="Elapsed time"/);
-  assert.match(game, /\$\('#maze-paper'\)\.hidden = preferences\.zoomAssist/);
-  assert.match(game, /if \(mazeCompleted\) \$\('#maze-paper'\)\.hidden = preferences\.zoomAssist/);
+  assert.match(html, /id="steering-pad"/);
+  assert.match(game, /steeringPad\.hidden = true/);
+  assert.doesNotMatch(game, /preferences\.zoomAssist|maze-overview|overview-trail/);
   assert.match(game, /#back-home'\)\.addEventListener\('click', \(\) => \{ clearPointer\(\); showDifficultySelection\(\); \}\)/);
   assert.match(game, /createMazeForDifficulty\(selectedDifficulty\)/);
   assert.match(game, /const screens = \['home', 'difficulty', 'play', 'qa-config'/);
@@ -178,35 +179,34 @@ test('settings persist sound and appearance, with a keyboard-operable maze', asy
   assert.match(game, /ArrowRight/);
 });
 
-test('Zoom Assist uses one tracing SVG and a non-interactive full-maze overview', async () => {
-  const html = await read('index.html'), game = await read('src/game.js'), camera = await read('src/maze-camera.js');
-  assert.match(html, /id="maze-overview"[^>]*aria-hidden="true"[^>]*focusable="false"/);
+test('the gameplay renders one full maze above an independent, touch-safe steering pad', async () => {
+  const html = await read('index.html'), game = await read('src/game.js'), css = await read('src/styles.css');
+  assert.equal((html.match(/<svg id="maze"/g) ?? []).length, 1);
   assert.match(html, /id="maze"[^>]*tabindex="0"[^>]*role="application"/);
-  assert.match(html, /id="zoom-assist" type="checkbox"/);
+  assert.match(html, /id="steering-pad"/);
+  assert.doesNotMatch(html, /id="maze-overview"|id="maze-paper"|id="zoom-assist"|Close View/);
   const toolbar = html.match(/<nav class="game-actions" aria-label="Maze controls">([\s\S]*?)<\/nav>/)?.[1] ?? '';
   assert.ok(toolbar.indexOf('id="back-home"') < toolbar.indexOf('id="restart-maze"'));
   assert.ok(toolbar.indexOf('id="restart-maze"') < toolbar.indexOf('id="new-maze"'));
   assert.match(game, /const svg = \$\('#maze'\)/);
-  assert.match(game, /svg\.addEventListener\('pointerdown'/);
-  assert.doesNotMatch(game, /overviewSvg\.addEventListener\(['"]pointer/);
+  assert.match(game, /steeringPad\.addEventListener\('pointerdown'/);
+  assert.doesNotMatch(game, /svg\.addEventListener\('pointerdown'/);
   assert.match(game, /\$\('#trail'\)\.setAttribute\('d', path\)/);
-  assert.match(game, /\$\('#overview-trail'\)\.setAttribute\('d', path\)/);
-  assert.match(game, /pointAt\(event, screenToSvg = null\)/);
-  assert.match(game, /cameraPosition = mazeCamera\.follow\(endpoint\)/);
+  assert.match(game, /pointInSteeringPad\(event\)/);
+  assert.match(game, /inputPanel: 'steering-pad'/);
+  assert.match(game, /svg\.setAttribute\('viewBox', `0 0 \$\{SIZE\} \$\{SIZE\}`\)/);
   assert.match(game, /steeringPointerId !== null/);
-  assert.match(camera, /const span = viewSize \/ zoom/);
   assert.match(game, /#back-home'\)\.addEventListener\('click', \(\) => \{ clearPointer\(\); showDifficultySelection\(\); \}\)/);
-  assert.match(game, /if \(zoomChanged && activePointerId !== null\) clearPointer\(\)/,
-    'zoom changes safely cancel an active input gesture');
-  assert.match(game, /const zoomChanged = Object\.hasOwn\(update, 'zoomAssist'\)[\s\S]*?preferences = writePreferences\(\{ \.\.\.preferences, \.\.\.update \}\)/);
-  assert.match(game, /if \(preferences\.zoomAssist && traceSession\) cameraPosition = mazeCamera\.center\(svgPoint\(traceSession\.position\)\)/);
-  assert.match(game, /\$\('#trail'\)\.setAttribute\('d', path\)[\s\S]*?\$\('#overview-trail'\)\.setAttribute\('d', path\)/);
+  assert.match(css, /\.maze-display-panel\s*\{[^}]*width:\s*min\(100%,\s*60dvh/s);
+  assert.match(css, /\.steering-pad\s*\{[^}]*touch-action:\s*none/s);
+  assert.doesNotMatch(game, /mazeCamera|zoomAssist|overviewSvg/);
 });
 
-test('responsive layout keeps touch suppression on the maze and keeps zoom enabled', async () => {
+test('responsive layout keeps touch suppression scoped to the steering pad and retains safe areas', async () => {
   const css = await read('src/styles.css'), html = await read('index.html');
   assert.match(css, /\.maze-paper,#maze\s*\{[^}]*touch-action:\s*none/s);
   assert.match(css, /@media \(orientation: landscape\)/);
+  assert.match(css, /\.steering-pad\s*\{[^}]*touch-action:\s*none/s);
   assert.match(css, /safe-area-inset-top/);
   assert.doesNotMatch(css, /(?:^|[},])\s*(?:html|body|\*)\s*\{[^}]*touch-action:\s*none/s);
   assert.match(html, /name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/);
@@ -216,7 +216,7 @@ test('responsive layout keeps touch suppression on the maze and keeps zoom enabl
   assert.match(css, /\.home-art\.title-art/);
 });
 
-test('iPhone portrait keeps the maze as a responsive, scoped touch target', async () => {
+test('iPhone portrait keeps the full maze and steering field responsive and scoped', async () => {
   const css = await read('src/styles.css');
   assert.match(css, /@media \(max-width:\s*420px\)/);
   assert.match(css, /\.maze-paper\s*\{[^}]*width:\s*min\(100%,\s*calc\(100dvh\s*-\s*205px\)\)/s);
@@ -227,7 +227,7 @@ test('iPhone portrait keeps the maze as a responsive, scoped touch target', asyn
 
 test('steering input uses screen-space origin, coalesced samples, and safe rotation cancellation', async () => {
   const game = await read('src/game.js'), samples = await read('src/pointer-samples.js');
-  assert.match(game, /svg\.getScreenCTM\(\)\?\.inverse\(\)/, 'coordinates are converted for QA reporting');
+  assert.match(game, /steeringPad\.getBoundingClientRect\(\)/, 'pad-local coordinates are used for QA reporting');
   assert.match(game, /pointerMovementSamples\(event\)/);
   assert.match(samples, /getCoalescedEvents/);
   assert.match(samples, /samples\.push\(event\)/);
@@ -236,6 +236,6 @@ test('steering input uses screen-space origin, coalesced samples, and safe rotat
   assert.match(game, /steeringController\.begin\(event\.pointerId, \{ x: event\.clientX, y: event\.clientY \}\)/);
   assert.match(game, /steeringController\.update\(event\.pointerId, \{ x: sample\.clientX, y: sample\.clientY \}\)/);
   assert.match(game, /window\.addEventListener\('resize', clearPointer\)/);
-  assert.match(game, /function pointInMaze\(event, screenToSvg = null\) \{ return svgToMazePoint\(pointAt\(event, screenToSvg\), gridGeometry\.x, gridGeometry\.cellSize, gridGeometry\.y\); \}/);
+  assert.match(game, /function pointInSteeringPad\(event\) \{/);
   assert.match(game, /getMazeGridGeometry\(maze\.width, maze\.height, SIZE, PAD\)/);
 });

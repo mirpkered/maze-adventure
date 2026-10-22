@@ -99,15 +99,16 @@
           <div class="play-title-block"><p class="eyebrow">FREE PLAY <span class="dot">·</span> <span id="play-difficulty">EASY</span></p><h1 id="play-title" tabindex="-1">A little winding way</h1></div>
           <div class="play-header-tools"><div class="timer-wrap"><span class="timer-label">TIME</span><output id="timer" aria-label="Elapsed time">0:00</output></div><span id="qa-active-mode-indicator" class="qa-active-mode-indicator" hidden>QA · Direct</span><button class="small-button qa-entry" id="qa-open-game" type="button" aria-label="Open QA configuration" title="QA configuration" hidden>QA</button><button class="small-button pause-tool" id="pause-game" aria-label="Pause maze" title="Pause maze">Ⅱ</button></div>
         </div>
-        <p class="play-hint" id="play-hint">Follow the full map above; trace in the Close View below.</p>
+        <p class="play-hint" id="play-hint">Touch anywhere in the steering field, then move your finger to guide the pencil above.</p>
         <div class="maze-workspace" id="maze-workspace">
-          <section class="maze-overview-panel maze-paper" aria-label="Full maze overview">
-            <span class="maze-panel-label">FULL MAZE</span>
-            <svg id="maze-overview" aria-hidden="true" focusable="false" draggable="false" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg>
+          <section class="maze-display-panel maze-paper" aria-label="Maze and pencil route">
+            <span class="maze-panel-label">YOUR MAZE</span>
+            <svg id="maze" draggable="false" tabindex="0" role="application" aria-label="Maze. Touch the steering pad below to guide the pencil from the entrance to the flower. Focus the maze and use arrow keys to move one passage at a time." viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg>
           </section>
-          <section class="maze-close-panel maze-paper" id="maze-paper" aria-label="Close View, primary tracing surface">
-            <span class="maze-panel-label">CLOSE VIEW <span id="zoom-factor-label">· 2×</span></span>
-            <svg id="maze" draggable="false" tabindex="0" role="application" aria-label="Close View. Trace from the entrance to the exit. Focus the maze and use arrow keys to move one passage at a time." viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg>
+          <section class="steering-pad" id="steering-pad" aria-label="Steering pad. Touch anywhere, then move your finger away from the touch point to guide the pencil. Return to the touch point or lift to stop.">
+            <span class="steering-pad-label" aria-hidden="true">STEERING FIELD</span>
+            <span class="steering-pad-mark" aria-hidden="true"><span></span></span>
+            <span class="steering-pad-instruction" aria-hidden="true">touch · guide · explore</span>
             <div class="steering-indicator" id="steering-indicator" aria-hidden="true" hidden><span class="steering-vector"></span><span class="steering-origin"></span><span class="steering-finger"></span></div>
           </section>
           <section id="completion-panel" class="completion-panel maze-paper" aria-labelledby="completion-title" aria-live="polite" aria-atomic="true" hidden>
@@ -125,28 +126,6 @@
       <section id="qa-config" class="screen info-screen qa-config-screen" aria-labelledby="qa-config-title" hidden>
         <header class="view-header qa-config-header"><button class="back-button" id="qa-config-return">← Return to Game</button><div><p class="eyebrow">INTERNAL TESTING</p><h1 id="qa-config-title" tabindex="-1">QA configuration</h1></div></header>
         <p class="qa-config-notice" id="qa-config-notice">Gameplay is suspended while these controls are open. Your maze and pencil marks are preserved.</p>
-        <section id="qa-zoom-controls" class="settings-panel qa-zoom-controls" aria-labelledby="qa-zoom-title" hidden>
-          <h2 id="qa-zoom-title">Zoom Assist comparison</h2>
-          <p>Compare how much of the maze you can see while keeping the same maze and pencil position. This test setting applies only during QA.</p>
-          <label for="qa-zoom-magnification">Close View magnification</label>
-          <select id="qa-zoom-magnification" aria-describedby="qa-zoom-status">
-            <option value="2">2.0× — Current</option>
-            <option value="1.75">1.75× — Candidate</option>
-            <option value="1.5">1.5× — Wide</option>
-          </select>
-          <output id="qa-zoom-status" class="qa-zoom-status" aria-live="polite">Selected for this QA session: 2.0×. Ordinary play remains at 2.0×.</output>
-        </section>
-        <section id="qa-layout-controls" class="settings-panel qa-zoom-controls" aria-labelledby="qa-layout-title" hidden>
-          <h2 id="qa-layout-title">Close View panel size</h2>
-          <p>Compare the lower steering panel while keeping the same maze, pencil position, and 2.0× magnification. This layout applies only during this QA session.</p>
-          <label for="qa-close-view-size">Close View panel size</label>
-          <select id="qa-close-view-size" aria-describedby="qa-close-view-status">
-            <option value="current">Current — production layout</option>
-            <option value="compact">Compact — about 20% shorter</option>
-            <option value="extra-compact">Extra Compact — about 28% shorter</option>
-          </select>
-          <output id="qa-close-view-status" class="qa-zoom-status" aria-live="polite">Selected: Current. Ordinary play keeps this layout.</output>
-        </section>
         <output id="trace-diagnostics" class="trace-diagnostics" hidden aria-live="off"></output>
         <section id="trace-diagnostic-tools" class="trace-diagnostic-tools" hidden aria-label="QA tracing diagnostics">
           <div class="diagnostic-actions"><button id="copy-qa-summary" class="small-button">Copy quick summary</button><button id="copy-qa-incident" class="small-button">Copy recent incident</button><button id="copy-trace-report" class="small-button">Share / export full report</button><button id="reset-trace-log" class="small-button">Reset current log</button><button id="clear-qa-sessions" class="small-button">Clear saved QA sessions</button><button id="disable-qa-mode" class="small-button">Exit QA mode</button></div>
@@ -163,7 +142,7 @@
       <section id="settings" class="screen info-screen" aria-labelledby="settings-title" hidden>
         <header class="view-header"><button class="back-button" id="settings-home">← Home</button><div><p class="eyebrow">THIS DEVICE</p><h1 id="settings-title" tabindex="-1">Settings</h1></div></header>
         <section class="settings-panel" aria-labelledby="sound-title"><h2 id="sound-title">Sound</h2><p>Optional sound for maze completion.</p><label class="setting-row"><span><strong>Sound effects</strong><small>Play a soft chime when you finish a maze.</small></span><input id="sound-effects" type="checkbox" /></label></section>
-        <section class="settings-panel" aria-labelledby="zoom-assist-title"><h2 id="zoom-assist-title">Tracing workspace</h2><p>Keep the full maze visible while tracing in a magnified close view.</p><label class="setting-row"><span><strong>Zoom Assist</strong><small>Show the full maze above a 2× tracing workspace.</small></span><input id="zoom-assist" type="checkbox" /></label></section>
+        <section class="settings-panel" aria-labelledby="steering-pad-title"><h2 id="steering-pad-title">Steering pad</h2><p>Guide the pencil from the lower steering field while keeping the complete maze in view.</p><p class="setting-note">Touch anywhere in the field. Move farther from your touch point to travel faster; return to it or lift to stop.</p></section>
         <section class="settings-panel" aria-labelledby="paper-title"><h2 id="paper-title">Appearance</h2><label for="paper-theme">Paper surface</label><select id="paper-theme"><option value="warm">Warm paper</option><option value="light">Soft ivory</option></select></section>
         <section class="settings-panel theme-settings-panel"><h2 id="visual-theme-title">Theme</h2><p>Choose the journal cover for Maze Adventure.</p><label for="visual-theme">Visual theme</label><select id="visual-theme"><option value="auto">Auto · rotate each launch</option><option value="traveler-map">The Traveler's Map</option><option value="camp-dusk">Camp at Dusk</option></select></section>
         <section class="settings-panel about-panel"><h2>About Maze Adventure</h2><p>A Mirpworks pencil-and-paper maze game.</p><button class="settings-link" id="open-credits"><strong>Credits</strong><span>Created by Mirpworks</span></button><a href="mailto:contact@mirpworks.com?subject=Maze%20Adventure%20%E2%80%94%20Feedback&amp;body=Sent%20from%3A%20Maze%20Adventure%0A%0A%5BYour%20message%20here%5D">Contact Mirpworks</a></section>

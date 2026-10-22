@@ -65,20 +65,10 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
     : null;
   const historicalMode = report.selectedInputMode ?? report.inputMode;
   const activeController = report.activeController ?? current?.gestureInputMode ?? (report.controlSystem === 'continuous-steering' ? 'continuous-steering' : 'idle');
-  const zoomSummary = Number.isFinite(report.qaSelectedZoomFactor)
-    ? report.zoomAssist
-      ? `QA Zoom Assist ${report.qaSelectedZoomFactor}× | Close View ${report.zoomFactor ?? report.qaSelectedZoomFactor}×`
-      : `QA Zoom Assist off | ${report.qaSelectedZoomFactor}× selected`
-    : null;
-  const measuredLayout = report.qaLayoutMeasurements;
-  const layoutSummary = report.qaCloseViewPanelSize
-    ? `QA Close View ${report.qaCloseViewPanelSize}${measuredLayout?.closeViewPanel && measuredLayout?.overviewMaze
-      ? ` | panel ${measuredLayout.closeViewPanel.width}×${measuredLayout.closeViewPanel.height}px | overview maze ${measuredLayout.overviewMaze.width}×${measuredLayout.overviewMaze.height}px`
-      : ''}`
-    : null;
   const steeringSummary = report.controlSystem
     ? `control system ${report.controlSystem} | active controller ${activeController}`
     : `${historicalMode === 'continuous-steering' ? 'selected Continuous Steering' : historicalMode === 'direct-touch' ? 'selected Direct Touch' : `selected ${historicalMode ?? 'unknown (legacy report)'}`} | gesture controller ${activeController}`;
+  const inputSurfaceSummary = report.inputPanel ? `input surface ${report.inputPanel}` : null;
   const steeringMetrics = (report.controlSystem === 'continuous-steering' || historicalMode === 'continuous-steering') && report.steering
     ? `steering dead-zone ${report.steering.settings?.deadZonePixels ?? '?'}px, curve x^${report.steering.settings?.speedResponseExponent ?? '?'}, max ${report.steering.settings?.maxSpeedMazeUnitsPerSecond ?? '?'} cells/s | last gesture frames ${report.steering.activeFrames ?? 0}/${report.steering.frames ?? 0}, capped ${report.steering.clampedFrames ?? 0}` : null;
   return [
@@ -86,8 +76,7 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
     `${dimensions?.width ?? '?'}x${dimensions?.height ?? '?'} ${difficulty} | ${(durationMs / 1000).toFixed(1)}s | events ${observed}, accepted ${accepted}, rejected ${Object.values(rejectedByReason).reduce((a, b) => a + b, 0)} (${counts}), canceled ${canceled}`,
     ...(endpointSummary ? [endpointSummary] : []),
     steeringSummary,
-    ...(zoomSummary ? [zoomSummary] : []),
-    ...(layoutSummary ? [layoutSummary] : []),
+    ...(inputSurfaceSummary ? [inputSurfaceSummary] : []),
     ...(steeringMetrics ? [steeringMetrics] : []),
     `pencil ${current?.authoritativePosition?.x?.toFixed?.(3) ?? '?'} ${current?.authoritativePosition?.y?.toFixed?.(3) ?? '?'} | cell ${current?.logicalCell?.x ?? '?'},${current?.logicalCell?.y ?? '?'} | gesture ${current?.active ? current.recovering ? 'recovering' : 'active' : 'idle'}`,
     `last rejection ${latestReject?.rejectedReason ?? 'none'} | ${status}`,
@@ -106,8 +95,7 @@ export function createRecentIncident(report, windowSize = 8) {
     events: events.slice(from, to).map(event => ({ t: event.t, type: event.eventType, sample: event.sampleType,
       ...((event.selectedInputMode ?? event.inputMode) ? { inputMode: event.selectedInputMode ?? event.inputMode } : {}),
       controlSystem: event.controlSystem ?? null, activeController: event.activeController ?? null,
-      zoomAssist: event.zoomAssist ?? null, zoomFactor: event.zoomFactor ?? null,
-      qaSelectedZoomFactor: event.qaSelectedZoomFactor ?? null,
+      inputPanel: event.inputPanel ?? null,
       raw: event.maze, pencil: event.pencilPosition, cell: event.cell,
       requestedMovement: event.requestedMovement ?? null, acceptedMovement: event.acceptedMovement ?? null,
       classification: event.movementClassification ?? null, accepted: event.accepted,
