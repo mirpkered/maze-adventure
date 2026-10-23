@@ -27,7 +27,7 @@ test('completion is an inline play-screen state with a single accessible result 
   assert.match(game, /mazeCompleted = false;\s*delete document\.body\.dataset\.completed;\s*delete document\.body\.dataset\.completionLayoutStable;[\s\S]*?\$\('#completion-panel'\)\.hidden = true/);
   assert.match(game, /\$\('#restart-maze'\)\.addEventListener\('click', \(\) => makeMaze\(true\)\)/);
   assert.match(game, /\$\('#new-maze'\)\.addEventListener\('click', \(\) => makeMaze\(\)\)/);
-  assert.match(worker, /shell-v46/);
+  assert.match(worker, /shell-v47/);
 });
 
 test('the full maze stays visible while completion replaces only the steering pad', async () => {
@@ -57,7 +57,7 @@ test('the full maze stays visible while completion replaces only the steering pa
 test('Steering Pad has a balanced portrait touch region while preserving a no-scroll captured touch surface', async () => {
   const css = await read('src/styles.css');
   assert.match(css, /\.maze-workspace\s*\{[^}]*--game-control-height:\s*clamp\(170px,\s*22dvh,\s*188px\)/);
-  assert.match(css, /\.steering-pad\s*\{[^}]*min-height:\s*0[^}]*height:\s*100%[^}]*touch-action:\s*none/s);
+  assert.match(css, /\.steering-pad\s*\{[^}]*min-height:\s*0[^}]*height:\s*clamp\(204px,\s*30dvh,\s*280px\)[^}]*align-self:\s*end[^}]*touch-action:\s*none/s);
   assert.match(css, /body\[data-screen="play"\] \.play-hint\s*\{[^}]*display:\s*grid[^}]*place-items:\s*center/);
   assert.doesNotMatch(css, /\.maze-workspace\s*\{[^}]*--game-control-height:\s*clamp\(92px,\s*13dvh/,
     'the previous shallow compact allocation is retired');

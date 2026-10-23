@@ -37,6 +37,7 @@ test('layout capture reports viewport and the real lower control allocations for
   assert.deepEqual(layout.viewport, { width: 390, height: 844 });
   assert.equal(layout.mazeSvg.width, 350);
   assert.equal(layout.steeringPad.height, 110);
+  assert.equal(layout.mazeToPadGapPx, 180);
   assert.deepEqual({ up: layout.steeringTouchArea.center.thresholdReachable.up, down: layout.steeringTouchArea.center.thresholdReachable.down, left: layout.steeringTouchArea.center.thresholdReachable.left, right: layout.steeringTouchArea.center.thresholdReachable.right, diagonal: layout.steeringTouchArea.center.thresholdReachable.diagonal }, { up: false, down: false, left: true, right: true, diagonal: false });
   assert.equal(layout.completionPanel.height, 110);
   assert.deepEqual(layout.completionCheck, { stable: null, maxDeltaPx: null, maxScaleDelta: null });
@@ -61,10 +62,10 @@ test('directional reach uses actual usable pad dimensions and reports off-center
 
 test('each requested portrait layout provides 76px center-origin reach in every direction', () => {
   const viewports = [
-    { width: 390, height: 844, padWidth: 370.4, padHeight: 185.68 },
-    { width: 375, height: 812, padWidth: 355.2, padHeight: 178.64 },
-    { width: 430, height: 932, padWidth: 402.4, padHeight: 188 },
-    { width: 320, height: 700, padWidth: 300, padHeight: 170 },
+    { width: 390, height: 844, padWidth: 370.4, padHeight: 253.2 },
+    { width: 375, height: 812, padWidth: 355.2, padHeight: 243.6 },
+    { width: 430, height: 932, padWidth: 402.4, padHeight: 279.6 },
+    { width: 320, height: 700, padWidth: 300, padHeight: 210 },
   ];
   for (const viewport of viewports) {
     const reach = measureSteeringReach({ width: viewport.padWidth, height: viewport.padHeight }, { left: 2, right: 2, top: 2, bottom: 2 });
@@ -72,6 +73,13 @@ test('each requested portrait layout provides 76px center-origin reach in every 
       assert.equal(reach.center.thresholdReachable[direction], true, `${viewport.width}x${viewport.height} center ${direction} reach`);
     }
   }
+});
+
+test('Steering Pad uses unused maze clearance without changing the maze row or control slot allocation', async () => {
+  const css = await (await import('node:fs/promises')).readFile(new URL('../src/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.maze-workspace\s*\{[^}]*--game-control-height:\s*clamp\(170px,\s*22dvh,\s*188px\)[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\) var\(--game-control-height\)/s);
+  assert.match(css, /\.steering-pad\s*\{[^}]*height:\s*clamp\(204px,\s*30dvh,\s*280px\)[^}]*align-self:\s*end/s);
+  assert.match(css, /\.steering-pad\s*\{[^}]*touch-action:\s*none/s);
 });
 
 test('the rendered layout assertion detects a completion-induced shrink or recenter', () => {

@@ -57,6 +57,7 @@ export function captureGameplayLayout(document, window) {
   const mazePanel = readRect(panel);
   const mazeSvg = readRect(svg);
   const pad = readRect(document.querySelector('#steering-pad'));
+  const mazeToPadGapPx = mazePanel && pad ? pad.y - (mazePanel.y + mazePanel.height) : null;
   const padElement = document.querySelector('#steering-pad');
   const padStyle = padElement && typeof window.getComputedStyle === 'function' ? window.getComputedStyle(padElement) : null;
   const padInsets = padStyle ? {
@@ -76,6 +77,7 @@ export function captureGameplayLayout(document, window) {
       y: viewHeight > 0 && mazeSvg ? mazeSvg.height / viewHeight : null,
     },
     steeringPad: pad,
+    mazeToPadGapPx,
     steeringTouchArea: measureSteeringReach(pad, padInsets),
     completionPanel: completion,
     playHint: readRect(document.querySelector('#play-hint')),
