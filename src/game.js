@@ -14,7 +14,7 @@ import { captureQaReturnState, restoreQaReturnState } from './qa-view-state.js';
 import { captureGameplayLayout, compareMazeLayout } from './game-layout.js';
 
 const $ = selector => document.querySelector(selector);
-const screens = ['home', 'difficulty', 'play', 'qa-config', 'settings', 'help', 'about'].map(id => $(`#${id}`));
+const screens = ['home', 'free-play-categories', 'difficulty', 'play', 'qa-config', 'settings', 'help', 'about'].map(id => $(`#${id}`));
 const svg = $('#maze');
 const steeringPad = $('#steering-pad');
 let deviceStorage = null;
@@ -23,6 +23,8 @@ const SIZE = 400, PAD = 24;
 let gridGeometry = getMazeGridGeometry(7, 7, SIZE, PAD);
 let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, timerId, mazeCompleted = false;
 let selectedDifficulty = 'easy';
+let freePlayCategory = 'none';
+let selectedShapeId = null;
 let paused = false, activeOverlay = null, returnFocus = null, resumeAfterOverlay = false;
 let qaReturnState = null;
 let qaReturnFocus = null;
@@ -138,6 +140,8 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
   traceRecorder.record({
     eventType,
     difficulty: maze?.difficulty ?? selectedDifficulty,
+    freePlayCategory,
+    shapeId: selectedShapeId,
     pointerType: event?.pointerType ?? 'unknown',
     sampleType,
     sampleIndex,
@@ -186,6 +190,7 @@ function diagnosticReportObject() {
   const state = traceSession?.diagnostics;
   return traceRecorder.report({
     layoutId: currentLayoutId,
+    freePlayRoute: { category: freePlayCategory, difficulty: maze?.difficulty ?? selectedDifficulty, shapeId: selectedShapeId },
     dimensions: maze ? { width: maze.width, height: maze.height } : null,
     difficulty: maze?.difficulty ?? selectedDifficulty,
     start: maze?.entrance ? { cell: { ...maze.start }, edge: maze.entrance.side } : null,
@@ -237,7 +242,7 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
     : state.currentlyInExitCell ? `inside exit cell ${state.exitCell.x},${state.exitCell.y}; trace outward through ${state.exitSide}`
       : state.exitCellEntered ? `exit cell was visited; current cell ${state.logicalCell.x},${state.logicalCell.y}; exit ${state.exitSide}`
       : `exit ${state.exitSide} not reached`;
-  output.textContent = `QA trace · build ${APP_BUILD_ID} · ${maze?.difficulty ?? selectedDifficulty} · cap ${steeringController.settings.maxSpeedMazeUnitsPerSecond.toFixed(3)} cells/s · deflection ${(steeringController.snapshot.normalizedDeflection * 100).toFixed(0)}% · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · input surface steering-pad · client px ${point(lastClientPointer)} · raw pad px ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · ${exitStatus} · invalid perimeter attempts ${state.invalidPerimeterAttempts} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  output.textContent = `QA trace · build ${APP_BUILD_ID} · category ${freePlayCategory} · shape ${selectedShapeId ?? 'none'} · ${maze?.difficulty ?? selectedDifficulty} · cap ${steeringController.settings.maxSpeedMazeUnitsPerSecond.toFixed(3)} cells/s · deflection ${(steeringController.snapshot.normalizedDeflection * 100).toFixed(0)}% · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · input surface steering-pad · client px ${point(lastClientPointer)} · raw pad px ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · ${exitStatus} · invalid perimeter attempts ${state.invalidPerimeterAttempts} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -247,7 +252,7 @@ function formatTime(milliseconds) {
 function activeScreen(screen, { safeToUpdate = true } = {}) {
   document.body.dataset.screen = screen.id;
   for (const item of screens) item.hidden = item !== screen;
-  if (safeToUpdate && ['home', 'difficulty', 'settings', 'help', 'about'].includes(screen.id)) window.dispatchEvent(new Event('maze-adventure:safe-to-update'));
+  if (safeToUpdate && ['home', 'free-play-categories', 'difficulty', 'settings', 'help', 'about'].includes(screen.id)) window.dispatchEvent(new Event('maze-adventure:safe-to-update'));
   if (screen !== $('#play')) pauseTimer();
   else if (!paused && !activeOverlay) startTimer();
 }
@@ -296,7 +301,7 @@ function returnFromQaConfiguration() {
   qaReturnFocus = null;
   const focusTarget = opener?.isConnected && !opener.closest('[hidden]')
     ? opener
-    : targetScreen === $('#play') ? $('#pause-game') : $('#quick-play');
+    : targetScreen === $('#play') ? $('#pause-game') : targetScreen.querySelector('h1') ?? $('#quick-play');
   focusTarget?.focus({ preventScroll: true });
 }
 function displayTime() { $('#timer').value = formatTime(elapsed); }
@@ -638,8 +643,19 @@ function openOverlay(overlay, { pause = false, resumeOnClose = false } = {}) {
   activeOverlay = overlay; overlay.hidden = false;
   (overlay.querySelector('button:not(:disabled)') ?? overlay).focus({ preventScroll: true });
 }
-function showHome() { closeOverlay({ restore: false }); paused = false; activeScreen($('#home')); $('#quick-play').focus({ preventScroll: true }); }
-function showDifficultySelection() { activeScreen($('#difficulty')); $('#difficulty-title').focus({ preventScroll: true }); }
+function showHome() {
+  closeOverlay({ restore: false }); paused = false;
+  freePlayCategory = 'none'; selectedShapeId = null;
+  activeScreen($('#home')); $('#quick-play').focus({ preventScroll: true });
+}
+function showFreePlayCategories() {
+  freePlayCategory = 'categories'; selectedShapeId = null;
+  activeScreen($('#free-play-categories')); $('#free-play-category-title').focus({ preventScroll: true });
+}
+function showDifficultySelection() {
+  freePlayCategory = 'classic'; selectedShapeId = null;
+  activeScreen($('#difficulty')); $('#difficulty-title').focus({ preventScroll: true });
+}
 function openHomeConfirmation() {
   clearPointer();
   openOverlay($('#confirm-dialog'), { pause: true, resumeOnClose: true });
@@ -706,8 +722,10 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('blur', () => { pauseTimer(); if (steeringPointerId !== null) clearPointer(); });
 window.addEventListener('focus', startTimer);
 
-$('#quick-play').addEventListener('click', showDifficultySelection);
-$('#difficulty-home').addEventListener('click', showHome);
+$('#quick-play').addEventListener('click', showFreePlayCategories);
+$('#categories-home').addEventListener('click', showHome);
+$('#choose-classic').addEventListener('click', showDifficultySelection);
+$('#difficulty-back').addEventListener('click', showFreePlayCategories);
 for (const option of document.querySelectorAll('[data-start-difficulty]')) {
   option.addEventListener('click', () => {
     const difficulty = option.dataset.startDifficulty;
@@ -738,7 +756,7 @@ $('#open-settings').addEventListener('click', () => { settingsReturnToPlay = fal
 $('#settings-home').addEventListener('click', returnFromSettings);
 $('#open-help').addEventListener('click', () => { activeScreen($('#help')); $('#help-title').focus({ preventScroll: true }); });
 $('#help-home').addEventListener('click', showHome);
-$('#help-play').addEventListener('click', showDifficultySelection);
+$('#help-play').addEventListener('click', showFreePlayCategories);
 $('#open-about').addEventListener('click', () => { activeScreen($('#about')); $('#about-title').focus({ preventScroll: true }); });
 $('#about-home').addEventListener('click', showHome);
 $('#open-credits').addEventListener('click', () => { activeScreen($('#about')); $('#about-title').focus({ preventScroll: true }); });

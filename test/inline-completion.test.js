@@ -19,7 +19,7 @@ test('completion is an inline play-screen state with a single accessible result 
   assert.match(html, /id="back-home"[\s\S]*?id="restart-maze"[\s\S]*?id="new-maze"/);
   assert.doesNotMatch(html, /id="complete"|id="next-maze"|id="replay-maze"|id="final-time"/);
 
-  assert.match(game, /const screens = \['home', 'difficulty', 'play', 'qa-config', 'settings', 'help', 'about'\]/);
+  assert.match(game, /const screens = \['home', 'free-play-categories', 'difficulty', 'play', 'qa-config', 'settings', 'help', 'about'\]/);
   assert.match(game, /function completeMaze\(\) \{\s*if \(mazeCompleted\) return;[\s\S]*?pauseTimer\(\); displayTime\(\);[\s\S]*?document\.body\.dataset\.completed = 'true';[\s\S]*?\$\('#completion-panel'\)\.hidden = false;/);
   assert.match(game, /if \(mazeCompleted \|\| timerId \|\|/);
   assert.match(game, /if \(mazeCompleted \|\| activePointerId !== event\.pointerId/);
@@ -27,7 +27,7 @@ test('completion is an inline play-screen state with a single accessible result 
   assert.match(game, /mazeCompleted = false;\s*delete document\.body\.dataset\.completed;\s*delete document\.body\.dataset\.completionLayoutStable;[\s\S]*?\$\('#completion-panel'\)\.hidden = true/);
   assert.match(game, /\$\('#restart-maze'\)\.addEventListener\('click', \(\) => makeMaze\(true\)\)/);
   assert.match(game, /\$\('#new-maze'\)\.addEventListener\('click', \(\) => makeMaze\(\)\)/);
-  assert.match(worker, /shell-v47/);
+  assert.match(worker, /shell-v48/);
 });
 
 test('the full maze stays visible while completion replaces only the steering pad', async () => {

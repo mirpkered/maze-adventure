@@ -72,29 +72,42 @@
         </div>
       </section>
 
+      <section id="free-play-categories" class="screen info-screen free-play-category-screen" aria-labelledby="free-play-category-title" hidden>
+        <header class="view-header"><button class="back-button" id="categories-home">← Home</button><div><p class="eyebrow">FREE PLAY <span class="dot">·</span> FIND YOUR PATH</p><h1 id="free-play-category-title" tabindex="-1">Choose a maze</h1></div></header>
+        <p class="difficulty-intro">Set out on a classic trail or explore a new kind of maze.</p>
+        <div class="category-card-list" aria-label="Free Play maze categories">
+          <button class="category-card" type="button" id="choose-classic">
+            <span class="category-card-icon" aria-hidden="true">✎</span>
+            <span class="category-card-copy"><strong>Classic Mazes</strong><span>Traditional square-grid trails with four open difficulties.</span><small>7×7 · 10×10 · 15×15 · 20×20</small></span>
+            <span class="category-card-arrow" aria-hidden="true">↗</span>
+          </button>
+          <button class="category-card category-card-upcoming" type="button" id="choose-shaped" aria-describedby="shaped-availability" disabled>
+            <span class="category-card-icon" aria-hidden="true">✿</span>
+            <span class="category-card-copy"><strong>Shaped Mazes</strong><span>Special trails set within recognizable silhouettes.</span><small id="shaped-availability">Coming Soon · No playable shapes yet</small></span>
+            <span class="category-card-status" aria-hidden="true">SOON</span>
+          </button>
+        </div>
+      </section>
+
       <section id="difficulty" class="screen info-screen difficulty-screen" aria-labelledby="difficulty-title" hidden>
-        <header class="view-header"><button class="back-button" id="difficulty-home">← Home</button><div><p class="eyebrow">FREE PLAY <span class="dot">·</span> YOUR CHALLENGE</p><h1 id="difficulty-title" tabindex="-1">Choose a difficulty</h1></div></header>
+        <header class="view-header"><button class="back-button" id="difficulty-back">← Categories</button><div><p class="eyebrow">CLASSIC MAZES <span class="dot">·</span> YOUR CHALLENGE</p><h1 id="difficulty-title" tabindex="-1">Choose a difficulty</h1></div></header>
         <p class="difficulty-intro">Every trail is open. Pick the kind of winding way you feel like exploring.</p>
         <div class="difficulty-card-list" aria-label="Available maze difficulties">
           <button class="difficulty-card" type="button" data-start-difficulty="easy">
-            <span class="difficulty-card-heading"><span class="difficulty-symbol" aria-hidden="true">✎</span><span><strong>Easy</strong><small>7×7 maze</small></span><span class="difficulty-card-arrow" aria-hidden="true">↗</span></span>
+            <span class="difficulty-card-heading"><span class="difficulty-symbol" aria-hidden="true">✎</span><span><strong>Easy</strong><small>7×7 maze</small></span></span>
             <span class="difficulty-description">A gentle first trail with room to find your rhythm.</span>
-            <span class="difficulty-card-action">Start Easy</span>
           </button>
           <button class="difficulty-card" type="button" data-start-difficulty="medium">
-            <span class="difficulty-card-heading"><span class="difficulty-symbol" aria-hidden="true">✿</span><span><strong>Medium</strong><small>10×10 maze</small></span><span class="difficulty-card-arrow" aria-hidden="true">↗</span></span>
+            <span class="difficulty-card-heading"><span class="difficulty-symbol" aria-hidden="true">✿</span><span><strong>Medium</strong><small>10×10 maze</small></span></span>
             <span class="difficulty-description">A longer expedition with more junctions and side paths.</span>
-            <span class="difficulty-card-action">Start Medium</span>
           </button>
           <button class="difficulty-card" type="button" data-start-difficulty="hard">
-            <span class="difficulty-card-heading"><span class="difficulty-symbol" aria-hidden="true">✧</span><span><strong>Hard</strong><small>15×15 maze</small></span><span class="difficulty-card-arrow" aria-hidden="true">↗</span></span>
+            <span class="difficulty-card-heading"><span class="difficulty-symbol" aria-hidden="true">✧</span><span><strong>Hard</strong><small>15×15 maze</small></span></span>
             <span class="difficulty-description">A longer expedition with deeper wrong turns and more decisions.</span>
-            <span class="difficulty-card-action">Start Hard</span>
           </button>
           <button class="difficulty-card" type="button" data-start-difficulty="expert">
-            <span class="difficulty-card-heading"><span class="difficulty-symbol" aria-hidden="true">✦</span><span><strong>Expert</strong><small>20×20 maze</small></span><span class="difficulty-card-arrow" aria-hidden="true">↗</span></span>
+            <span class="difficulty-card-heading"><span class="difficulty-symbol" aria-hidden="true">✦</span><span><strong>Expert</strong><small>20×20 maze</small></span></span>
             <span class="difficulty-description">A substantial expedition with a long route and many decisions.</span>
-            <span class="difficulty-card-action">Start Expert</span>
           </button>
         </div>
       </section>

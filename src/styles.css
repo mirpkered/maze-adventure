@@ -112,16 +112,28 @@ h1 em { color: var(--rust); font-weight: 400; }
 .view-header .eyebrow { margin-bottom: 5px; }
 .view-header h1 { margin: 0; font: 400 clamp(28px, 5vw, 42px) 'DM Serif Display', Georgia, serif; }
 .difficulty-intro { max-width: 520px; margin: -8px 0 20px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.category-card-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.category-card { display: grid; min-width: 0; min-height: 174px; grid-template-columns: 42px minmax(0, 1fr) 18px; align-items: center; gap: 12px; padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); box-shadow: 0 4px 0 color-mix(in srgb, var(--theme-pageInk, #3f5147) 14%, transparent), 0 12px 25px var(--theme-shadow, rgba(48,66,52,.09)); text-align: left; cursor: pointer; }
+.category-card:disabled { cursor: default; opacity: .76; }
+.category-card:not(:disabled):hover { border-color: var(--theme-accent, var(--green)); }
+.category-card:focus-visible { outline: 3px solid var(--theme-focus, var(--green)); outline-offset: 3px; }
+.category-card-icon { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid var(--theme-line, var(--line)); border-radius: 50%; color: var(--theme-accent, var(--rust)); font-size: 21px; }
+.category-card-copy { display: grid; gap: 8px; min-width: 0; }
+.category-card-copy strong { font: 400 23px/1.08 'DM Serif Display', Georgia, serif; }
+.category-card-copy > span { color: var(--muted); font-size: 13px; line-height: 1.45; }
+.category-card-copy small { color: var(--theme-green, var(--green)); font-size: 10px; font-weight: 800; letter-spacing: .04em; line-height: 1.35; }
+.category-card-arrow { align-self: start; color: var(--theme-accent, var(--rust)); font-size: 19px; }
+.category-card-status { align-self: start; padding: 4px 5px; border: 1px dashed var(--theme-line, var(--line)); color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .08em; }
 .difficulty-card-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.difficulty-card { display: flex; min-width: 0; min-height: 190px; flex-direction: column; align-items: stretch; gap: 13px; padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); box-shadow: 0 4px 0 color-mix(in srgb, var(--theme-pageInk, #3f5147) 14%, transparent), 0 12px 25px var(--theme-shadow, rgba(48,66,52,.09)); text-align: left; cursor: pointer; transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
+.difficulty-card { display: flex; min-width: 0; min-height: 142px; flex-direction: column; align-items: stretch; gap: 8px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); box-shadow: 0 4px 0 color-mix(in srgb, var(--theme-pageInk, #3f5147) 14%, transparent), 0 12px 25px var(--theme-shadow, rgba(48,66,52,.09)); text-align: left; cursor: pointer; transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
 .difficulty-card:hover { transform: translateY(-2px); border-color: var(--theme-accent, var(--green)); }
 .difficulty-card:active { transform: translateY(1px); }
 .difficulty-card:focus-visible { outline: 3px solid var(--theme-focus, var(--green)); outline-offset: 3px; }
-.difficulty-card-heading { display: grid; grid-template-columns: 42px minmax(0, 1fr) 20px; align-items: center; gap: 10px; }
-.difficulty-symbol { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid var(--theme-line, var(--line)); border-radius: 50%; color: var(--theme-accent, var(--rust)); font-size: 20px; }
+.difficulty-card-heading { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 9px; }
+.difficulty-symbol { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--theme-line, var(--line)); border-radius: 50%; color: var(--theme-accent, var(--rust)); font-size: 18px; }
 .difficulty-card-heading strong, .difficulty-card-heading small { display: block; }
-.difficulty-card-heading strong { font: 400 25px/1.1 'DM Serif Display', Georgia, serif; }
-.difficulty-card-heading small { margin-top: 4px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .06em; }
+.difficulty-card-heading strong { font: 400 22px/1.1 'DM Serif Display', Georgia, serif; }
+.difficulty-card-heading small { margin-top: 4px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; }
 .difficulty-card-arrow { color: var(--theme-accent, var(--rust)); font-size: 19px; }
 .difficulty-description { flex: 1; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .difficulty-card-action { align-self: flex-start; padding-top: 10px; border-top: 1px solid var(--line); color: var(--theme-green, var(--green)); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
@@ -195,10 +207,24 @@ body[data-screen="qa-config"] .site-footer { height: 30px; flex: 0 0 30px; }
   .game-actions { gap: 5px; }
   .small-button { min-height: 44px; padding: 7px 9px; }
   .info-screen { padding: 18px 0 30px; }
-  .difficulty-card-list { grid-template-columns: 1fr; gap: 10px; }
-  .difficulty-card { min-height: 138px; gap: 9px; padding: 14px 16px; }
+  .category-card-list { gap: 10px; }
+  .category-card { min-height: 154px; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; padding: 12px; }
+  .category-card-icon { width: 34px; height: 34px; font-size: 18px; }
+  .category-card-copy { gap: 6px; }
+  .category-card-copy strong { font-size: 19px; }
+  .category-card-copy > span { font-size: 12px; }
+  .category-card-arrow,.category-card-status { grid-column: 2; justify-self: start; }
+  .difficulty-card-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .difficulty-card { min-height: 132px; gap: 7px; padding: 11px 10px; }
+  .difficulty-card-heading { grid-template-columns: 30px minmax(0, 1fr); gap: 7px; }
+  .difficulty-symbol { width: 30px; height: 30px; font-size: 16px; }
+  .difficulty-card-heading strong { font-size: 20px; }
+  .difficulty-card-heading small { font-size: 10px; }
+  .difficulty-description { font-size: 11px; line-height: 1.35; }
 }
 @media (max-width: 420px) {
+  .view-header { grid-template-columns: minmax(88px, .4fr) minmax(0, 1fr); gap: 8px; }
+  .view-header .back-button { white-space: nowrap; font-size: 11px; }
   .title-branding { gap: 5px; }
   .qa-emblem-trigger { width: 38px; height: 38px; }
   .app-shell { padding-right: max(12px, calc(env(safe-area-inset-right) + 12px)); padding-left: max(12px, calc(env(safe-area-inset-left) + 12px)); }
@@ -499,11 +525,13 @@ body[data-paper-theme="light"] {
 @media (max-width: 420px) {
   .maze-paper { border-radius: 11px; }
   .timer-wrap { padding: 5px 9px; }
-  .difficulty-card-list { grid-template-columns: 1fr; gap: 12px; }
-  .difficulty-card { min-height: 142px; padding: 15px; gap: 9px; }
-  .difficulty-card-heading { grid-template-columns: 38px minmax(0, 1fr) 20px; gap: 9px; }
-  .difficulty-symbol { width: 38px; height: 38px; }
-  .difficulty-description { font-size: 12px; }
+  .difficulty-card-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .difficulty-card { min-height: 136px; padding: 10px 9px; gap: 7px; }
+  .difficulty-card-heading { grid-template-columns: 28px minmax(0, 1fr); gap: 6px; }
+  .difficulty-symbol { width: 28px; height: 28px; font-size: 15px; }
+  .difficulty-card-heading strong { font-size: 18px; }
+  .difficulty-card-heading small { font-size: 10px; }
+  .difficulty-description { font-size: 11px; line-height: 1.32; }
 }
 
 /* Curated storybook covers share the same screens and gameplay surfaces. */

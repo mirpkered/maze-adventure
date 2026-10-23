@@ -284,7 +284,7 @@ body[data-screen="home"][data-visual-theme="camp-dusk"] .art-caption {
 }
 
 /* Shared visual grammar extends to adjacent screens without changing layout or behavior. */
-body[data-visual-theme] .difficulty-card,
+body[data-visual-theme] :is(.difficulty-card,.category-card),
 body[data-visual-theme] .settings-panel,
 body[data-visual-theme] .completion-panel,
 body[data-visual-theme] .dialog-card {
@@ -293,13 +293,13 @@ body[data-visual-theme] .dialog-card {
   color: var(--theme-ink);
   box-shadow: var(--surface-shadow);
 }
-body[data-visual-theme="traveler-map"] :is(.difficulty-card,.settings-panel,.completion-panel,.dialog-card) {
+body[data-visual-theme="traveler-map"] :is(.difficulty-card,.category-card,.settings-panel,.completion-panel,.dialog-card) {
   border-radius: 4px 16px 5px 13px;
   background-image:
     repeating-linear-gradient(0deg,transparent 0 26px,rgba(83,104,70,.07) 27px,transparent 28px),
     linear-gradient(135deg,#fff7df,#efe0bb);
 }
-body[data-visual-theme="camp-dusk"] :is(.difficulty-card,.settings-panel,.completion-panel,.dialog-card) {
+body[data-visual-theme="camp-dusk"] :is(.difficulty-card,.category-card,.settings-panel,.completion-panel,.dialog-card) {
   border-radius: 13px 8px 16px 9px;
   border-bottom-width: 3px;
   background-image:
@@ -308,9 +308,12 @@ body[data-visual-theme="camp-dusk"] :is(.difficulty-card,.settings-panel,.comple
     linear-gradient(140deg,#fff4dc,#ead8b6);
 }
 body[data-visual-theme] .difficulty-card-heading strong,
+body[data-visual-theme] .category-card-copy strong,
 body[data-visual-theme] .settings-panel h2,
 body[data-visual-theme] .dialog-card h2 { color: var(--theme-ink); }
 body[data-visual-theme] .difficulty-card-action { border-color: var(--theme-line); color: var(--theme-green); }
+body[data-visual-theme] .category-card-copy small { color: var(--theme-green); }
+body[data-visual-theme] .category-card-icon { border-color: var(--theme-line); color: var(--theme-accent); }
 body[data-visual-theme] :is(.small-button,.settings-panel select) {
   border-color: var(--theme-line);
   background: var(--theme-surface);

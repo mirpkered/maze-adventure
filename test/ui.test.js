@@ -9,9 +9,12 @@ test('title screen exposes the playable mode and functional supporting controls'
   assert.match(html, /id="quick-play"/);
   assert.match(html, /id="quick-play-description">Choose your maze challenge\./);
   assert.doesNotMatch(html.match(/<section id="home"[\s\S]*?<\/section>/)?.[0] ?? '', /difficulty-picker|data-start-difficulty|Easy|Medium|7×7|10×10/);
+  assert.match(html, /<section id="free-play-categories"[^>]*hidden/);
+  assert.match(html, /id="choose-classic"[\s\S]*?Classic Mazes[\s\S]*?Traditional square-grid trails[\s\S]*?id="choose-shaped"[^>]*disabled[\s\S]*?Shaped Mazes[\s\S]*?Coming Soon · No playable shapes yet/);
   assert.match(html, /<section id="difficulty"[^>]*hidden/);
   assert.match(html, /data-start-difficulty="easy"[\s\S]*?Easy[\s\S]*?7×7 maze[\s\S]*?data-start-difficulty="medium"[\s\S]*?Medium[\s\S]*?10×10 maze[\s\S]*?data-start-difficulty="hard"[\s\S]*?Hard[\s\S]*?15×15 maze[\s\S]*?data-start-difficulty="expert"[\s\S]*?Expert[\s\S]*?20×20 maze/);
-  assert.match(html, /id="difficulty-home">← Home/);
+  assert.match(html, /id="categories-home">← Home/);
+  assert.match(html, /id="difficulty-back">← Categories/);
   assert.match(html, /id="play-difficulty">EASY/);
   assert.match(html, /id="open-settings"/);
   assert.match(html, /id="open-help"/);
@@ -41,7 +44,7 @@ test('canonical Mirpworks launch splash covers startup, then reveals the title o
   assert.equal((html.match(/id="launch-splash"/g) || []).length, 1, 'the initial document must contain one splash layer');
   assert.ok(html.indexOf("querySelector('#launch-splash')") < html.indexOf('src="./src/game.js"'), 'splash startup must be initialized before the game module');
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.launch-splash \{ transition: opacity 100ms ease !important/);
-  assert.match(worker, /shell-v47/);
+  assert.match(worker, /shell-v48/);
   assert.match(worker, /\.\/branding\/mirpworks-logo\.jpg/);
   assert.match(styles, /body\[data-screen="home"\]/);
 });
@@ -88,7 +91,7 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v47/);
+  assert.match(worker, /shell-v48/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);
@@ -130,15 +133,18 @@ test('gameplay actions keep restart, new maze, pause, and guarded Home behavior 
   assert.match(game, /steeringPad\.hidden = true/);
   assert.doesNotMatch(game, /preferences\.zoomAssist|maze-overview|overview-trail/);
   assert.match(game, /#back-home'\)\.addEventListener\('click', \(\) => \{ clearPointer\(\); showDifficultySelection\(\); \}\)/);
+  assert.match(game, /freePlayRoute: \{ category: freePlayCategory, difficulty: maze\?\.difficulty \?\? selectedDifficulty, shapeId: selectedShapeId \}/);
   assert.match(game, /createMazeForDifficulty\(selectedDifficulty\)/);
-  assert.match(game, /const screens = \['home', 'difficulty', 'play', 'qa-config'/);
-  assert.match(game, /#quick-play'\)\.addEventListener\('click', showDifficultySelection\)/);
-  assert.match(game, /#difficulty-home'\)\.addEventListener\('click', showHome\)/);
+  assert.match(game, /const screens = \['home', 'free-play-categories', 'difficulty', 'play', 'qa-config'/);
+  assert.match(game, /#quick-play'\)\.addEventListener\('click', showFreePlayCategories\)/);
+  assert.match(game, /#categories-home'\)\.addEventListener\('click', showHome\)/);
+  assert.match(game, /#choose-classic'\)\.addEventListener\('click', showDifficultySelection\)/);
+  assert.match(game, /#difficulty-back'\)\.addEventListener\('click', showFreePlayCategories\)/);
   assert.match(game, /querySelectorAll\('\[data-start-difficulty\]'\)/);
   assert.match(game, /if \(!Object\.hasOwn\(FREE_PLAY_DIFFICULTIES, difficulty\)\) return;[\s\S]*?selectedDifficulty = difficulty;[\s\S]*?makeMaze\(\)/);
-  assert.match(game, /function showDifficultySelection\(\) \{ activeScreen\(\$\('#difficulty'\)\)/);
+  assert.match(game, /function showDifficultySelection\(\) \{[\s\S]*?freePlayCategory = 'classic'[\s\S]*?activeScreen\(\$\('#difficulty'\)\)/);
   assert.doesNotMatch(game.slice(game.indexOf("$('#quick-play').addEventListener"), game.indexOf("for (const option of document.querySelectorAll('[data-start-difficulty]'))")), /makeMaze\(/, 'entering the picker cannot start or reset a maze');
-  assert.match(game, /#help-play'\)\.addEventListener\('click', showDifficultySelection\)/);
+  assert.match(game, /#help-play'\)\.addEventListener\('click', showFreePlayCategories\)/);
   assert.match(game, /getMazeGridGeometry\(maze\.width, maze\.height, SIZE, PAD\)/);
   assert.match(game, /selectedDifficulty = maze\.difficulty/);
   assert.match(game, /#pause-game'\)\.addEventListener/);
@@ -147,19 +153,24 @@ test('gameplay actions keep restart, new maze, pause, and guarded Home behavior 
   assert.match(game, /event\.key === 'Escape'/);
 });
 
-test('Free Play difficulty screen offers large shared-theme cards and only starts after selection', async () => {
+test('Free Play category and Classic difficulty screens keep selection explicit and compact', async () => {
   const html = await read('index.html'), css = await read('src/styles.css'), game = await read('src/game.js');
+  assert.match(html, /id="quick-play"[\s\S]*?Free Play/);
+  assert.match(html, /id="choose-classic"/);
+  assert.match(html, /id="choose-shaped"[^>]*disabled/);
+  assert.match(game, /function showFreePlayCategories\(\)[\s\S]*?activeScreen\(\$\('#free-play-categories'\)\)/);
+  assert.match(game, /function showDifficultySelection\(\)[\s\S]*?freePlayCategory = 'classic'[\s\S]*?activeScreen\(\$\('#difficulty'\)\)/);
   assert.match(html, /class="screen info-screen difficulty-screen"/);
   assert.match(html, /class="difficulty-card-list"/);
   assert.equal((html.match(/data-start-difficulty=/g) ?? []).length, 4, 'Easy, Medium, Hard, and Expert are immediately available');
-  assert.match(html, /data-start-difficulty="hard"[\s\S]*?Start Hard/);
+  assert.match(html, /data-start-difficulty="hard"[\s\S]*?Hard/);
   assert.match(html, /Hard[\s\S]*?15×15 maze[\s\S]*?deeper wrong turns and more decisions/);
-  assert.match(html, /data-start-difficulty="expert"[\s\S]*?Expert[\s\S]*?20×20 maze[\s\S]*?Start Expert/);
+  assert.match(html, /data-start-difficulty="expert"[\s\S]*?Expert[\s\S]*?20×20 maze/);
   assert.match(css, /\.difficulty-card-list \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(css, /\.difficulty-card-list \{ grid-template-columns: 1fr;/, 'the difficulty list stays touch-friendly in phone layouts');
+  assert.match(css, /\.difficulty-card-list \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); gap: 9px;/, 'the four difficulty cards fit in a compact two-column phone layout');
   assert.match(html, /id="difficulty-title"[^>]*>Choose a difficulty/);
-  assert.match(css, /\.difficulty-card\s*\{[^}]*min-height:\s*190px/s);
-  assert.match(css, /\.difficulty-card-list\s*\{[^}]*grid-template-columns:\s*1fr/s);
+  assert.match(css, /\.difficulty-card\s*\{[^}]*min-height:\s*142px/s);
+  assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.difficulty-card-list \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /body\[data-visual-theme="traveler-map"\] \.difficulty-card/);
   assert.match(css, /body\[data-visual-theme="camp-dusk"\] \.difficulty-card/);
   assert.match(css, /body\[data-visual-theme\] \.difficulty-intro/);

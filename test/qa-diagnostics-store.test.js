@@ -66,7 +66,7 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
 
 test('Expert QA summary identifies 20x20 dimensions, terminal exit, quality, attempts, and speed', () => {
   const report = {
-    buildId: '2026.10.22-medium-audit-pad-layout-1',
+    buildId: '2026.10.22-classic-shaped-navigation-1',
     controlSystem: 'continuous-steering', activeController: 'continuous-steering',
     steering: { difficulty: 'expert', normalizedDeflection: 1, maxSpeedMazeUnitsPerSecond: 3, settings: { deadZonePixels: 10, speedResponseExponent: 1.15 } },
     maze: {
