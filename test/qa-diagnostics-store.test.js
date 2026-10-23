@@ -28,6 +28,11 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
   assert.match(recovered, /RECOVERED AFTER LAST REJECTION/);
   assert.match(recovered, /7x7 easy/);
   assert.match(recovered, /start 2,0 N → finish 6,4 E \| solution 24 steps/);
+  const exitProgress = createQuickSummary({ ...report, current: { ...report.current, state: {
+    ...report.current.state, exitCellEntered: true, currentlyInExitCell: true, completionCommitted: false,
+    invalidPerimeterAttempts: 2,
+  } } });
+  assert.match(exitProgress, /exit E · inside exit cell; still tracing · invalid perimeter attempts 2/);
   assert.match(createQuickSummary({ ...report, maze: { ...report.maze, difficulty: 'medium', dimensions: { width: 10, height: 10 } } }), /10x10 medium/);
   assert.ok(recovered.length < 2000);
   const steering = createQuickSummary({ ...report, controlSystem: 'continuous-steering', activeController: 'idle', steering: { settings: { deadZonePixels: 10, speedResponseExponent: 1.15, maxSpeedMazeUnitsPerSecond: 1.725 }, frames: 60, activeFrames: 40, clampedFrames: 1 } });
@@ -61,7 +66,7 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
 
 test('Expert QA summary identifies 20x20 dimensions, terminal exit, quality, attempts, and speed', () => {
   const report = {
-    buildId: '2026.10.22-steering-pad-balance-1',
+    buildId: '2026.10.22-exit-crossing-completion-1',
     controlSystem: 'continuous-steering', activeController: 'continuous-steering',
     steering: { difficulty: 'expert', normalizedDeflection: 1, maxSpeedMazeUnitsPerSecond: 3, settings: { deadZonePixels: 10, speedResponseExponent: 1.15 } },
     maze: {

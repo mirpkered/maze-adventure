@@ -247,8 +247,8 @@ test('all shipped difficulties use terminal exits with zero exit-gated cells acr
       for (const [index, cell] of route.slice(1).entries()) {
         const result = advancePath(maze, logicalRoute, cell);
         assert.equal(result.moved, true, `${difficulty} seed ${seed}: completion path step ${index + 1} is legal`);
-        assert.equal(result.complete, index === route.length - 2,
-          `${difficulty} seed ${seed}: completion occurs only on the final exit step`);
+        assert.equal(result.complete, false,
+          `${difficulty} seed ${seed}: cell-route traversal never commits perimeter completion`);
         logicalRoute = result.path;
       }
       assert.ok(maze.generationAttempts >= 1 && maze.generationAttempts <= maxAttempts,
@@ -362,7 +362,7 @@ test('player may backtrack only by retracing the previous route cell', () => {
   assert.equal(validatePath(maze, [a, first]), true);
 });
 
-test('legal route reaches the exit and only then reports completion', () => {
+test('cell route reaches the exit cell without claiming perimeter completion', () => {
   const maze = createMaze(3, 3, () => 0.25);
   const queue = [[{ ...maze.start }]], seen = new Set([`${maze.start.x},${maze.start.y}`]);
   let solution;
@@ -378,7 +378,7 @@ test('legal route reaches the exit and only then reports completion', () => {
   let path = [solution[0]];
   for (const cell of solution.slice(1)) {
     const result = advancePath(maze, path, cell); path = result.path;
-    assert.equal(result.complete, cell.x === maze.end.x && cell.y === maze.end.y);
+    assert.equal(result.complete, false);
   }
   assert.deepEqual(path.at(-1), maze.end);
 });

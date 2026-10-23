@@ -65,6 +65,12 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
   const endpointSummary = start && finish
     ? `start ${start.cell?.x ?? '?'},${start.cell?.y ?? '?'} ${start.edge ?? '?'} → finish ${finish.cell?.x ?? '?'},${finish.cell?.y ?? '?'} ${finish.edge ?? '?'} | solution ${report.maze?.shortestSolutionLength ?? '?'} steps`
     : null;
+  const traceState = report.current?.state;
+  const exitProgress = finish && typeof traceState?.completionCommitted === 'boolean'
+    ? `exit ${finish.edge ?? '?'} · ${traceState.completionCommitted ? 'crossed and complete'
+      : traceState.currentlyInExitCell ? 'inside exit cell; still tracing'
+        : traceState.exitCellEntered ? 'exit cell visited; not complete' : 'not reached'} · invalid perimeter attempts ${traceState.invalidPerimeterAttempts ?? 0}`
+    : null;
   const generation = report.maze ? `exit degree ${report.maze.exitInternalDegree ?? '?'} · gated cells ${report.maze.exitGatedCells ?? '?'} · attempts ${report.maze.generationAttempts ?? '?'} · generation ${report.maze.generationDurationMs ?? '?'}ms${report.maze.generationQuality ? ` · route junctions ${report.maze.generationQuality.solutionRouteJunctions} · optional branches ${report.maze.generationQuality.optionalBranchCount} · largest branch ${report.maze.generationQuality.largestOptionalBranch}` : ''}` : null;
   const historicalMode = report.selectedInputMode ?? report.inputMode;
   const activeController = report.activeController ?? current?.gestureInputMode ?? (report.controlSystem === 'continuous-steering' ? 'continuous-steering' : 'idle');
@@ -87,6 +93,7 @@ export function createQuickSummary(report, { observed = 0, accepted = 0, rejecte
     `Maze Adventure QA ${report.buildId ?? 'build unknown'} | ${report.maze?.layoutId ?? 'maze unknown'}`,
     `${dimensions?.width ?? '?'}x${dimensions?.height ?? '?'} ${difficulty} | ${(durationMs / 1000).toFixed(1)}s | events ${observed}, accepted ${accepted}, rejected ${Object.values(rejectedByReason).reduce((a, b) => a + b, 0)} (${counts}), canceled ${canceled}`,
     ...(endpointSummary ? [endpointSummary] : []),
+    ...(exitProgress ? [exitProgress] : []),
     ...(generation ? [generation] : []),
     steeringSummary,
     ...(inputSurfaceSummary ? [inputSurfaceSummary] : []),

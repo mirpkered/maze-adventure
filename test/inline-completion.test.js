@@ -27,7 +27,7 @@ test('completion is an inline play-screen state with a single accessible result 
   assert.match(game, /mazeCompleted = false;\s*delete document\.body\.dataset\.completed;\s*delete document\.body\.dataset\.completionLayoutStable;[\s\S]*?\$\('#completion-panel'\)\.hidden = true/);
   assert.match(game, /\$\('#restart-maze'\)\.addEventListener\('click', \(\) => makeMaze\(true\)\)/);
   assert.match(game, /\$\('#new-maze'\)\.addEventListener\('click', \(\) => makeMaze\(\)\)/);
-  assert.match(worker, /shell-v45/);
+  assert.match(worker, /shell-v46/);
 });
 
 test('the full maze stays visible while completion replaces only the steering pad', async () => {
@@ -45,6 +45,8 @@ test('the full maze stays visible while completion replaces only the steering pa
   assert.match(game, /const layoutBefore = captureGameplayLayout\(document, window\)/);
   assert.match(game, /const comparison = compareMazeLayout\(layoutBefore, layoutAfter\)/);
   assert.match(game, /dataset\.completionLayoutStable = String\(comparison\.stable\)/);
+  assert.match(game, /if \(!traceSession\?\.diagnostics\.completionCommitted\) return;/,
+    'the inline completion transition is guarded by the authoritative tracer result');
   assert.match(game, /playHint\.style\.height = `\$\{layoutBefore\.playHint\.height\}px`/,
     'completion reserves the hint height so content reflow cannot move the maze');
   assert.doesNotMatch(game, /preferences\.zoomAssist|maze-overview|overview-trail/);

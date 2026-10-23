@@ -5,6 +5,9 @@ const CORRIDOR_MARGIN = 0.46;
 const ENTRANCE_TOLERANCE = 0.62;
 const STROKE_WALL_SAFE_OFFSET = 0.42;
 const MIN_STROKE_POINT_DISTANCE = 0.015;
+// End near the existing flower marker while keeping the final pencil visible
+// inside the fixed 400×400 SVG for every shipped grid size.
+const FINISH_EXTENSION = 0.78;
 
 function nearestCell(point, maze) {
   const roundedX = Math.round(point.x), roundedY = Math.round(point.y);
@@ -16,6 +19,37 @@ function nearestCell(point, maze) {
 function sameCell(a, b) { return a.x === b.x && a.y === b.y; }
 function copyPoint(point) { return { x: point.x, y: point.y }; }
 
+function exitFinishPoint(maze) {
+  if (!maze.exit || maze.cells[maze.exit.cell.y]?.[maze.exit.cell.x]?.walls?.[maze.exit.side] !== false) return null;
+  const point = { ...maze.exit.cell };
+  if (maze.exit.side === 'N') point.y -= FINISH_EXTENSION;
+  else if (maze.exit.side === 'E') point.x += FINISH_EXTENSION;
+  else if (maze.exit.side === 'S') point.y += FINISH_EXTENSION;
+  else if (maze.exit.side === 'W') point.x -= FINISH_EXTENSION;
+  else return null;
+  return point;
+}
+
+function crossedDeclaredExit(previous, point, current, maze) {
+  const exit = maze.exit;
+  if (!exit || !sameCell(current, exit.cell)
+    || maze.cells[exit.cell.y]?.[exit.cell.x]?.walls?.[exit.side] !== false) return false;
+  const { x, y } = exit.cell;
+  const boundary = exit.side === 'N' ? y - 0.5 : exit.side === 'S' ? y + 0.5
+    : exit.side === 'W' ? x - 0.5 : x + 0.5;
+  const previousAxis = exit.side === 'N' || exit.side === 'S' ? previous.y : previous.x;
+  const currentAxis = exit.side === 'N' || exit.side === 'S' ? point.y : point.x;
+  const outwardSign = exit.side === 'N' || exit.side === 'W' ? -1 : 1;
+  const previousDistance = (previousAxis - boundary) * outwardSign;
+  const currentDistance = (currentAxis - boundary) * outwardSign;
+  const tangent = exit.side === 'N' || exit.side === 'S' ? point.x : point.y;
+  const previousTangent = exit.side === 'N' || exit.side === 'S' ? previous.x : previous.y;
+  const tangentCenter = exit.side === 'N' || exit.side === 'S' ? x : y;
+  return previousDistance <= 1e-9 && currentDistance > 0 && currentDistance > previousDistance
+    && Math.abs(tangent - tangentCenter) <= CORRIDOR_MARGIN
+    && Math.abs(previousTangent - tangentCenter) <= CORRIDOR_MARGIN;
+}
+
 function outsideEntrance(point, maze) {
   const entrance = maze.entrance;
   if (!entrance || !sameCell(entrance.cell, maze.start)) return false;
@@ -25,10 +59,20 @@ function outsideEntrance(point, maze) {
   return outward > CORRIDOR_MARGIN && outward <= ENTRANCE_TOLERANCE && tangent <= CORRIDOR_MARGIN;
 }
 
+function onExitApproach(point, cell, maze) {
+  const exit = maze.exit;
+  if (!exit || !sameCell(cell, exit.cell) || maze.cells[cell.y]?.[cell.x]?.walls?.[exit.side] !== false) return false;
+  const outward = exit.side === 'N' ? cell.y - point.y : exit.side === 'S' ? point.y - cell.y
+    : exit.side === 'W' ? cell.x - point.x : point.x - cell.x;
+  const tangent = exit.side === 'N' || exit.side === 'S' ? Math.abs(point.x - cell.x) : Math.abs(point.y - cell.y);
+  return outward >= 0 && outward <= 0.5 && tangent <= CORRIDOR_MARGIN;
+}
+
 function insideCell(point, cell, maze) {
   const dx = point.x - cell.x, dy = point.y - cell.y;
   const ax = Math.abs(dx), ay = Math.abs(dy);
   if (sameCell(cell, maze.start) && outsideEntrance(point, maze)) return true;
+  if (onExitApproach(point, cell, maze)) return true;
   if (ax <= CORRIDOR_MARGIN && ay <= CORRIDOR_MARGIN) return true;
   if (ax <= 0.5 && ay <= CORRIDOR_MARGIN && dx !== 0 && canMove(maze, cell, { x: cell.x + Math.sign(dx), y: cell.y })) return true;
   if (ay <= 0.5 && ax <= CORRIDOR_MARGIN && dy !== 0 && canMove(maze, cell, { x: cell.x, y: cell.y + Math.sign(dy) })) return true;
@@ -50,9 +94,10 @@ function constrainStrokePoint(point, cell, maze, allowOpenEdgeProgress = false) 
     ? canMove(maze, cell, { x: cell.x + Math.sign(dx), y: cell.y }) ? 0.5 : xCorridor : STROKE_WALL_SAFE_OFFSET;
   const yLimit = allowOpenEdgeProgress && Math.abs(dx) <= CORRIDOR_MARGIN && dy !== 0
     ? canMove(maze, cell, { x: cell.x, y: cell.y + Math.sign(dy) }) ? 0.5 : yCorridor : STROKE_WALL_SAFE_OFFSET;
+  const exitSide = onExitApproach(point, cell, maze) ? maze.exit.side : null;
   return {
-    x: entranceSide === 'W' || entranceSide === 'E' ? point.x : cell.x + Math.max(-xLimit, Math.min(xLimit, dx)),
-    y: entranceSide === 'N' || entranceSide === 'S' ? point.y : cell.y + Math.max(-yLimit, Math.min(yLimit, dy)),
+    x: entranceSide === 'W' || entranceSide === 'E' || exitSide === 'W' || exitSide === 'E' ? point.x : cell.x + Math.max(-xLimit, Math.min(xLimit, dx)),
+    y: entranceSide === 'N' || entranceSide === 'S' || exitSide === 'N' || exitSide === 'S' ? point.y : cell.y + Math.max(-yLimit, Math.min(yLimit, dy)),
   };
 }
 
@@ -81,6 +126,7 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
   const strokeBreaks = [...currentStrokeBreaks];
   let position = copyPoint(acceptedPosition ?? currentStroke.at(-1) ?? path.at(-1));
   let moved = false, blocked = false, complete = false, wallCollision = false, reason = null;
+  let enteredExitCell = false, exitBoundaryReached = false, completionReason = null, finishPosition = null;
   let interpolatedSamples = 0;
   const attemptedTransitions = [];
   const initialBreakCount = strokeBreaks.length;
@@ -91,8 +137,21 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
 
   for (let index = 1; index <= samples; index++) {
     const point = { x: from.x + (to.x - from.x) * index / samples, y: from.y + (to.y - from.y) * index / samples };
+    const previousPoint = { x: from.x + (to.x - from.x) * (index - 1) / samples, y: from.y + (to.y - from.y) * (index - 1) / samples };
     const candidate = nearestCell(point, maze);
-    if (!candidate) { reject('outside-maze'); break; }
+    if (!candidate) {
+      if (crossedDeclaredExit(previousPoint, point, nextPath.at(-1), maze)) {
+        finishPosition = exitFinishPoint(maze);
+        if (finishPosition) {
+          appendInk(stroke, strokeCells, strokeBreaks, finishPosition, maze.exit.cell);
+          position = finishPosition;
+          moved = true; complete = true; exitBoundaryReached = true;
+          completionReason = 'designated-exit-boundary-crossing';
+          break;
+        }
+      }
+      reject('outside-maze'); break;
+    }
 
     const current = nextPath.at(-1);
     if (!sameCell(candidate, current)) {
@@ -112,6 +171,7 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
       if (!transition.moved) { reject('closed-or-nonadjacent-edge'); break; }
       nextPath = transition.path;
       complete ||= transition.complete;
+      enteredExitCell ||= sameCell(candidate, maze.end) && !sameCell(current, maze.end);
       moved = true;
     } else if (!insideCell(point, current, maze)) {
       const dx = point.x - current.x, dy = point.y - current.y;
@@ -135,6 +195,7 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
   }
 
   return { path: nextPath, stroke, strokeCells, strokeBreaks, position, moved, blocked, reason, complete, wallCollision,
+    enteredExitCell, exitBoundaryReached, completionReason, finishPosition,
     interpolatedSamples, attemptedTransitions, strokeBreakCreated: strokeBreaks.length > initialBreakCount };
 }
 
@@ -146,6 +207,9 @@ export function createTraceSession(maze) {
   let strokeBreaks = [];
   let position = { ...maze.start };
   let pointerId = null;
+  let completionCommitted = false;
+  let exitCellEntered = false;
+  let invalidPerimeterAttempts = 0;
   let lastBlocked = false;
   let lastReason = null;
   let lastFailureCategory = null;
@@ -180,6 +244,12 @@ export function createTraceSession(maze) {
         traceHealth: lastBlocked ? 'blocked' : 'ready', active: pointerId !== null,
         blocked: lastBlocked, reason: lastReason, failureCategory: lastFailureCategory,
         pathLength: path.length, strokeLength: stroke.length,
+        exitCellEntered, currentlyInExitCell: sameCell(cell, maze.end),
+        exitBoundaryReached: completionCommitted, completionCommitted,
+        exitCell: maze.exit ? { ...maze.exit.cell } : null, exitSide: maze.exit?.side ?? null,
+        finishPosition: completionCommitted ? copyPoint(position) : null,
+        completionReason: completionCommitted ? 'designated-exit-boundary-crossing' : null,
+        invalidPerimeterAttempts,
         strokeCells: strokeCells.map(item => ({ ...item })), strokeBreaks: [...strokeBreaks],
       };
     },
@@ -190,6 +260,7 @@ export function createTraceSession(maze) {
       return true;
     },
     steer(id, delta) {
+      if (completionCommitted) return { path, stroke, position, moved: false, blocked: false, complete: false, reason: 'attempt-already-completed' };
       if (pointerId !== id) return { path, stroke, position, moved: false, blocked: false, complete: false, reason: 'steering-without-active-gesture' };
       if (!Number.isFinite(delta?.x) || !Number.isFinite(delta?.y)) {
         return { path, stroke, position, moved: false, blocked: false, complete: false, reason: 'invalid-steering-delta' };
@@ -199,24 +270,44 @@ export function createTraceSession(maze) {
         { advanceSubthreshold: true, allowOpenEdgeProgress: true });
       path = result.path; stroke = result.stroke; strokeCells = result.strokeCells;
       strokeBreaks = result.strokeBreaks; position = result.position;
+      exitCellEntered ||= result.enteredExitCell;
+      if (result.reason === 'outside-maze' && !result.exitBoundaryReached) invalidPerimeterAttempts++;
+      completionCommitted ||= result.complete;
       const recovered = lastBlocked && result.moved && !result.blocked;
       lastBlocked = result.blocked; lastReason = result.reason;
       lastFailureCategory = result.blocked ? failureCategory(result.reason) : null;
       return { ...result, recovered, steeringCollision: result.wallCollision };
     },
     step(direction) {
+      if (completionCommitted) return { path, stroke, position, moved: false, blocked: false, complete: false, reason: 'attempt-already-completed' };
       if (pointerId !== null) return { path, stroke, position, moved: false, blocked: false, complete: false };
       const current = path.at(-1), candidate = { x: current.x + direction.x, y: current.y + direction.y };
+      const exitDelta = maze.exit?.side === 'N' ? { x: 0, y: -1 } : maze.exit?.side === 'E' ? { x: 1, y: 0 }
+        : maze.exit?.side === 'S' ? { x: 0, y: 1 } : maze.exit?.side === 'W' ? { x: -1, y: 0 } : null;
+      if (exitDelta && sameCell(current, maze.exit.cell) && direction.x === exitDelta.x && direction.y === exitDelta.y) {
+        const finishPosition = exitFinishPoint(maze);
+        if (finishPosition) {
+          appendInk(stroke, strokeCells, strokeBreaks, finishPosition, maze.exit.cell);
+          position = finishPosition; completionCommitted = true; exitCellEntered = true;
+          lastBlocked = false; lastReason = null; lastFailureCategory = null;
+          return { path, stroke, strokeCells, strokeBreaks, position, moved: true, blocked: false, complete: true,
+            enteredExitCell: false, exitBoundaryReached: true, completionReason: 'designated-exit-boundary-crossing', finishPosition: copyPoint(finishPosition) };
+        }
+      }
       const advance = advancePath(maze, path, candidate);
       if (!advance.moved) {
+        if (candidate.x < 0 || candidate.y < 0 || candidate.x >= maze.width || candidate.y >= maze.height) invalidPerimeterAttempts++;
         lastReason = canMove(maze, current, candidate) ? 'route-revisit' : 'closed-or-nonadjacent-edge';
         lastFailureCategory = failureCategory(lastReason); lastBlocked = true;
         return { path, stroke, position, moved: false, blocked: true, reason: lastReason, complete: false };
       }
       path = advance.path; position = { ...candidate };
       appendInk(stroke, strokeCells, strokeBreaks, position, candidate);
+      const enteredExitCell = sameCell(candidate, maze.end) && !sameCell(current, maze.end);
+      exitCellEntered ||= enteredExitCell;
       lastBlocked = false; lastReason = null; lastFailureCategory = null;
-      return { path, stroke, position, moved: true, blocked: false, complete: advance.complete };
+      return { path, stroke, position, moved: true, blocked: false, complete: false, enteredExitCell,
+        exitBoundaryReached: false, completionReason: null };
     },
     end,
     cancel: end,

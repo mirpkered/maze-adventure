@@ -34,6 +34,25 @@ function mazeWithRoute(route, width = Math.max(...route.map(p => p.x)) + 1, heig
   return { width, height, cells, start: { ...route[0] }, end: { ...route.at(-1) } };
 }
 
+function exitFixture(side) {
+  const inward = { N: { x: 1, y: 1 }, E: { x: 1, y: 1 }, S: { x: 1, y: 1 }, W: { x: 1, y: 1 } }[side];
+  const end = { N: { x: 1, y: 0 }, E: { x: 2, y: 1 }, S: { x: 1, y: 2 }, W: { x: 0, y: 1 } }[side];
+  const start = { ...inward };
+  const maze = mazeWithRoute([start, end], 3, 3);
+  maze.exit = { cell: { ...end }, side };
+  maze.cells[end.y][end.x].walls[side] = false;
+  return maze;
+}
+
+function outsideExitPoint(maze, extension = 0.78) {
+  const point = { ...maze.end };
+  if (maze.exit.side === 'N') point.y -= extension;
+  else if (maze.exit.side === 'E') point.x += extension;
+  else if (maze.exit.side === 'S') point.y += extension;
+  else point.x -= extension;
+  return point;
+}
+
 function replayRecordedPointerEvents(maze, events) {
   const session = createTraceSession(maze), pointerId = 1, moveResults = [];
   for (const event of events) {
@@ -117,7 +136,7 @@ test('one uninterrupted gesture follows turns in its pointer path', () => {
   const result = session.move(2, { x: 2, y: 2 });
   const final = session.move(2, { x: 3, y: 2 });
   assert.deepEqual(final.path, route);
-  assert.equal(final.complete, true);
+  assert.equal(final.complete, false, 'entering the last cell is not an exit crossing');
   assert.equal(result.blocked, false);
 });
 
@@ -126,6 +145,91 @@ test('fast movement between pointer samples checks and visits every intermediate
   const maze = mazeWithRoute(route), result = traceSegment(maze, [route[0]], route[0], route.at(-1));
   assert.deepEqual(result.path, route);
   assert.equal(result.blocked, false);
+});
+
+test('only an outward crossing through the declared perimeter exit completes in all four orientations', () => {
+  const outward = { N: { x: 0, y: -1 }, E: { x: 1, y: 0 }, S: { x: 0, y: 1 }, W: { x: -1, y: 0 } };
+  for (const side of ['N', 'E', 'S', 'W']) {
+    const maze = exitFixture(side), session = createTraceSession(maze), pointer = 300 + side.charCodeAt(0);
+    assert.equal(session.begin(pointer, maze.start), true);
+    const entered = session.move(pointer, maze.end);
+    assert.equal(entered.complete, false, `${side}: entering the terminal exit cell stays active`);
+    assert.equal(session.diagnostics.exitCellEntered, true);
+    const inside = { ...maze.end };
+    if (side === 'N') inside.y -= 0.4;
+    else if (side === 'E') inside.x += 0.4;
+    else if (side === 'S') inside.y += 0.4;
+    else inside.x -= 0.4;
+    assert.equal(session.move(pointer, inside).complete, false, `${side}: approaching the opening is not completion`);
+    const inkBeforeReverse = session.stroke.map(point => ({ ...point }));
+    assert.equal(session.move(pointer, maze.start).complete, false, `${side}: backtracking from the exit cell remains legal`);
+    assert.deepEqual(session.path, [maze.start]);
+    assert.ok(session.stroke.length >= inkBeforeReverse.length, `${side}: backtracking preserves permanent ink`);
+    assert.equal(session.move(pointer, maze.end).complete, false, `${side}: re-entering the exit cell still does not finish`);
+    const crossing = session.move(pointer, outsideExitPoint(maze));
+    assert.equal(crossing.complete, true, `${side}: the declared outward crossing completes`);
+    assert.equal(crossing.exitBoundaryReached, true);
+    assert.equal(crossing.completionReason, 'designated-exit-boundary-crossing');
+    assert.deepEqual(crossing.finishPosition, outsideExitPoint(maze));
+    assert.deepEqual(session.stroke.at(-1), outsideExitPoint(maze), `${side}: final ink extends through the opening`);
+    const inkAtFinish = session.stroke.map(point => ({ ...point }));
+    assert.equal(session.move(pointer, { x: 1.5, y: 1.5 }).moved, false, `${side}: no movement follows completion`);
+    assert.deepEqual(session.stroke, inkAtFinish, `${side}: completion does not append later ink`);
+    assert.equal(session.diagnostics.completionCommitted, true);
+
+    const keyboard = createTraceSession(maze), inward = { x: maze.end.x - maze.start.x, y: maze.end.y - maze.start.y };
+    assert.equal(keyboard.step(inward).complete, false, `${side}: keyboard navigation entering exit cell stays active`);
+    const keyboardFinish = keyboard.step(outward[side]);
+    assert.equal(keyboardFinish.complete, true, `${side}: keyboard navigation must also cross outward`);
+    assert.deepEqual(keyboard.position, outsideExitPoint(maze));
+  }
+});
+
+test('open exit boundary does not authorize other perimeter exits, corner cuts, or wrong directions', () => {
+  for (const side of ['N', 'E', 'S', 'W']) {
+    const maze = exitFixture(side), session = createTraceSession(maze), pointer = 500 + side.charCodeAt(0);
+    session.begin(pointer, maze.start);
+    session.move(pointer, maze.end);
+    const wrong = { ...maze.end };
+    if (side === 'N' || side === 'S') wrong.x += 0.8;
+    else wrong.y += 0.8;
+    const rejected = session.move(pointer, wrong);
+    assert.equal(rejected.complete, false, `${side}: only its declared edge may complete`);
+    assert.equal(rejected.blocked, true);
+    assert.deepEqual(session.path.at(-1), maze.end);
+    assert.equal(session.diagnostics.completionCommitted, false);
+  }
+  const maze = exitFixture('E'), session = createTraceSession(maze), pointer = 600;
+  session.begin(pointer, maze.start); session.move(pointer, maze.end);
+  const diagonal = session.move(pointer, { x: maze.end.x + 0.8, y: maze.end.y + 0.8 });
+  assert.equal(diagonal.complete, false, 'a diagonal outside-grid jump cannot cross the exit corner');
+  assert.equal(session.diagnostics.completionCommitted, false);
+});
+
+test('100 production-generated mazes per difficulty complete only after their designated exit crossing', () => {
+  for (const difficulty of ['easy', 'medium', 'hard', 'expert']) {
+    for (let seed = 0; seed < 100; seed++) {
+      const maze = createMazeForDifficulty(difficulty, seeded(seed));
+      const route = getShortestPath(maze), session = createTraceSession(maze), pointer = 10000 + seed;
+      assert.ok(route?.length > 2, `${difficulty} seed ${seed}: generated route exists`);
+      assert.equal(session.begin(pointer, maze.start), true);
+      for (const [index, cell] of route.slice(1).entries()) {
+        const result = session.move(pointer, cell);
+        assert.equal(result.blocked, false, `${difficulty} seed ${seed}: route step ${index + 1} stays legal`);
+        assert.equal(result.complete, false, `${difficulty} seed ${seed}: no cell entry completes`);
+      }
+      assert.deepEqual(session.path, route, `${difficulty} seed ${seed}: route reaches exit cell`);
+      assert.equal(session.diagnostics.exitCellEntered, true);
+      assert.equal(session.diagnostics.completionCommitted, false);
+      const finish = session.move(pointer, outsideExitPoint(maze));
+      assert.equal(finish.complete, true, `${difficulty} seed ${seed}: outward exit crossing completes`);
+      assert.equal(finish.blocked, false);
+      assert.deepEqual(session.stroke.at(-1), finish.finishPosition);
+      assert.equal(session.diagnostics.completionCommitted, true);
+      assert.deepEqual(session.path, route, `${difficulty} seed ${seed}: finish crossing does not mutate cell route`);
+      assert.equal(session.move(pointer, { x: -2, y: -2 }).moved, false, `${difficulty} seed ${seed}: no post-finish movement`);
+    }
+  }
 });
 
 test('coalesced movement includes the dispatched pointer endpoint when it differs', () => {
@@ -486,10 +590,11 @@ test('Medium Steering uses the shared tracer for collision, redirection, backtra
     assert.equal(result.moved, true);
     if (result.complete) completions++;
   }
-  assert.equal(completions, 1, 'the shared tracing engine completes exactly once at the Medium flower');
+  assert.equal(completions, 0, 'entering Medium exit cell does not complete');
+  const finish = session.move(701, outsideExitPoint(maze));
+  assert.equal(finish.complete, true, 'the shared tracing engine completes at the outward flower crossing');
   assert.deepEqual(session.path.at(-1), maze.end);
-  assert.equal(session.stroke.at(-1).x, maze.end.x);
-  assert.equal(session.stroke.at(-1).y, maze.end.y);
+  assert.deepEqual(session.stroke.at(-1), finish.finishPosition);
 });
 
 test('dynamic perimeter starts accept the marked opening and finish legally at every exit edge', () => {
@@ -514,9 +619,11 @@ test('dynamic perimeter starts accept the marked opening and finish legally at e
       assert.equal(movement.moved, true, `seed ${seed}: legal solution transition is accepted`);
       if (movement.complete) completed++;
     }
-    assert.equal(completed, 1, `seed ${seed}: completion fires once at the selected flower`);
+    assert.equal(completed, 0, `seed ${seed}: entering the terminal cell does not complete`);
     assert.deepEqual(session.path.at(-1), maze.end);
-    assert.deepEqual({ x: Math.round(session.position.x), y: Math.round(session.position.y) }, maze.end);
+    const finish = session.move(pointer, outsideExitPoint(maze));
+    assert.equal(finish.complete, true, `seed ${seed}: crossing the selected flower opening completes`);
+    assert.deepEqual(session.position, finish.finishPosition);
   }
   assert.deepEqual([...foundStarts].sort(), ['E', 'N', 'S', 'W']);
   assert.deepEqual([...foundFinishes].sort(), ['E', 'N', 'S', 'W']);
@@ -576,7 +683,9 @@ test('top-to-left Medium Steering stays a thin open path through turns, collisio
     assert.equal(result.moved, true, `legal route step ${index} remains traceable`);
     if (result.complete) completions++;
   }
-  assert.equal(completions, 1);
+  assert.equal(completions, 0);
+  const finish = session.move(pointer, outsideExitPoint(maze));
+  assert.equal(finish.complete, true);
   assert.deepEqual(session.path.at(-1), maze.end);
   assert.deepEqual(maze.entrance, { cell: maze.start, side: 'N' });
   assert.deepEqual(maze.exit, { cell: maze.end, side: 'W' });
@@ -634,9 +743,11 @@ test('permanent marks cannot authorize a jump across a closed wall', () => {
 
 test('restart creates a fresh attempt with no prior ink and completion retains exploration marks', () => {
   const route = [{ x: 0, y: 0 }, { x: 1, y: 0 }], maze = mazeWithRoute(route, 2, 2);
+  maze.exit = { cell: { ...maze.end }, side: 'E' }; maze.cells[0][1].walls.E = false;
   const session = createTraceSession(maze);
   session.begin(104, route[0]);
-  const result = session.move(104, route.at(-1));
+  session.move(104, route.at(-1));
+  const result = session.move(104, outsideExitPoint(maze));
   assert.equal(result.complete, true);
   const completedInk = session.stroke.map(point => ({ ...point }));
   assert.deepEqual(session.stroke, completedInk);
@@ -751,7 +862,9 @@ test('Hard 15x15 uses the shared Steering tracer for a long route, collision red
     assert.equal(completion.blocked, false, `Hard solution can enter ${cell.x},${cell.y}`);
   }
   assert.deepEqual(session.path.at(-1), maze.end);
-  assert.equal(completion.complete, true);
+  assert.equal(completion.complete, false, 'entering Hard exit cell does not finish');
+  completion = session.move(pointer, outsideExitPoint(maze));
+  assert.equal(completion.complete, true, 'crossing Hard exit opening finishes');
   assert.ok(session.stroke.length > 100, 'the shared permanent ink history supports the longer Hard route');
 
   const replay = createTraceSession(maze), replayPointer = 881;
@@ -800,7 +913,7 @@ test('QA steering collision rejects only the frame and can redirect through an o
   const turn = session.steer(991, { x: 0, y: 0.8 });
   assert.equal(turn.moved, true);
   assert.deepEqual(session.path, [{ x: 0, y: 0 }, { x: 0, y: 1 }], 'steering can proceed down the open passage without lifting');
-  assert.equal(turn.complete, true);
+  assert.equal(turn.complete, false, 'reaching the terminal cell alone does not finish');
   assert.ok(session.stroke.length >= afterCollisionInk.length, 'earlier ink remains append-only');
   assert.equal(session.end(991), true);
 });

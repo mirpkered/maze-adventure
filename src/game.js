@@ -161,6 +161,13 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
     requestedMovement: movement?.requestedMovement ?? null,
     acceptedMovement: movement?.acceptedMovement ?? null,
     steeringMetrics: movement?.steeringMetrics ?? null,
+    exitCellEntered: Boolean(movement?.enteredExitCell || state.exitCellEntered),
+    exitBoundaryReached: Boolean(movement?.exitBoundaryReached || state.exitBoundaryReached),
+    completionCommitted: Boolean(movement?.complete || state.completionCommitted),
+    completionReason: movement?.completionReason ?? state.completionReason,
+    finishPosition: movement?.finishPosition ? { ...movement.finishPosition } : state.finishPosition,
+    exitSide: state.exitSide,
+    invalidPerimeterAttempts: state.invalidPerimeterAttempts,
     strokeBreakCreated: movement?.strokeBreakCreated ?? false,
     gestureState: state.active ? 'active' : 'idle',
     accepted: Boolean(accepted),
@@ -226,7 +233,11 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   const state = traceSession.diagnostics;
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
   const reversal = state.candidateReversal ? `${state.candidateReversal.x},${state.candidateReversal.y} (${state.candidateReversalOpen ? 'open' : 'closed'})` : 'none';
-  output.textContent = `QA trace · build ${APP_BUILD_ID} · ${maze?.difficulty ?? selectedDifficulty} · cap ${steeringController.settings.maxSpeedMazeUnitsPerSecond.toFixed(3)} cells/s · deflection ${(steeringController.snapshot.normalizedDeflection * 100).toFixed(0)}% · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · input surface steering-pad · client px ${point(lastClientPointer)} · raw pad px ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  const exitStatus = state.completionCommitted ? `completed through ${state.exitSide} exit at ${point(state.finishPosition)}`
+    : state.currentlyInExitCell ? `inside exit cell ${state.exitCell.x},${state.exitCell.y}; trace outward through ${state.exitSide}`
+      : state.exitCellEntered ? `exit cell was visited; current cell ${state.logicalCell.x},${state.logicalCell.y}; exit ${state.exitSide}`
+      : `exit ${state.exitSide} not reached`;
+  output.textContent = `QA trace · build ${APP_BUILD_ID} · ${maze?.difficulty ?? selectedDifficulty} · cap ${steeringController.settings.maxSpeedMazeUnitsPerSecond.toFixed(3)} cells/s · deflection ${(steeringController.snapshot.normalizedDeflection * 100).toFixed(0)}% · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · input surface steering-pad · client px ${point(lastClientPointer)} · raw pad px ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · ${exitStatus} · invalid perimeter attempts ${state.invalidPerimeterAttempts} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -352,8 +363,10 @@ function renderMaze() {
   }
   svg.append(walls);
   svg.append(marker(startMarker, 'marker-start', 'START'));
-  svg.append(marker(endMarker, 'marker-end', '✿'));
   svg.append(create('circle', { id: 'player', cx: start.x, cy: start.y, r: gridGeometry.cellSize * .19, class: 'player' }));
+  // Keep the flower legible when the completed pencil ends directly beside
+  // or over the destination marker at a perimeter opening.
+  svg.append(marker(endMarker, 'marker-end', '✿'));
   svg.setAttribute('viewBox', `0 0 ${SIZE} ${SIZE}`);
   renderTrace();
 }
@@ -513,7 +526,7 @@ function scheduleSteeringFrameLoop(id) {
         : movement.blocked && movement.attemptedTransitions?.some(transition => transition.open) ? 'open-edge-transition-rejected'
           : movement.blocked ? 'movement-rejected'
             : !movement.moved ? 'steering-no-progress' : 'accepted';
-      if (movement.moved) renderTrace();
+      if (movement.moved) { renderTrace(); updateTraceDiagnostics(lastRawPointer); }
       if (movement.blocked) {
         if (!steeringHadBlock || movement.reason !== lastSteeringBlockReason) recordSteeringEvent('steering-blocked', movement, movement.reason);
         steeringHadBlock = true;
@@ -573,6 +586,7 @@ function finishPointer(event, cancel = false) {
 }
 function completeMaze() {
   if (mazeCompleted) return;
+  if (!traceSession?.diagnostics.completionCommitted) return;
   const layoutBefore = captureGameplayLayout(document, window);
   mazeCompleted = true;
   pauseTimer(); displayTime();

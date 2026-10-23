@@ -392,5 +392,7 @@ export function advancePath(maze, path, next) {
   }
   if (!canMove(maze, current, next) || path.some(p => p.x === next.x && p.y === next.y)) return { path, moved: false, complete: false };
   const updated = [...path, { x: next.x, y: next.y }];
-  return { path: updated, moved: true, complete: next.x === maze.end.x && next.y === maze.end.y };
+  // Cell navigation establishes a route only. Finishing is a physical trace
+  // across the declared perimeter opening and is decided by the tracer.
+  return { path: updated, moved: true, complete: false };
 }

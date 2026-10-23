@@ -218,6 +218,7 @@ test('maximum-speed controller and authoritative tracer complete generated mazes
         && Math.hypot(state.position.x - target.x, state.position.y - target.y) < 0.4, 120);
       assert.ok(results.length > 0, `${difficulty}: controller produces movement along solution step ${step}`);
       assert.ok(results.every(result => !result.wallCollision), `${difficulty}: shortest-path steering never crosses a wall`);
+      assert.ok(results.every(result => !result.complete), `${difficulty}: entering exit cell does not complete`);
       const frameDistanceLimit = STEERING_SPEED_BY_DIFFICULTY[difficulty] / 60 + 1e-9;
       for (let index = 1; index < results.length; index++) {
         assert.ok(Math.hypot(results[index].position.x - results[index - 1].position.x,
@@ -228,7 +229,13 @@ test('maximum-speed controller and authoritative tracer complete generated mazes
     assert.equal(session.path.at(-1).x, maze.end.x);
     assert.equal(session.path.at(-1).y, maze.end.y);
     assert.ok(session.stroke.length > solution.length, `${difficulty}: permanent sampled ink remains present`);
-    assert.equal(controller.active, true, `${difficulty}: reaching the finish leaves the gesture lifecycle under normal caller completion handling`);
+    assert.equal(session.diagnostics.completionCommitted, false, `${difficulty}: exit cell alone leaves gameplay active`);
+    const exitSide = maze.exit.side;
+    const outward = { N: 'N', E: 'E', S: 'S', W: 'W' }[exitSide];
+    const exitCrossing = drive(outward, state => state.diagnostics.completionCommitted, 120);
+    assert.ok(exitCrossing.some(result => result.complete), `${difficulty}: Steering crosses the ${exitSide} boundary`);
+    assert.equal(session.diagnostics.completionCommitted, true);
+    assert.equal(controller.active, true, `${difficulty}: caller ends the gesture after authoritative completion`);
     controller.end(800 + index); session.end(800 + index);
   }
 });
