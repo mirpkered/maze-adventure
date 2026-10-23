@@ -17,6 +17,12 @@ export const STEERING_SPEED_BY_DIFFICULTY = Object.freeze({
   expert: 3,
 });
 
+/** Provisional shaped-maze cap scaled by effective cell count, not a fake difficulty. */
+export function getShapedMazeSpeedCap(activeCellCount) {
+  if (!Number.isFinite(activeCellCount) || activeCellCount < 1) throw new RangeError('A shaped maze needs a positive active-cell count.');
+  return Math.min(3, Math.max(1.725, 1.725 + 0.11 * (Math.sqrt(activeCellCount) - 7)));
+}
+
 export function steeringDeflectionForDisplacement(magnitude, settings = DEFAULT_STEERING_SETTINGS) {
   if (!Number.isFinite(magnitude) || magnitude <= settings.deadZonePixels) return 0;
   return Math.min(1, (magnitude - settings.deadZonePixels)
@@ -41,7 +47,7 @@ export function createSteeringController(settings = {}) {
     throw new RangeError('Steering settings must have a nonnegative dead zone and positive limits.');
   }
 
-  let pointerId = null, origin = null, finger = null, lastTimestamp = null, difficulty = 'easy';
+  let pointerId = null, origin = null, finger = null, lastTimestamp = null, difficulty = 'easy', speedProfile = 'easy';
   let frames = 0, activeFrames = 0, clampedFrames = 0;
   const copy = point => ({ x: point.x, y: point.y });
   const neutral = () => ({ x: 0, y: 0, speed: 0, active: false, frameSeconds: 0, clamped: false });
@@ -59,6 +65,7 @@ export function createSteeringController(settings = {}) {
         origin: origin ? copy(origin) : null,
         finger: finger ? copy(finger) : null,
         difficulty,
+        speedProfile,
         maxSpeedMazeUnitsPerSecond: config.maxSpeedMazeUnitsPerSecond,
         fingerDisplacementPixels,
         normalizedDeflection,
@@ -72,7 +79,18 @@ export function createSteeringController(settings = {}) {
         throw new RangeError(`No production steering speed is configured for difficulty: ${value}`);
       }
       difficulty = value;
+      speedProfile = value;
       config.maxSpeedMazeUnitsPerSecond = STEERING_SPEED_BY_DIFFICULTY[value];
+      return true;
+    },
+    setSpeedProfile(profile, maxSpeedMazeUnitsPerSecond) {
+      if (pointerId !== null) return false;
+      if (typeof profile !== 'string' || !profile || !(maxSpeedMazeUnitsPerSecond > 0) || !Number.isFinite(maxSpeedMazeUnitsPerSecond)) {
+        throw new RangeError('A named steering speed profile and positive cap are required.');
+      }
+      difficulty = null;
+      speedProfile = profile;
+      config.maxSpeedMazeUnitsPerSecond = maxSpeedMazeUnitsPerSecond;
       return true;
     },
     begin(id, point) {

@@ -3,11 +3,19 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   createSteeringController, DEFAULT_STEERING_SETTINGS, STEERING_SPEED_BY_DIFFICULTY,
-  steeringDeflectionForDisplacement, steeringSpeedForDisplacement,
+  getShapedMazeSpeedCap, steeringDeflectionForDisplacement, steeringSpeedForDisplacement,
 } from '../src/continuous-steering.js';
 import { createTraceSession } from '../src/tracing.js';
 import { createTraceRecorder } from '../src/trace-diagnostics.js';
 import { canMove, createMazeForDifficulty, getShortestPath } from '../src/maze.js';
+
+test('shaped Steering uses a centralized provisional active-cell profile without changing Classic caps', () => {
+  const caps = [122, 149, 185, 219, 312, 365].map(getShapedMazeSpeedCap);
+  assert.ok(caps.every((cap, index) => cap >= 1.725 && cap <= 3 && (!index || cap >= caps[index - 1])));
+  assert.deepEqual(STEERING_SPEED_BY_DIFFICULTY, { easy: 1.725, medium: 2, hard: 2.5, expert: 3 });
+  assert.equal(getShapedMazeSpeedCap(1), 1.725);
+  assert.equal(getShapedMazeSpeedCap(10000), 3);
+});
 
 function mazeWithOpenRoute(route, width = 7, height = 7, entranceSide = 'N') {
   const cells = Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => ({ x, y, walls: { N: true, E: true, S: true, W: true } })));

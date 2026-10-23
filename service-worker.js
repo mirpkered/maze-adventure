@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'mirpworks-maze-adventure-';
-const CACHE_NAME = `${CACHE_PREFIX}shell-v48`;
+const CACHE_NAME = `${CACHE_PREFIX}shell-v49`;
 const APP_BASE = new URL('./', self.registration.scope);
 const SHELL_FILES = [
   './',
@@ -10,6 +10,8 @@ const SHELL_FILES = [
   './src/game.js',
   './src/game-layout.js',
   './src/shapes.js',
+  './src/shape-masks.js',
+  './src/shaped-mazes.js',
   './src/trace-rendering.js',
   './src/build-info.js',
   './src/maze.js',
@@ -29,6 +31,7 @@ const SHELL_FILES = [
   './branding/maze-adventure-emblem.svg',
   './art/travelers-map.svg',
   './art/camp-at-dusk.svg',
+  './art/shapes/dj-penguin-reference.png',
   './icons/maze-adventure-icon-180.png',
   './icons/maze-adventure-icon-192.png',
   './icons/maze-adventure-icon-512.png',

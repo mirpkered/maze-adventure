@@ -81,12 +81,28 @@
             <span class="category-card-copy"><strong>Classic Mazes</strong><span>Traditional square-grid trails with four open difficulties.</span><small>7×7 · 10×10 · 15×15 · 20×20</small></span>
             <span class="category-card-arrow" aria-hidden="true">↗</span>
           </button>
-          <button class="category-card category-card-upcoming" type="button" id="choose-shaped" aria-describedby="shaped-availability" disabled>
+          <button class="category-card" type="button" id="choose-shaped" aria-describedby="shaped-availability">
             <span class="category-card-icon" aria-hidden="true">✿</span>
             <span class="category-card-copy"><strong>Shaped Mazes</strong><span>Special trails set within recognizable silhouettes.</span><small id="shaped-availability">Coming Soon · No playable shapes yet</small></span>
-            <span class="category-card-status" aria-hidden="true">SOON</span>
+            <span class="category-card-arrow" aria-hidden="true">↗</span>
           </button>
         </div>
+      </section>
+
+      <section id="shaped-maze-options" class="screen info-screen shaped-maze-screen" aria-labelledby="shaped-maze-title" hidden>
+        <header class="view-header"><button class="back-button" id="shaped-back-categories">← Categories</button><div><p class="eyebrow">FREE PLAY <span class="dot">·</span> SILHOUETTE TRAILS</p><h1 id="shaped-maze-title" tabindex="-1">Shaped Mazes</h1></div></header>
+        <p class="difficulty-intro">Choose a surprise trail or pick the silhouette you want to explore.</p>
+        <div class="shaped-action-list">
+          <button class="category-card shaped-action-card" type="button" id="surprise-shaped"><span class="category-card-icon" aria-hidden="true">✦</span><span class="category-card-copy"><strong>Surprise Me</strong><span>Choose randomly from the playable shapes.</span></span><span class="category-card-arrow" aria-hidden="true">↗</span></button>
+          <button class="category-card shaped-action-card" type="button" id="choose-a-shape"><span class="category-card-icon" aria-hidden="true">⌕</span><span class="category-card-copy"><strong>Choose a Shape</strong><span>Browse the silhouettes ready to play.</span></span><span class="category-card-arrow" aria-hidden="true">↗</span></button>
+        </div>
+        <output class="shape-selection-status" id="shape-generation-status" aria-live="polite"></output>
+      </section>
+
+      <section id="shape-selection" class="screen info-screen shape-selection-screen" aria-labelledby="shape-selection-title" hidden>
+        <header class="view-header"><button class="back-button" id="shape-selection-back">← Shaped Mazes</button><div><p class="eyebrow">SHAPED MAZES <span class="dot">·</span> CHOOSE A TRAIL</p><h1 id="shape-selection-title" tabindex="-1">Choose a shape</h1></div></header>
+        <p class="difficulty-intro">Each outline contains its own winding maze.</p>
+        <div class="shape-option-list" id="shape-option-list" aria-label="Playable maze shapes"></div>
       </section>
 
       <section id="difficulty" class="screen info-screen difficulty-screen" aria-labelledby="difficulty-title" hidden>
@@ -114,7 +130,7 @@
 
       <section id="play" class="screen play-screen" aria-labelledby="play-title" hidden>
         <div class="play-heading">
-          <div class="play-title-block"><p class="eyebrow">FREE PLAY <span class="dot">·</span> <span id="play-difficulty">EASY</span></p><h1 id="play-title" tabindex="-1">A little winding way</h1></div>
+          <div class="play-title-block"><p class="eyebrow">FREE PLAY <span class="dot">·</span> <span id="play-category">CLASSIC</span> <span class="dot">·</span> <span id="play-difficulty">EASY</span></p><h1 id="play-title" tabindex="-1">A little winding way</h1></div>
           <div class="play-header-tools"><div class="timer-wrap"><span class="timer-label">TIME</span><output id="timer" aria-label="Elapsed time">0:00</output></div><span id="qa-active-mode-indicator" class="qa-active-mode-indicator" hidden>QA · Direct</span><button class="small-button qa-entry" id="qa-open-game" type="button" aria-label="Open QA configuration" title="QA configuration" hidden>QA</button><button class="small-button pause-tool" id="pause-game" aria-label="Pause maze" title="Pause maze">Ⅱ</button></div>
         </div>
         <p class="play-hint" id="play-hint">Start near the center mark for balanced steering. Move farther for speed; return or lift to stop.</p>

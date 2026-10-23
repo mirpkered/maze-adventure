@@ -10,7 +10,7 @@ test('title screen exposes the playable mode and functional supporting controls'
   assert.match(html, /id="quick-play-description">Choose your maze challenge\./);
   assert.doesNotMatch(html.match(/<section id="home"[\s\S]*?<\/section>/)?.[0] ?? '', /difficulty-picker|data-start-difficulty|Easy|Medium|7×7|10×10/);
   assert.match(html, /<section id="free-play-categories"[^>]*hidden/);
-  assert.match(html, /id="choose-classic"[\s\S]*?Classic Mazes[\s\S]*?Traditional square-grid trails[\s\S]*?id="choose-shaped"[^>]*disabled[\s\S]*?Shaped Mazes[\s\S]*?Coming Soon · No playable shapes yet/);
+  assert.match(html, /id="choose-classic"[\s\S]*?Classic Mazes[\s\S]*?Traditional square-grid trails[\s\S]*?id="choose-shaped"[\s\S]*?Shaped Mazes/);
   assert.match(html, /<section id="difficulty"[^>]*hidden/);
   assert.match(html, /data-start-difficulty="easy"[\s\S]*?Easy[\s\S]*?7×7 maze[\s\S]*?data-start-difficulty="medium"[\s\S]*?Medium[\s\S]*?10×10 maze[\s\S]*?data-start-difficulty="hard"[\s\S]*?Hard[\s\S]*?15×15 maze[\s\S]*?data-start-difficulty="expert"[\s\S]*?Expert[\s\S]*?20×20 maze/);
   assert.match(html, /id="categories-home">← Home/);
@@ -44,7 +44,7 @@ test('canonical Mirpworks launch splash covers startup, then reveals the title o
   assert.equal((html.match(/id="launch-splash"/g) || []).length, 1, 'the initial document must contain one splash layer');
   assert.ok(html.indexOf("querySelector('#launch-splash')") < html.indexOf('src="./src/game.js"'), 'splash startup must be initialized before the game module');
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.launch-splash \{ transition: opacity 100ms ease !important/);
-  assert.match(worker, /shell-v48/);
+  assert.match(worker, /shell-v49/);
   assert.match(worker, /\.\/branding\/mirpworks-logo\.jpg/);
   assert.match(styles, /body\[data-screen="home"\]/);
 });
@@ -62,7 +62,7 @@ test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, col
   assert.match(game, /startQaSession\(location, history, deviceStorage\)/);
   assert.match(html, /id="disable-qa-mode"[^>]*>Exit QA mode/);
   assert.match(game, /window\.mazeAdventureTraceDiagnostics = \(\) => traceSession\?\.diagnostics/);
-  for (const item of ['controlSystem', 'activeController', 'pointerType', 'client:', 'maze:', 'difficulty: maze?.difficulty', 'acceptedInkEndpoint', 'pencilPosition', 'previousRouteCell', 'candidateReversal', 'failureCategory', 'traceHealth', 'gestureState', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
+  for (const item of ['controlSystem', 'activeController', 'pointerType', 'client:', 'maze:', 'mazeFormat: maze?.mazeFormat', 'difficulty: maze?.mazeFormat', 'shapeName: maze?.shapeName', 'selectionMode: maze?.selectionMode', 'acceptedInkEndpoint', 'pencilPosition', 'previousRouteCell', 'candidateReversal', 'failureCategory', 'traceHealth', 'gestureState', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
   assert.match(game, /controlSystem: 'continuous-steering'/, 'QA events identify the single active control system');
   assert.match(game, /window\.addEventListener\('pointercancel', event => finishPointer\(event, true\)\)/);
   assert.match(game, /window\.addEventListener\('lostpointercapture', event => finishPointer\(event, true\)\)/);
@@ -91,7 +91,7 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v48/);
+  assert.match(worker, /shell-v49/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);
@@ -120,7 +120,7 @@ test('gameplay actions keep restart, new maze, pause, and guarded Home behavior 
   }
   for (const obsolete of ['next-maze', 'replay-maze', 'complete-home', 'final-time']) assert.ok(!html.includes(`id="${obsolete}"`), `${obsolete} belongs to the retired full-screen results flow`);
   assert.match(game, /#restart-maze'\)\.addEventListener\('click', \(\) => makeMaze\(true\)/);
-  assert.match(game, /#new-maze'\)\.addEventListener\('click', \(\) => makeMaze\(\)/);
+  assert.match(game, /#new-maze'\)\.addEventListener\('click', newMazeForCurrentFormat\)/);
   assert.match(game, /function completeMaze\(\) \{\s*if \(mazeCompleted\) return;[\s\S]*?document\.body\.dataset\.completed = 'true';[\s\S]*?\$\('#completion-panel'\)\.hidden = false;[\s\S]*?playCompletionSound\(\);\s*\}/);
   assert.match(game, /if \(mazeCompleted \|\| timerId \|\|/);
   assert.match(game, /if \(mazeCompleted \|\| activePointerId !== event\.pointerId/);
@@ -132,10 +132,10 @@ test('gameplay actions keep restart, new maze, pause, and guarded Home behavior 
   assert.match(html, /id="steering-pad"/);
   assert.match(game, /steeringPad\.hidden = true/);
   assert.doesNotMatch(game, /preferences\.zoomAssist|maze-overview|overview-trail/);
-  assert.match(game, /#back-home'\)\.addEventListener\('click', \(\) => \{ clearPointer\(\); showDifficultySelection\(\); \}\)/);
-  assert.match(game, /freePlayRoute: \{ category: freePlayCategory, difficulty: maze\?\.difficulty \?\? selectedDifficulty, shapeId: selectedShapeId \}/);
+  assert.match(game, /#back-home'\)\.addEventListener\('click', backFromGameplay\)/);
+  assert.match(game, /freePlayRoute: \{ category: freePlayCategory, difficulty: maze\?\.mazeFormat === 'shaped' \? null : maze\?\.difficulty \?\? selectedDifficulty, shapeId: maze\?\.shapeId \?\? selectedShapeId, selectionMode: maze\?\.selectionMode \?\? selectedShapeMode \}/);
   assert.match(game, /createMazeForDifficulty\(selectedDifficulty\)/);
-  assert.match(game, /const screens = \['home', 'free-play-categories', 'difficulty', 'play', 'qa-config'/);
+  assert.match(game, /const screens = \['home', 'free-play-categories', 'difficulty', 'shaped-maze-options', 'shape-selection', 'play', 'qa-config'/);
   assert.match(game, /#quick-play'\)\.addEventListener\('click', showFreePlayCategories\)/);
   assert.match(game, /#categories-home'\)\.addEventListener\('click', showHome\)/);
   assert.match(game, /#choose-classic'\)\.addEventListener\('click', showDifficultySelection\)/);
@@ -148,7 +148,7 @@ test('gameplay actions keep restart, new maze, pause, and guarded Home behavior 
   assert.match(game, /getMazeGridGeometry\(maze\.width, maze\.height, SIZE, PAD\)/);
   assert.match(game, /selectedDifficulty = maze\.difficulty/);
   assert.match(game, /#pause-game'\)\.addEventListener/);
-  assert.match(game, /#back-home'\)\.addEventListener\('click', \(\) => \{ clearPointer\(\); showDifficultySelection\(\); \}\)/);
+  assert.match(game, /#back-home'\)\.addEventListener\('click', backFromGameplay\)/);
   assert.match(game, /setAttribute\('inert'/);
   assert.match(game, /event\.key === 'Escape'/);
 });
@@ -157,9 +157,16 @@ test('Free Play category and Classic difficulty screens keep selection explicit 
   const html = await read('index.html'), css = await read('src/styles.css'), game = await read('src/game.js');
   assert.match(html, /id="quick-play"[\s\S]*?Free Play/);
   assert.match(html, /id="choose-classic"/);
-  assert.match(html, /id="choose-shaped"[^>]*disabled/);
+  assert.match(html, /id="choose-shaped"/);
+  assert.match(html, /id="shaped-maze-options"/);
+  assert.match(html, /id="surprise-shaped"/);
+  assert.match(html, /id="choose-a-shape"/);
+  assert.match(html, /id="shape-option-list"/);
   assert.match(game, /function showFreePlayCategories\(\)[\s\S]*?activeScreen\(\$\('#free-play-categories'\)\)/);
   assert.match(game, /function showDifficultySelection\(\)[\s\S]*?freePlayCategory = 'classic'[\s\S]*?activeScreen\(\$\('#difficulty'\)\)/);
+  assert.match(game, /function launchShapedMaze\(shapeId, selectionMode\)/);
+  assert.match(game, /chooseSurpriseShape\(\)/);
+  assert.match(game, /if \(maze\?\.mazeFormat === 'shaped' && maze\.selectionMode === 'surprise'\)/);
   assert.match(html, /class="screen info-screen difficulty-screen"/);
   assert.match(html, /class="difficulty-card-list"/);
   assert.equal((html.match(/data-start-difficulty=/g) ?? []).length, 4, 'Easy, Medium, Hard, and Expert are immediately available');
@@ -175,7 +182,7 @@ test('Free Play category and Classic difficulty screens keep selection explicit 
   assert.match(css, /body\[data-visual-theme="camp-dusk"\] \.difficulty-card/);
   assert.match(css, /body\[data-visual-theme\] \.difficulty-intro/);
   assert.match(game, /FREE_PLAY_DIFFICULTIES\[selectedDifficulty\]\.label/);
-  assert.match(game, /#new-maze'\)\.addEventListener\('click', \(\) => makeMaze\(\)\)/);
+  assert.match(game, /#new-maze'\)\.addEventListener\('click', newMazeForCurrentFormat\)/);
   assert.match(game, /#restart-maze'\)\.addEventListener\('click', \(\) => makeMaze\(true\)\)/);
 });
 
@@ -208,7 +215,7 @@ test('the gameplay renders one full maze above an independent, touch-safe steeri
   assert.match(game, /inputPanel: 'steering-pad'/);
   assert.match(game, /svg\.setAttribute\('viewBox', `0 0 \$\{SIZE\} \$\{SIZE\}`\)/);
   assert.match(game, /steeringPointerId !== null/);
-  assert.match(game, /#back-home'\)\.addEventListener\('click', \(\) => \{ clearPointer\(\); showDifficultySelection\(\); \}\)/);
+  assert.match(game, /#back-home'\)\.addEventListener\('click', backFromGameplay\)/);
   assert.match(css, /\.maze-display-panel\s*\{[^}]*width:\s*min\(100%,\s*60dvh/s);
   assert.match(css, /\.steering-pad\s*\{[^}]*touch-action:\s*none/s);
   assert.doesNotMatch(game, /mazeCamera|zoomAssist|overviewSvg/);

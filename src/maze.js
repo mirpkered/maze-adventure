@@ -160,7 +160,7 @@ function optionalBranchSizes(maze, route) {
   const seen = new Uint8Array(routeCells.length), sizes = [];
   for (let y = 0; y < maze.height; y++) for (let x = 0; x < maze.width; x++) {
     const root = y * maze.width + x;
-    if (routeCells[root] || seen[root]) continue;
+    if (!inBounds(maze, { x, y }) || routeCells[root] || seen[root]) continue;
     seen[root] = 1;
     const queue = [{ x, y }];
     for (let index = 0; index < queue.length; index++) {
@@ -301,6 +301,148 @@ export function createMazeForDifficulty(difficulty = 'easy', random = Math.rando
   return { ...createMaze(configuration.width, configuration.height, random), difficulty };
 }
 
+function validateMask(mask) {
+  if (!Array.isArray(mask) || mask.length < 3 || !Array.isArray(mask[0]) || mask[0].length < 3) return false;
+  const width = mask[0].length, height = mask.length, active = [];
+  for (let y = 0; y < height; y++) {
+    if (!Array.isArray(mask[y]) || mask[y].length !== width || mask[y].some(value => typeof value !== 'boolean')) return false;
+    for (let x = 0; x < width; x++) if (mask[y][x]) active.push({ x, y });
+  }
+  if (active.length < 20) return false;
+  const seen = new Set([`${active[0].x},${active[0].y}`]), queue = [active[0]];
+  for (let index = 0; index < queue.length; index++) for (const direction of DIRECTIONS) {
+    const next = { x: queue[index].x + direction.dx, y: queue[index].y + direction.dy }, key = `${next.x},${next.y}`;
+    if (next.x >= 0 && next.x < width && next.y >= 0 && next.y < height && mask[next.y][next.x] && !seen.has(key)) {
+      seen.add(key); queue.push(next);
+    }
+  }
+  return seen.size === active.length;
+}
+
+function cellDegree(maze, cell) {
+  return DIRECTIONS.reduce((count, direction) => count + Number(canMove(maze, cell, { x: cell.x + direction.dx, y: cell.y + direction.dy })), 0);
+}
+
+function maskedEndpointPair(maze, random, activeCount, quality) {
+  const boundaryEdges = getMaskBoundaryEdges(maze);
+  const degree = new Map();
+  for (let y = 0; y < maze.height; y++) for (let x = 0; x < maze.width; x++) {
+    if (inBounds(maze, { x, y })) degree.set(`${x},${y}`, cellDegree(maze, { x, y }));
+  }
+  const terminalExits = boundaryEdges.filter(edge => degree.get(`${edge.cell.x},${edge.cell.y}`) === 1);
+  const entrancePool = [...boundaryEdges];
+  for (let index = entrancePool.length - 1; index > 0; index--) {
+    const picked = Math.min(index, Math.floor(Math.min(0.999999999, Math.max(0, random())) * (index + 1)));
+    [entrancePool[index], entrancePool[picked]] = [entrancePool[picked], entrancePool[index]];
+  }
+  const candidates = [];
+  // A bounded spread of boundary starts keeps generation quick on phones while
+  // still allowing every exterior edge to appear across ordinary sessions.
+  for (const entrance of entrancePool.slice(0, Math.min(16, entrancePool.length))) {
+    const parents = pathsFrom(maze, entrance.cell);
+    for (const exit of terminalExits) {
+      if (entrance.cell.x === exit.cell.x && entrance.cell.y === exit.cell.y) continue;
+      const route = reconstructPath(parents, exit.cell);
+      const length = route?.length - 1;
+      if (!route || length < quality.minimumSolutionLength) continue;
+      const junctions = route.slice(1, -1).filter(cell => degree.get(`${cell.x},${cell.y}`) >= 3).length;
+      if (junctions < quality.minimumMeaningfulDecisions) continue;
+      candidates.push({ entrance, exit, route, length, junctions });
+    }
+  }
+  if (!candidates.length) return null;
+  const ranked = [...candidates].sort((a, b) => Number(b.length >= quality.targetSolutionLength) - Number(a.length >= quality.targetSolutionLength)
+    || b.junctions - a.junctions || b.length - a.length);
+  const candidatePool = ranked.slice(0, Math.min(12, ranked.length));
+  const start = Math.min(candidatePool.length - 1, Math.floor(Math.min(0.999999999, Math.max(0, random())) * candidatePool.length));
+  for (let offset = 0; offset < candidatePool.length; offset++) {
+    const candidate = candidatePool[(start + offset) % candidatePool.length];
+    const branches = optionalBranchSizes(maze, candidate.route);
+    const optionalCells = activeCount - candidate.route.length;
+    if (optionalCells < quality.minimumOptionalCells
+      || branches.length < quality.minimumOptionalBranches
+      || (branches[0] ?? 0) > quality.maximumOptionalBranchCells) continue;
+    return { ...candidate, branches, optionalCells };
+  }
+  return null;
+}
+
+/**
+ * Generate a perfect maze inside a connected cell mask. Null cells are outside
+ * the playable domain and remain walls for rendering, collision, and tracing.
+ */
+export function createMazeFromMask(mask, { shapeId, shapeName, random = Math.random, seed = null, selectionMode = 'chosen', maxAttempts = 64 } = {}) {
+  if (!validateMask(mask)) throw new RangeError('Maze shape mask must be a connected grid with at least 20 active cells.');
+  if (typeof shapeId !== 'string' || !shapeId) throw new RangeError('A stable shape ID is required.');
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 256) throw new RangeError('Shaped-maze attempts must be between 1 and 256.');
+  const height = mask.length, width = mask[0].length;
+  const activeCount = mask.reduce((sum, row) => sum + row.filter(Boolean).length, 0);
+  const quality = {
+    minimumSolutionLength: Math.max(14, Math.ceil(activeCount * 0.22)),
+    targetSolutionLength: Math.max(20, Math.ceil(activeCount * 0.3)),
+    minimumMeaningfulDecisions: Math.max(3, Math.ceil(Math.sqrt(activeCount) * 0.35)),
+    minimumOptionalBranches: Math.max(2, Math.floor(activeCount / 60)),
+    minimumOptionalCells: Math.ceil(activeCount * 0.18),
+    maximumOptionalBranchCells: Math.floor(activeCount * 0.58),
+  };
+  const startedAt = globalThis.performance?.now?.() ?? null;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const cells = mask.map((row, y) => row.map((active, x) => active
+      ? { x, y, walls: { N: true, E: true, S: true, W: true } } : null));
+    const root = mask.flatMap((row, y) => row.map((active, x) => active ? { x, y } : null).filter(Boolean))[Math.floor(activeCount / 2)];
+    const visited = new Set([`${root.x},${root.y}`]), stack = [cells[root.y][root.x]];
+    while (stack.length) {
+      const current = stack.at(-1);
+      const options = DIRECTIONS.map(direction => ({ direction, x: current.x + direction.dx, y: current.y + direction.dy }))
+        .filter(next => next.x >= 0 && next.x < width && next.y >= 0 && next.y < height
+          && mask[next.y][next.x] && !visited.has(`${next.x},${next.y}`));
+      if (!options.length) { stack.pop(); continue; }
+      const picked = options[Math.min(options.length - 1, Math.floor(Math.min(0.999999999, Math.max(0, random())) * options.length))];
+      current.walls[picked.direction.name] = false;
+      cells[picked.y][picked.x].walls[picked.direction.opposite] = false;
+      visited.add(`${picked.x},${picked.y}`);
+      stack.push(cells[picked.y][picked.x]);
+    }
+    const maze = { width, height, cells, mask, shapeId, shapeName, mazeFormat: 'shaped', selectionMode, seed,
+      qualityConstraints: quality };
+    const pair = maskedEndpointPair(maze, random, activeCount, quality);
+    if (!pair) continue;
+    maze.start = { ...pair.entrance.cell };
+    maze.end = { ...pair.exit.cell };
+    maze.entrance = { cell: { ...pair.entrance.cell }, side: pair.entrance.side };
+    maze.exit = { cell: { ...pair.exit.cell }, side: pair.exit.side };
+    cells[maze.start.y][maze.start.x].walls[maze.entrance.side] = false;
+    cells[maze.end.y][maze.end.x].walls[maze.exit.side] = false;
+    if (!validateMaze(maze)) throw new Error(`Generated ${shapeId} maze failed canonical validation.`);
+    maze.activeCellCount = activeCount;
+    maze.generationAttempts = attempt + 1;
+    maze.generationDurationMs = startedAt === null ? null : Math.round((globalThis.performance.now() - startedAt) * 100) / 100;
+    maze.generationQuality = {
+      solutionPathEdges: pair.length,
+      meaningfulDecisions: pair.junctions,
+      solutionRouteJunctions: pair.junctions,
+      deadEndCount: activeCountOfMaze(maze, cell => cellDegree(maze, cell) === 1),
+      optionalBranchCount: pair.branches.length,
+      optionalBranchSizes: pair.branches,
+      optionalAccessibleCells: pair.optionalCells,
+      largestOptionalBranch: pair.branches[0] ?? 0,
+      exitInternalDegree: cellDegree(maze, maze.end),
+      exitGatedCells: 0,
+    };
+    return maze;
+  }
+  throw new Error(`Could not generate a ${shapeId} maze meeting its bounded quality requirements after ${maxAttempts} attempts.`);
+}
+
+function activeCountOfMaze(maze, predicate) {
+  let count = 0;
+  for (let y = 0; y < maze.height; y++) for (let x = 0; x < maze.width; x++) {
+    const cell = maze.cells[y][x];
+    if (cell && predicate(cell)) count++;
+  }
+  return count;
+}
+
 export function canMove(maze, from, to) {
   if (!inBounds(maze, from) || !inBounds(maze, to)) return false;
   const direction = DIRECTIONS.find(d => from.x + d.dx === to.x && from.y + d.dy === to.y);
@@ -312,7 +454,26 @@ export function canMove(maze, from, to) {
 }
 
 export function inBounds(maze, point) {
-  return Number.isInteger(point?.x) && Number.isInteger(point?.y) && point.x >= 0 && point.x < maze.width && point.y >= 0 && point.y < maze.height;
+  return Number.isInteger(point?.x) && Number.isInteger(point?.y)
+    && point.x >= 0 && point.x < maze.width && point.y >= 0 && point.y < maze.height
+    && Boolean(maze.cells?.[point.y]?.[point.x]);
+}
+
+export function countActiveCells(maze) {
+  return maze.cells.reduce((count, row) => count + row.filter(Boolean).length, 0);
+}
+
+export function getMaskBoundaryEdges(maze) {
+  const edges = [];
+  for (let y = 0; y < maze.height; y++) for (let x = 0; x < maze.width; x++) {
+    if (!maze.cells[y]?.[x]) continue;
+    for (const direction of DIRECTIONS) {
+      if (!inBounds(maze, { x: x + direction.dx, y: y + direction.dy })) {
+        edges.push({ cell: { x, y }, side: direction.name });
+      }
+    }
+  }
+  return edges;
 }
 
 export function isConnected(maze) {
@@ -325,7 +486,7 @@ export function isConnected(maze) {
       if (inBounds(maze, there) && !seen.has(key) && canMove(maze, here, there)) { seen.add(key); queue.push(there); }
     }
   }
-  return seen.size === maze.width * maze.height;
+  return seen.size === countActiveCells(maze);
 }
 
 export function validateMaze(maze) {
@@ -339,7 +500,8 @@ export function validateMaze(maze) {
   for (const opening of openings) {
     if (!['N', 'E', 'S', 'W'].includes(opening.side) || !inBounds(maze, opening.cell)) return false;
     const { x, y } = opening.cell;
-    if (opening.side === 'N' && y !== 0 || opening.side === 'S' && y !== maze.height - 1 || opening.side === 'W' && x !== 0 || opening.side === 'E' && x !== maze.width - 1) return false;
+    const direction = DIRECTIONS.find(item => item.name === opening.side);
+    if (inBounds(maze, { x: x + direction.dx, y: y + direction.dy })) return false;
     const key = `${x},${y},${opening.side}`;
     if (openingKeys.has(key)) return false;
     openingKeys.add(key);
@@ -347,17 +509,21 @@ export function validateMaze(maze) {
   for (let y = 0; y < maze.height; y++) {
     if (maze.cells[y]?.length !== maze.width) return false;
     for (let x = 0; x < maze.width; x++) {
-      const walls = maze.cells[y][x]?.walls;
+      const cell = maze.cells[y][x];
+      if (!cell) { if (!maze.mask || maze.mask[y]?.[x] !== false) return false; continue; }
+      if (maze.mask && maze.mask[y]?.[x] !== true) return false;
+      const walls = cell.walls;
       if (!walls || DIRECTIONS.some(d => typeof walls[d.name] !== 'boolean')) return false;
-      if (y === 0 && !walls.N && !openingKeys.has(`${x},${y},N`) || x === 0 && !walls.W && !openingKeys.has(`${x},${y},W`)
-        || y === maze.height - 1 && !walls.S && !openingKeys.has(`${x},${y},S`) || x === maze.width - 1 && !walls.E && !openingKeys.has(`${x},${y},E`)) return false;
-      if (openingKeys.has(`${x},${y},N`) && walls.N || openingKeys.has(`${x},${y},E`) && walls.E
-        || openingKeys.has(`${x},${y},S`) && walls.S || openingKeys.has(`${x},${y},W`) && walls.W) return false;
-      if (x + 1 < maze.width && walls.E !== maze.cells[y][x + 1]?.walls?.W) return false;
-      if (y + 1 < maze.height && walls.S !== maze.cells[y + 1]?.[x]?.walls?.N) return false;
+      for (const direction of DIRECTIONS) {
+        const nx = x + direction.dx, ny = y + direction.dy, neighbor = inBounds(maze, { x: nx, y: ny });
+        const opening = openingKeys.has(`${x},${y},${direction.name}`);
+        if (neighbor) {
+          if (opening || walls[direction.name] !== maze.cells[ny][nx].walls[direction.opposite]) return false;
+        } else if (walls[direction.name] === opening) return false;
+      }
     }
   }
-  const minimumLength = MIN_SOLUTION_LENGTH[`${maze.width}x${maze.height}`] ?? 1;
+  const minimumLength = maze.qualityConstraints?.minimumSolutionLength ?? MIN_SOLUTION_LENGTH[`${maze.width}x${maze.height}`] ?? 1;
   return isConnected(maze) && (getShortestPath(maze)?.length ?? 0) - 1 >= minimumLength;
 }
 
@@ -365,13 +531,16 @@ export function validateMaze(maze) {
 export function getWallSegments(maze) {
   const segments = [];
   for (let y = 0; y < maze.height; y++) for (let x = 0; x < maze.width; x++) {
+    if (!maze.cells[y]?.[x]) continue;
     const walls = maze.cells[y][x].walls;
-    const northBlocked = y === 0 ? walls.N : walls.N || maze.cells[y - 1][x].walls.S;
-    const westBlocked = x === 0 ? walls.W : walls.W || maze.cells[y][x - 1].walls.E;
+    const northNeighbor = inBounds(maze, { x, y: y - 1 }) ? maze.cells[y - 1][x] : null;
+    const westNeighbor = inBounds(maze, { x: x - 1, y }) ? maze.cells[y][x - 1] : null;
+    const northBlocked = northNeighbor ? walls.N || northNeighbor.walls.S : walls.N;
+    const westBlocked = westNeighbor ? walls.W || westNeighbor.walls.E : walls.W;
     if (northBlocked) segments.push({ orientation: 'horizontal', x, y });
     if (westBlocked) segments.push({ orientation: 'vertical', x, y });
-    if (x === maze.width - 1 && walls.E) segments.push({ orientation: 'vertical', x: x + 1, y });
-    if (y === maze.height - 1 && walls.S) segments.push({ orientation: 'horizontal', x, y: y + 1 });
+    if (!inBounds(maze, { x: x + 1, y }) && walls.E) segments.push({ orientation: 'vertical', x: x + 1, y });
+    if (!inBounds(maze, { x, y: y + 1 }) && walls.S) segments.push({ orientation: 'horizontal', x, y: y + 1 });
   }
   return segments;
 }

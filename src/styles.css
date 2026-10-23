@@ -15,7 +15,7 @@
 html { min-height: 100%; }
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 0;
   min-height: 100vh;
   min-height: 100dvh;
   background: radial-gradient(ellipse at 90% 9%, rgba(219,204,168,.25), transparent 32%), #f5efdf;
@@ -124,6 +124,16 @@ h1 em { color: var(--rust); font-weight: 400; }
 .category-card-copy small { color: var(--theme-green, var(--green)); font-size: 10px; font-weight: 800; letter-spacing: .04em; line-height: 1.35; }
 .category-card-arrow { align-self: start; color: var(--theme-accent, var(--rust)); font-size: 19px; }
 .category-card-status { align-self: start; padding: 4px 5px; border: 1px dashed var(--theme-line, var(--line)); color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .08em; }
+.shaped-action-list { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.shaped-action-card { min-height: 112px; }
+.shape-option-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.shape-option-card { display: grid; min-width: 0; min-height: 112px; grid-template-columns: 60px minmax(0, 1fr); align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); box-shadow: 0 4px 0 color-mix(in srgb, var(--theme-pageInk, #3f5147) 14%, transparent), 0 12px 25px var(--theme-shadow, rgba(48,66,52,.09)); text-align: left; cursor: pointer; }
+.shape-option-card:focus-visible { outline: 3px solid var(--theme-focus, var(--green)); outline-offset: 3px; }
+.shape-preview { display: grid; width: 60px; height: 60px; place-items: center; color: var(--theme-accent, var(--green)); }
+.shape-preview svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.shape-option-copy { display: grid; gap: 5px; }
+.shape-option-copy strong { font: 400 19px/1.1 'DM Serif Display', Georgia, serif; }
+.shape-option-copy small { color: var(--muted); font-size: 11px; line-height: 1.35; }
 .difficulty-card-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .difficulty-card { display: flex; min-width: 0; min-height: 142px; flex-direction: column; align-items: stretch; gap: 8px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); box-shadow: 0 4px 0 color-mix(in srgb, var(--theme-pageInk, #3f5147) 14%, transparent), 0 12px 25px var(--theme-shadow, rgba(48,66,52,.09)); text-align: left; cursor: pointer; transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
 .difficulty-card:hover { transform: translateY(-2px); border-color: var(--theme-accent, var(--green)); }
@@ -214,6 +224,11 @@ body[data-screen="qa-config"] .site-footer { height: 30px; flex: 0 0 30px; }
   .category-card-copy strong { font-size: 19px; }
   .category-card-copy > span { font-size: 12px; }
   .category-card-arrow,.category-card-status { grid-column: 2; justify-self: start; }
+  .shape-option-list { gap: 9px; }
+  .shape-option-card { min-height: 104px; grid-template-columns: 48px minmax(0, 1fr); gap: 8px; padding: 9px; }
+  .shape-preview { width: 48px; height: 48px; }
+  .shape-option-copy strong { font-size: 17px; }
+  .shape-option-copy small { font-size: 10px; }
   .difficulty-card-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
   .difficulty-card { min-height: 132px; gap: 7px; padding: 11px 10px; }
   .difficulty-card-heading { grid-template-columns: 30px minmax(0, 1fr); gap: 7px; }

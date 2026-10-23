@@ -61,8 +61,11 @@ test('service worker is app-scoped, refreshes from network, and removes obsolete
   assert.match(worker, /name\.startsWith\(CACHE_PREFIX\) && name !== CACHE_NAME/);
   assert.match(worker, /await self\.skipWaiting\(\)/);
   assert.match(worker, /await self\.clients\.claim\(\)/);
-  assert.match(worker, /shell-v48/);
+  assert.match(worker, /shell-v49/);
   assert.match(worker, /src\/shapes\.js/);
+  assert.match(worker, /src\/shape-masks\.js/);
+  assert.match(worker, /src\/shaped-mazes\.js/);
+  assert.match(worker, /art\/shapes\/dj-penguin-reference\.png/);
   assert.match(worker, /src\/trace-rendering\.js/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /src\/trace-diagnostics\.js/);

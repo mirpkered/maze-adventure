@@ -1,4 +1,4 @@
-import { advancePath, canMove } from './maze.js';
+import { advancePath, canMove, inBounds } from './maze.js';
 
 const MAX_SAMPLE_DISTANCE = 0.055;
 const CORRIDOR_MARGIN = 0.46;
@@ -12,8 +12,8 @@ const FINISH_EXTENSION = 0.78;
 function nearestCell(point, maze) {
   const roundedX = Math.round(point.x), roundedY = Math.round(point.y);
   const x = Object.is(roundedX, -0) ? 0 : roundedX, y = Object.is(roundedY, -0) ? 0 : roundedY;
-  if (x < 0 || y < 0 || x >= maze.width || y >= maze.height) return null;
-  return { x, y };
+  const cell = { x, y };
+  return inBounds(maze, cell) ? cell : null;
 }
 
 function sameCell(a, b) { return a.x === b.x && a.y === b.y; }

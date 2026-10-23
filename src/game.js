@@ -1,4 +1,4 @@
-import { canMove, createMazeForDifficulty, DIRECTIONS, FREE_PLAY_DIFFICULTIES, getShortestPath, getWallSegments } from './maze.js';
+import { canMove, countActiveCells, createMazeForDifficulty, DIRECTIONS, FREE_PLAY_DIFFICULTIES, getShortestPath, getWallSegments } from './maze.js';
 import { createTraceSession } from './tracing.js';
 import { DEFAULT_PREFERENCES, PREFERENCES_KEY, readPreferences, writePreferences } from './preferences.js';
 import { getMazeGridGeometry, mazeToSvgPoint } from './coordinates.js';
@@ -9,12 +9,14 @@ import { pointerMovementSamples } from './pointer-samples.js';
 import { APP_BUILD_ID } from './build-info.js';
 import { createQaDiagnosticsStore, createQuickSummary, createRecentIncident } from './qa-diagnostics-store.js';
 import { applyVisualTheme, chooseLaunchTheme, THEME_PREFERENCE_OPTIONS } from './themes.js';
-import { createSteeringController } from './continuous-steering.js';
+import { createSteeringController, getShapedMazeSpeedCap } from './continuous-steering.js';
 import { captureQaReturnState, restoreQaReturnState } from './qa-view-state.js';
 import { captureGameplayLayout, compareMazeLayout } from './game-layout.js';
+import { chooseSurpriseShape, createShapeRoute, getPlayableShapes, getShape } from './shapes.js';
+import { getShapeMask } from './shape-masks.js';
 
 const $ = selector => document.querySelector(selector);
-const screens = ['home', 'free-play-categories', 'difficulty', 'play', 'qa-config', 'settings', 'help', 'about'].map(id => $(`#${id}`));
+const screens = ['home', 'free-play-categories', 'difficulty', 'shaped-maze-options', 'shape-selection', 'play', 'qa-config', 'settings', 'help', 'about'].map(id => $(`#${id}`));
 const svg = $('#maze');
 const steeringPad = $('#steering-pad');
 let deviceStorage = null;
@@ -25,6 +27,7 @@ let maze, traceSession, activePointerId = null, elapsed = 0, startedAt = 0, time
 let selectedDifficulty = 'easy';
 let freePlayCategory = 'none';
 let selectedShapeId = null;
+let selectedShapeMode = null;
 let paused = false, activeOverlay = null, returnFocus = null, resumeAfterOverlay = false;
 let qaReturnState = null;
 let qaReturnFocus = null;
@@ -139,9 +142,12 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
   try { captured = event?.pointerId !== undefined && Boolean(steeringPad.hasPointerCapture?.(event.pointerId)); } catch { /* Capture state is unavailable in some embedded WebViews. */ }
   traceRecorder.record({
     eventType,
-    difficulty: maze?.difficulty ?? selectedDifficulty,
+    difficulty: maze?.mazeFormat === 'shaped' ? null : maze?.difficulty ?? selectedDifficulty,
+    mazeFormat: maze?.mazeFormat ?? 'classic',
     freePlayCategory,
-    shapeId: selectedShapeId,
+    shapeId: maze?.shapeId ?? selectedShapeId,
+    shapeName: maze?.shapeName ?? null,
+    selectionMode: maze?.selectionMode ?? selectedShapeMode,
     pointerType: event?.pointerType ?? 'unknown',
     sampleType,
     sampleIndex,
@@ -190,22 +196,31 @@ function diagnosticReportObject() {
   const state = traceSession?.diagnostics;
   return traceRecorder.report({
     layoutId: currentLayoutId,
-    freePlayRoute: { category: freePlayCategory, difficulty: maze?.difficulty ?? selectedDifficulty, shapeId: selectedShapeId },
+    freePlayRoute: { category: freePlayCategory, difficulty: maze?.mazeFormat === 'shaped' ? null : maze?.difficulty ?? selectedDifficulty, shapeId: maze?.shapeId ?? selectedShapeId, selectionMode: maze?.selectionMode ?? selectedShapeMode },
     dimensions: maze ? { width: maze.width, height: maze.height } : null,
-    difficulty: maze?.difficulty ?? selectedDifficulty,
+    difficulty: maze?.mazeFormat === 'shaped' ? null : maze?.difficulty ?? selectedDifficulty,
+    mazeFormat: maze?.mazeFormat ?? 'classic',
+    shapeId: maze?.shapeId ?? null,
+    shapeName: maze?.shapeName ?? null,
+    activeCellCount: maze ? countActiveCells(maze) : null,
+    generationSeed: maze?.seed ?? null,
+    mask: maze?.mask?.map(row => row.map(active => active ? '1' : '0').join('')) ?? null,
     start: maze?.entrance ? { cell: { ...maze.start }, edge: maze.entrance.side } : null,
     finish: maze?.exit ? { cell: { ...maze.end }, edge: maze.exit.side } : null,
     shortestSolutionLength: maze ? (getShortestPath(maze)?.length ?? 0) - 1 : null,
     exitInternalDegree: maze ? DIRECTIONS.reduce((count, direction) => count + Number(canMove(maze, maze.end, { x: maze.end.x + direction.dx, y: maze.end.y + direction.dy })), 0) : null,
-    exitGatedCells: maze ? 0 : null,
+    exitGatedCells: maze?.generationQuality?.exitGatedCells ?? (maze ? 0 : null),
     generationAttempts: maze?.generationAttempts ?? null,
     generationDurationMs: maze?.generationDurationMs ?? null,
     generationQuality: maze?.generationQuality ?? null,
     mazeDefinition: maze ? {
       start: { ...maze.start }, end: { ...maze.end },
+      mazeFormat: maze.mazeFormat ?? 'classic', shapeId: maze.shapeId ?? null, shapeName: maze.shapeName ?? null,
+      selectionMode: maze.selectionMode ?? null,
+      mask: maze.mask?.map(row => row.map(Boolean)) ?? null,
       entrance: maze.entrance ? { cell: { ...maze.entrance.cell }, side: maze.entrance.side } : null,
       exit: maze.exit ? { cell: { ...maze.exit.cell }, side: maze.exit.side } : null,
-      cells: maze.cells.map(row => row.map(cell => ({ x: cell.x, y: cell.y, walls: { ...cell.walls } }))),
+      cells: maze.cells.map(row => row.map(cell => cell ? ({ x: cell.x, y: cell.y, walls: { ...cell.walls } }) : null)),
     } : null,
     route: traceSession?.path.map(cell => ({ ...cell })) ?? [],
     ink: traceSession?.stroke.map(point => ({ x: Math.round(point.x * 1000) / 1000, y: Math.round(point.y * 1000) / 1000 })) ?? [],
@@ -242,7 +257,8 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
     : state.currentlyInExitCell ? `inside exit cell ${state.exitCell.x},${state.exitCell.y}; trace outward through ${state.exitSide}`
       : state.exitCellEntered ? `exit cell was visited; current cell ${state.logicalCell.x},${state.logicalCell.y}; exit ${state.exitSide}`
       : `exit ${state.exitSide} not reached`;
-  output.textContent = `QA trace · build ${APP_BUILD_ID} · category ${freePlayCategory} · shape ${selectedShapeId ?? 'none'} · ${maze?.difficulty ?? selectedDifficulty} · cap ${steeringController.settings.maxSpeedMazeUnitsPerSecond.toFixed(3)} cells/s · deflection ${(steeringController.snapshot.normalizedDeflection * 100).toFixed(0)}% · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · input surface steering-pad · client px ${point(lastClientPointer)} · raw pad px ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · ${exitStatus} · invalid perimeter attempts ${state.invalidPerimeterAttempts} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  const routeLabel = maze?.mazeFormat === 'shaped' ? `${maze.shapeName} (${maze.shapeId})` : (maze?.difficulty ?? selectedDifficulty);
+  output.textContent = `QA trace · build ${APP_BUILD_ID} · format ${maze?.mazeFormat ?? 'classic'} · category ${freePlayCategory} · ${routeLabel} · cap ${steeringController.settings.maxSpeedMazeUnitsPerSecond.toFixed(3)} cells/s · deflection ${(steeringController.snapshot.normalizedDeflection * 100).toFixed(0)}% · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · input surface steering-pad · client px ${point(lastClientPointer)} · raw pad px ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · ${exitStatus} · invalid perimeter attempts ${state.invalidPerimeterAttempts} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -252,7 +268,7 @@ function formatTime(milliseconds) {
 function activeScreen(screen, { safeToUpdate = true } = {}) {
   document.body.dataset.screen = screen.id;
   for (const item of screens) item.hidden = item !== screen;
-  if (safeToUpdate && ['home', 'free-play-categories', 'difficulty', 'settings', 'help', 'about'].includes(screen.id)) window.dispatchEvent(new Event('maze-adventure:safe-to-update'));
+  if (safeToUpdate && ['home', 'free-play-categories', 'difficulty', 'shaped-maze-options', 'shape-selection', 'settings', 'help', 'about'].includes(screen.id)) window.dispatchEvent(new Event('maze-adventure:safe-to-update'));
   if (screen !== $('#play')) pauseTimer();
   else if (!paused && !activeOverlay) startTimer();
 }
@@ -347,10 +363,11 @@ function renderMaze() {
   const markerPosition = (opening, isStart) => {
     const cell = opening.cell, x = gridGeometry.x + (cell.x + .5) * gridGeometry.cellSize;
     const y = gridGeometry.y + (cell.y + .5) * gridGeometry.cellSize;
-    if (opening.side === 'N') return { x, y: gridGeometry.y - (isStart ? 7 : 8) };
-    if (opening.side === 'S') return { x, y: gridGeometry.y + maze.height * gridGeometry.cellSize + (isStart ? 16 : 16) };
-    if (opening.side === 'W') return { x: gridGeometry.x - 8, y, rotate: -90 };
-    return { x: SIZE - 8, y, rotate: 90 };
+    const halfCell = gridGeometry.cellSize / 2;
+    if (opening.side === 'N') return { x, y: y - halfCell - (isStart ? 7 : 8) };
+    if (opening.side === 'S') return { x, y: y + halfCell + 12 };
+    if (opening.side === 'W') return { x: x - halfCell - 8, y, rotate: -90 };
+    return { x: x + halfCell + 8, y, rotate: 90 };
   };
   const startMarker = markerPosition(maze.entrance, true), endMarker = markerPosition(maze.exit, false);
   const marker = (position, className, text) => create('text', {
@@ -374,6 +391,49 @@ function renderMaze() {
   svg.append(marker(endMarker, 'marker-end', '✿'));
   svg.setAttribute('viewBox', `0 0 ${SIZE} ${SIZE}`);
   renderTrace();
+}
+
+function renderShapePreview(shape) {
+  const mask = shape.geometryProvider();
+  const paths = [];
+  for (let y = 0; y < mask.length; y++) for (let x = 0; x < mask[y].length; x++) {
+    if (mask[y][x]) paths.push(`M${x} ${y}h1v1h-1z`);
+  }
+  const svgPreview = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svgPreview.setAttribute('viewBox', `0 0 ${mask[0].length} ${mask.length}`);
+  svgPreview.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  svgPreview.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', paths.join(''));
+  path.setAttribute('fill', 'currentColor');
+  svgPreview.append(path);
+  return svgPreview;
+}
+
+function renderShapeSelection() {
+  const list = $('#shape-option-list');
+  list.replaceChildren();
+  for (const shape of getPlayableShapes()) {
+    const mask = shape.geometryProvider();
+    const activeCount = mask.flat().filter(Boolean).length;
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'shape-option-card'; button.dataset.shapeId = shape.id;
+    button.setAttribute('aria-label', `Start ${shape.name} maze, ${activeCount} cells`);
+    const preview = document.createElement('span'); preview.className = 'shape-preview'; preview.append(renderShapePreview(shape));
+    const copy = document.createElement('span'); copy.className = 'shape-option-copy';
+    const name = document.createElement('strong'); name.textContent = shape.name;
+    const details = document.createElement('small'); details.textContent = `${mask[0].length}×${mask.length} outline · ${activeCount} paths`;
+    copy.append(name, details); button.append(preview, copy); list.append(button);
+  }
+}
+
+function updateShapeAvailability() {
+  const shapes = getPlayableShapes();
+  const button = $('#choose-shaped');
+  button.disabled = shapes.length === 0;
+  $('#shaped-availability').textContent = shapes.length
+    ? `${shapes.length} playable silhouettes · Ready to explore`
+    : 'Coming Soon · No playable shapes yet';
 }
 
 function setTheme() { document.body.dataset.paperTheme = preferences.paperTheme; }
@@ -437,7 +497,14 @@ function playCompletionSound() {
 
 function makeMaze(reuse = false) {
   if (activePointerId !== null) clearPointer();
-  if (!reuse || !maze) maze = createMazeForDifficulty(selectedDifficulty);
+  if (!reuse || !maze) {
+    if (freePlayCategory === 'shaped' && selectedShapeId) {
+      const shape = getShape(selectedShapeId);
+      if (!shape || !selectedShapeMode) throw new Error('The selected shaped maze is no longer available.');
+      maze = shape.generator(Math.random, null, selectedShapeMode);
+      if (!shape.gameplayAdapter(maze)) throw new Error(`The ${shape.name} maze does not support the shared gameplay adapter.`);
+    } else maze = createMazeForDifficulty(selectedDifficulty);
+  }
   mazeCompleted = false;
   delete document.body.dataset.completed;
   delete document.body.dataset.completionLayoutStable;
@@ -448,8 +515,18 @@ function makeMaze(reuse = false) {
   selectedDifficulty = maze.difficulty ?? selectedDifficulty;
   // Keep the steering cap synchronized with the maze instance itself so
   // restart, new-maze, and difficulty selection cannot retain a stale value.
-  steeringController.setDifficulty(selectedDifficulty);
-  $('#play-difficulty').textContent = FREE_PLAY_DIFFICULTIES[selectedDifficulty].label.toUpperCase();
+  if (maze.mazeFormat === 'shaped') {
+    steeringController.setSpeedProfile(`shape:${maze.shapeId}`, getShapedMazeSpeedCap(countActiveCells(maze)));
+    $('#play-category').textContent = 'SHAPED';
+    $('#play-difficulty').textContent = maze.shapeName.toUpperCase();
+    $('#play-title').textContent = `${maze.shapeName} maze`;
+  } else {
+    steeringController.setDifficulty(selectedDifficulty);
+    $('#play-category').textContent = 'CLASSIC';
+    $('#play-difficulty').textContent = FREE_PLAY_DIFFICULTIES[selectedDifficulty].label.toUpperCase();
+    $('#play-title').textContent = 'A little winding way';
+  }
+  $('#back-home').setAttribute('aria-label', maze.mazeFormat === 'shaped' ? 'Back to shaped maze selection' : 'Back to difficulty selection');
   currentLayoutId = mazeLayoutId(maze);
   traceSession = createTraceSession(maze);
   activePointerId = null; elapsed = 0; paused = false; displayTime();
@@ -645,16 +722,50 @@ function openOverlay(overlay, { pause = false, resumeOnClose = false } = {}) {
 }
 function showHome() {
   closeOverlay({ restore: false }); paused = false;
-  freePlayCategory = 'none'; selectedShapeId = null;
+  freePlayCategory = 'none'; selectedShapeId = null; selectedShapeMode = null;
   activeScreen($('#home')); $('#quick-play').focus({ preventScroll: true });
 }
 function showFreePlayCategories() {
-  freePlayCategory = 'categories'; selectedShapeId = null;
+  freePlayCategory = 'categories'; selectedShapeId = null; selectedShapeMode = null;
   activeScreen($('#free-play-categories')); $('#free-play-category-title').focus({ preventScroll: true });
 }
 function showDifficultySelection() {
-  freePlayCategory = 'classic'; selectedShapeId = null;
+  freePlayCategory = 'classic'; selectedShapeId = null; selectedShapeMode = null;
   activeScreen($('#difficulty')); $('#difficulty-title').focus({ preventScroll: true });
+}
+function showShapedOptions() {
+  freePlayCategory = 'shaped'; selectedShapeId = null; selectedShapeMode = null;
+  activeScreen($('#shaped-maze-options')); $('#shaped-maze-title').focus({ preventScroll: true });
+}
+function showShapeSelection() {
+  freePlayCategory = 'shaped'; renderShapeSelection();
+  activeScreen($('#shape-selection')); $('#shape-selection-title').focus({ preventScroll: true });
+}
+function launchShapedMaze(shapeId, selectionMode) {
+  const route = createShapeRoute(shapeId, undefined, selectionMode);
+  if (!route) return false;
+  freePlayCategory = route.category; selectedShapeId = route.shapeId; selectedShapeMode = route.selectionMode;
+  try { makeMaze(); return true; }
+  catch (error) {
+    const status = $('#shape-generation-status');
+    if (status) status.textContent = 'That trail could not be prepared this time. Choose another silhouette or try again.';
+    console.error('Shaped maze generation failed:', error);
+    return false;
+  }
+}
+function newMazeForCurrentFormat() {
+  if (maze?.mazeFormat === 'shaped' && maze.selectionMode === 'surprise') {
+    const next = chooseSurpriseShape();
+    if (next) selectedShapeId = next.id;
+  }
+  makeMaze();
+}
+function backFromGameplay() {
+  clearPointer();
+  if (maze?.mazeFormat === 'shaped') {
+    if (maze.selectionMode === 'chosen') showShapeSelection();
+    else showShapedOptions();
+  } else showDifficultySelection();
 }
 function openHomeConfirmation() {
   clearPointer();
@@ -726,6 +837,20 @@ $('#quick-play').addEventListener('click', showFreePlayCategories);
 $('#categories-home').addEventListener('click', showHome);
 $('#choose-classic').addEventListener('click', showDifficultySelection);
 $('#difficulty-back').addEventListener('click', showFreePlayCategories);
+$('#choose-shaped').addEventListener('click', () => { if (!$('#choose-shaped').disabled) showShapedOptions(); });
+$('#shaped-back-categories').addEventListener('click', showFreePlayCategories);
+$('#choose-a-shape').addEventListener('click', showShapeSelection);
+$('#shape-selection-back').addEventListener('click', showShapedOptions);
+$('#surprise-shaped').addEventListener('click', () => {
+  const shape = chooseSurpriseShape();
+  if (!shape) { $('#shape-generation-status').textContent = 'No validated shaped mazes are available yet.'; return; }
+  launchShapedMaze(shape.id, 'surprise');
+});
+$('#shape-option-list').addEventListener('click', event => {
+  const button = event.target.closest('[data-shape-id]');
+  if (button) launchShapedMaze(button.dataset.shapeId, 'chosen');
+});
+updateShapeAvailability();
 for (const option of document.querySelectorAll('[data-start-difficulty]')) {
   option.addEventListener('click', () => {
     const difficulty = option.dataset.startDifficulty;
@@ -734,9 +859,9 @@ for (const option of document.querySelectorAll('[data-start-difficulty]')) {
     makeMaze();
   });
 }
-$('#new-maze').addEventListener('click', () => makeMaze());
+$('#new-maze').addEventListener('click', newMazeForCurrentFormat);
 $('#restart-maze').addEventListener('click', () => makeMaze(true));
-$('#back-home').addEventListener('click', () => { clearPointer(); showDifficultySelection(); });
+$('#back-home').addEventListener('click', backFromGameplay);
 $('#brand-home').addEventListener('click', event => { event.preventDefault(); $('#play').hidden ? showHome() : openHomeConfirmation(); });
 $('#pause-game').addEventListener('click', () => openOverlay($('#pause-dialog'), { pause: true }));
 $('#qa-open-home').addEventListener('click', openQaConfiguration);
@@ -747,7 +872,7 @@ function resumeFromPause() { paused = false; closeOverlay(); startTimer(); }
 $('#resume-game').addEventListener('click', resumeFromPause);
 $('#close-pause').addEventListener('click', resumeFromPause);
 $('#pause-restart').addEventListener('click', () => { closeOverlay(); makeMaze(true); });
-$('#pause-new').addEventListener('click', () => { closeOverlay(); makeMaze(); });
+$('#pause-new').addEventListener('click', () => { closeOverlay(); newMazeForCurrentFormat(); });
 $('#pause-home').addEventListener('click', returnToHome);
 $('#confirm-leave').addEventListener('click', returnToHome);
 $('#cancel-leave').addEventListener('click', () => closeOverlay({ resume: true }));
