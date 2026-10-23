@@ -437,7 +437,7 @@ function makeMaze(reuse = false) {
   activePointerId = null; elapsed = 0; paused = false; displayTime();
   const playHint = $('#play-hint');
   playHint.style.height = '';
-  playHint.textContent = 'Touch the field below, then move to guide the pencil. Move farther for speed; return or lift to stop.';
+  playHint.textContent = 'Start near the center mark for balanced steering. Move farther for speed; return or lift to stop.';
   renderMaze(); activeScreen($('#play')); syncQaControls(); updateTraceDiagnostics(); queueQaPersistence(); $('#play-title').focus({ preventScroll: true }); startTimer();
 }
 

@@ -43,10 +43,12 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
   const measuredLayout = createQuickSummary({ ...report, layout: {
     viewport: { width: 390, height: 844 },
     mazeSvg: { x: 22, y: 200, width: 346.8, height: 346.8 },
-    steeringPad: { height: 109.7 }, completionPanel: { height: 109.7 },
+    steeringPad: { width: 370.4, height: 109.7 },
+    steeringTouchArea: { width: 366.4, height: 105.7, center: { up: 52.85, down: 52.85, left: 183.2, right: 183.2, diagonal: 74.74, thresholdReachable: { up: false, down: false, left: true, right: true, diagonal: false } } },
+    completionPanel: { height: 109.7 },
     completionCheck: { stable: true, maxDeltaPx: 0, maxScaleDelta: 0 },
   } });
-  assert.match(measuredLayout, /layout 390x844 · maze 346\.8x346\.8 at 22\.0,200\.0 · pad 109\.7px · completion 109\.7px · geometry stable \(0\.000px\)/);
+  assert.match(measuredLayout, /layout 390x844 · maze 346\.8x346\.8 at 22\.0,200\.0 · pad 370\.4x109\.7px · usable 366\.4x105\.7px · center reach U\/D\/L\/R\/diag 52\.9\/52\.9\/183\.2\/183\.2\/74\.7px \(76px limited\) · completion 109\.7px · geometry stable \(0\.000px\)/);
   const explicitMode = createQuickSummary({ ...report, inputMode: 'direct-touch', selectedInputMode: 'continuous-steering', activeController: 'continuous-steering' });
   assert.match(explicitMode, /selected Continuous Steering \| gesture controller continuous-steering/,
     'historical reports retain the mode and controller they recorded');
@@ -59,7 +61,7 @@ test('quick summary distinguishes observed recovery from insufficient evidence a
 
 test('Expert QA summary identifies 20x20 dimensions, terminal exit, quality, attempts, and speed', () => {
   const report = {
-    buildId: '2026.10.22-gameplay-presentation-1',
+    buildId: '2026.10.22-steering-pad-balance-1',
     controlSystem: 'continuous-steering', activeController: 'continuous-steering',
     steering: { difficulty: 'expert', normalizedDeflection: 1, maxSpeedMazeUnitsPerSecond: 3, settings: { deadZonePixels: 10, speedResponseExponent: 1.15 } },
     maze: {
@@ -81,7 +83,7 @@ test('Expert QA summary identifies 20x20 dimensions, terminal exit, quality, att
 });
 
 test('trace report serialization retains Expert generator and endpoint measurements', () => {
-  const layout = { viewport: { width: 390, height: 844 }, mazeSvg: { x: 10, y: 20, width: 350, height: 350 }, steeringPad: { height: 110 }, completionPanel: { height: 110 }, completionCheck: { stable: true, maxDeltaPx: 0, maxScaleDelta: 0 } };
+  const layout = { viewport: { width: 390, height: 844 }, mazeSvg: { x: 10, y: 20, width: 350, height: 350 }, steeringPad: { width: 370, height: 110 }, steeringTouchArea: { width: 366, height: 106, center: { up: 53, down: 53, left: 183, right: 183, diagonal: 74.95, thresholdReachable: { up: false, down: false, left: true, right: true, diagonal: false } }, offCenter: {} }, completionPanel: { height: 110 }, completionCheck: { stable: true, maxDeltaPx: 0, maxScaleDelta: 0 } };
   const report = createTraceRecorder().report({
     layoutId: 'maze-20x20-seed-fixture', dimensions: { width: 20, height: 20 }, difficulty: 'expert',
     start: { cell: { x: 5, y: 0 }, edge: 'N' }, finish: { cell: { x: 19, y: 8 }, edge: 'E' },

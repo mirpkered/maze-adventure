@@ -6,6 +6,48 @@ function readRect(element) {
   return Object.fromEntries(rectKeys.map(key => [key, rect[key]]));
 }
 
+const cssPixels = value => Number.parseFloat(value) || 0;
+
+/** Measure conservative pointer travel inside the non-border, non-padding pad area. */
+export function measureSteeringReach(rect, insets = {}, thresholdPixels = 76) {
+  if (!rect) return null;
+  const left = cssPixels(insets.left), right = cssPixels(insets.right);
+  const top = cssPixels(insets.top), bottom = cssPixels(insets.bottom);
+  const width = Math.max(0, rect.width - left - right);
+  const height = Math.max(0, rect.height - top - bottom);
+  const reachAt = (xFraction, yFraction) => {
+    const x = left + width * xFraction, y = top + height * yFraction;
+    const up = y - top, down = top + height - y;
+    const leftReach = x - left, rightReach = left + width - x;
+    const diagonals = {
+      upLeft: Math.min(up, leftReach) * Math.SQRT2,
+      upRight: Math.min(up, rightReach) * Math.SQRT2,
+      downLeft: Math.min(down, leftReach) * Math.SQRT2,
+      downRight: Math.min(down, rightReach) * Math.SQRT2,
+    };
+    const diagonal = Math.max(...Object.values(diagonals));
+    return {
+      up, down, left: leftReach, right: rightReach, diagonal, diagonals,
+      thresholdReachable: {
+        up: up >= thresholdPixels, down: down >= thresholdPixels,
+        left: leftReach >= thresholdPixels, right: rightReach >= thresholdPixels,
+        diagonal: diagonal >= thresholdPixels,
+        diagonals: Object.fromEntries(Object.entries(diagonals).map(([direction, distance]) => [direction, distance >= thresholdPixels])),
+      },
+    };
+  };
+  return {
+    width, height, thresholdPixels,
+    center: reachAt(0.5, 0.5),
+    offCenter: {
+      top: reachAt(0.5, 0), bottom: reachAt(0.5, 1),
+      left: reachAt(0, 0.5), right: reachAt(1, 0.5),
+      topLeft: reachAt(0, 0), topRight: reachAt(1, 0),
+      bottomLeft: reachAt(0, 1), bottomRight: reachAt(1, 1),
+    },
+  };
+}
+
 /** Capture the rendered gameplay geometry used to verify the inline completion transition. */
 export function captureGameplayLayout(document, window) {
   const panel = document.querySelector('.maze-display-panel');
@@ -15,6 +57,14 @@ export function captureGameplayLayout(document, window) {
   const mazePanel = readRect(panel);
   const mazeSvg = readRect(svg);
   const pad = readRect(document.querySelector('#steering-pad'));
+  const padElement = document.querySelector('#steering-pad');
+  const padStyle = padElement && typeof window.getComputedStyle === 'function' ? window.getComputedStyle(padElement) : null;
+  const padInsets = padStyle ? {
+    left: cssPixels(padStyle.borderLeftWidth) + cssPixels(padStyle.paddingLeft),
+    right: cssPixels(padStyle.borderRightWidth) + cssPixels(padStyle.paddingRight),
+    top: cssPixels(padStyle.borderTopWidth) + cssPixels(padStyle.paddingTop),
+    bottom: cssPixels(padStyle.borderBottomWidth) + cssPixels(padStyle.paddingBottom),
+  } : {};
   const completion = readRect(document.querySelector('#completion-panel'));
   return {
     viewport: { width: window.innerWidth, height: window.innerHeight },
@@ -26,6 +76,7 @@ export function captureGameplayLayout(document, window) {
       y: viewHeight > 0 && mazeSvg ? mazeSvg.height / viewHeight : null,
     },
     steeringPad: pad,
+    steeringTouchArea: measureSteeringReach(pad, padInsets),
     completionPanel: completion,
     playHint: readRect(document.querySelector('#play-hint')),
     completionCheck: {

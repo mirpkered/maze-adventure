@@ -104,13 +104,13 @@
           <div class="play-title-block"><p class="eyebrow">FREE PLAY <span class="dot">·</span> <span id="play-difficulty">EASY</span></p><h1 id="play-title" tabindex="-1">A little winding way</h1></div>
           <div class="play-header-tools"><div class="timer-wrap"><span class="timer-label">TIME</span><output id="timer" aria-label="Elapsed time">0:00</output></div><span id="qa-active-mode-indicator" class="qa-active-mode-indicator" hidden>QA · Direct</span><button class="small-button qa-entry" id="qa-open-game" type="button" aria-label="Open QA configuration" title="QA configuration" hidden>QA</button><button class="small-button pause-tool" id="pause-game" aria-label="Pause maze" title="Pause maze">Ⅱ</button></div>
         </div>
-        <p class="play-hint" id="play-hint">Touch anywhere in the steering field, then move your finger to guide the pencil above.</p>
+        <p class="play-hint" id="play-hint">Start near the center mark for balanced steering. Move farther for speed; return or lift to stop.</p>
         <div class="maze-workspace" id="maze-workspace">
           <section class="maze-display-panel maze-paper" aria-label="Maze and pencil route">
             <span class="maze-panel-label">YOUR MAZE</span>
             <svg id="maze" draggable="false" tabindex="0" role="application" aria-label="Maze. Touch the steering pad below to guide the pencil from the entrance to the flower. Focus the maze and use arrow keys to move one passage at a time." viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg>
           </section>
-          <section class="steering-pad" id="steering-pad" aria-label="Steering pad. Touch anywhere, then move your finger away from the touch point to guide the pencil. Return to the touch point or lift to stop.">
+          <section class="steering-pad" id="steering-pad" aria-label="Steering pad. Touch anywhere, preferably near the center mark for balanced movement. Move your finger away from the touch point to guide the pencil. Return to the touch point or lift to stop.">
             <span class="steering-pad-label" aria-hidden="true">STEERING FIELD</span>
             <span class="steering-pad-mark" aria-hidden="true"><span></span></span>
             <span class="steering-pad-instruction" aria-hidden="true">touch · guide · explore</span>
@@ -147,7 +147,7 @@
       <section id="settings" class="screen info-screen" aria-labelledby="settings-title" hidden>
         <header class="view-header"><button class="back-button" id="settings-home">← Home</button><div><p class="eyebrow">THIS DEVICE</p><h1 id="settings-title" tabindex="-1">Settings</h1></div></header>
         <section class="settings-panel" aria-labelledby="sound-title"><h2 id="sound-title">Sound</h2><p>Optional sound for maze completion.</p><label class="setting-row"><span><strong>Sound effects</strong><small>Play a soft chime when you finish a maze.</small></span><input id="sound-effects" type="checkbox" /></label></section>
-        <section class="settings-panel" aria-labelledby="steering-pad-title"><h2 id="steering-pad-title">Steering pad</h2><p>Guide the pencil from the lower steering field while keeping the complete maze in view.</p><p class="setting-note">Touch anywhere in the field. Move farther from your touch point to travel faster; return to it or lift to stop.</p></section>
+        <section class="settings-panel" aria-labelledby="steering-pad-title"><h2 id="steering-pad-title">Steering pad</h2><p>Guide the pencil from the lower steering field while keeping the complete maze in view.</p><p class="setting-note">Start near the center mark for balanced movement in every direction. Touching elsewhere is supported, but leaves less travel toward the nearby edge. Move farther from your touch point to travel faster; return to it or lift to stop.</p></section>
         <section class="settings-panel" aria-labelledby="paper-title"><h2 id="paper-title">Appearance</h2><label for="paper-theme">Paper surface</label><select id="paper-theme"><option value="warm">Warm paper</option><option value="light">Soft ivory</option></select></section>
         <section class="settings-panel theme-settings-panel"><h2 id="visual-theme-title">Theme</h2><p>Choose the journal cover for Maze Adventure.</p><label for="visual-theme">Visual theme</label><select id="visual-theme"><option value="auto">Auto · rotate each launch</option><option value="traveler-map">The Traveler's Map</option><option value="camp-dusk">Camp at Dusk</option></select></section>
         <section class="settings-panel about-panel"><h2>About Maze Adventure</h2><p>A Mirpworks pencil-and-paper maze game.</p><button class="settings-link" id="open-credits"><strong>Credits</strong><span>Created by Mirpworks</span></button><a href="mailto:contact@mirpworks.com?subject=Maze%20Adventure%20%E2%80%94%20Feedback&amp;body=Sent%20from%3A%20Maze%20Adventure%0A%0A%5BYour%20message%20here%5D">Contact Mirpworks</a></section>

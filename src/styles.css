@@ -223,9 +223,10 @@ body[data-screen="qa-config"] .site-footer { height: 30px; flex: 0 0 30px; }
 /* Full maze above a dedicated, input-only steering field. */
 body[data-screen="play"] { height: 100dvh; min-height: 0; overflow: hidden; }
 body[data-screen="play"] .app-shell { height: 100dvh; min-height: 0; overflow: hidden; }
+/* The app shell already reserves safe areas; avoid subtracting the bottom inset a second time here. */
 body[data-screen="play"] .play-screen {
   display: flex; width: min(100%, 790px); min-height: 0; flex: 1 1 0; flex-direction: column;
-  gap: 0; overflow: hidden; padding: 4px 0 max(4px, env(safe-area-inset-bottom));
+  gap: 0; overflow: hidden; padding: 4px 0 4px;
 }
 body[data-screen="play"] .play-heading {
   display: flex; min-height: 48px; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 10px;
@@ -239,7 +240,7 @@ body[data-screen="play"] .timer-wrap output { font-size: 18px; }
 .pause-tool { width: 44px; height: 44px; padding: 0; font-size: 17px; }
 body[data-screen="play"] .play-hint { margin: 2px 0 5px; flex: 0 0 auto; font-size: 11px; line-height: 1.2; }
 body[data-screen="play"] .play-hint { display: grid; place-items: center; text-wrap: pretty; }
-.maze-workspace { --game-control-height: clamp(92px, 13dvh, 116px); display: grid; min-height: 0; flex: 1 1 auto; grid-template-rows: minmax(0, 1fr) var(--game-control-height); justify-items: center; align-content: stretch; gap: 8px; }
+.maze-workspace { --game-control-height: clamp(170px, 22dvh, 188px); display: grid; min-height: 0; flex: 1 1 auto; grid-template-rows: minmax(0, 1fr) var(--game-control-height); justify-items: center; align-content: stretch; gap: 8px; }
 .maze-display-panel { position: relative; box-sizing: border-box; display: grid; width: min(100%, 60dvh, 620px); max-height: 100%; min-width: 0; min-height: 0; align-self: center; aspect-ratio: 1; padding: 7px; place-items: center; }
 .maze-display-panel svg { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; touch-action: none; }
 .steering-pad { position: relative; isolation: isolate; box-sizing: border-box; width: min(100%, 560px); min-height: 0; height: 100%; max-height: 100%; margin: 0 auto; overflow: hidden; border: 1px solid color-mix(in srgb, var(--theme-line, var(--line)) 82%, transparent); border-radius: 24px; background: radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--theme-surface, var(--paper)) 94%, transparent) 0 28%, transparent 70%), linear-gradient(145deg, color-mix(in srgb, var(--theme-surface, var(--paper)) 73%, transparent), color-mix(in srgb, var(--theme-green, #64765f) 11%, transparent)); box-shadow: inset 0 1px rgba(255,255,255,.48), inset 0 -8px 20px color-mix(in srgb, var(--theme-pageInk, #334b3c) 5%, transparent), 0 5px 16px var(--theme-shadow, rgba(48,66,52,.12)); color: var(--theme-ink, var(--ink)); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: contain; }
@@ -267,11 +268,10 @@ body[data-completed="true"] .completion-panel { display: flex; }
   body[data-screen="play"] .app-shell { padding-right: max(10px, calc(env(safe-area-inset-right) + 10px)); padding-left: max(10px, calc(env(safe-area-inset-left) + 10px)); }
   body[data-screen="play"] .play-title-block h1 { font-size: 18px; }
   .maze-display-panel { width: min(100%, 60dvh); }
-  .maze-workspace { --game-control-height: clamp(92px, 13dvh, 110px); }
   .steering-pad { width: 100%; }
 }
 @media (orientation: portrait) {
-  .completion-panel { height: 100%; aspect-ratio: auto; flex-direction: row; justify-content: center; gap: 12px; padding: 8px 14px; }
+  .completion-panel { height: min(100%, 128px); align-self: center; aspect-ratio: auto; flex-direction: row; justify-content: center; gap: 12px; padding: 8px 14px; }
   .completion-flower { flex: 0 0 auto; font-size: 27px; }
   .completion-message { min-width: 0; gap: 2px; }
   .completion-panel .eyebrow { margin: 0; font-size: 8px; }

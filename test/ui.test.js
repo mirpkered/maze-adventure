@@ -41,7 +41,7 @@ test('canonical Mirpworks launch splash covers startup, then reveals the title o
   assert.equal((html.match(/id="launch-splash"/g) || []).length, 1, 'the initial document must contain one splash layer');
   assert.ok(html.indexOf("querySelector('#launch-splash')") < html.indexOf('src="./src/game.js"'), 'splash startup must be initialized before the game module');
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.launch-splash \{ transition: opacity 100ms ease !important/);
-  assert.match(worker, /shell-v44/);
+  assert.match(worker, /shell-v45/);
   assert.match(worker, /\.\/branding\/mirpworks-logo\.jpg/);
   assert.match(styles, /body\[data-screen="home"\]/);
 });
@@ -88,7 +88,7 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v44/);
+  assert.match(worker, /shell-v45/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);
@@ -209,6 +209,8 @@ test('responsive layout keeps touch suppression scoped to the steering pad and r
   assert.match(css, /@media \(orientation: landscape\)/);
   assert.match(css, /\.steering-pad\s*\{[^}]*touch-action:\s*none/s);
   assert.match(css, /safe-area-inset-top/);
+  assert.match(css, /body\[data-screen="play"\] \.play-screen\s*\{[^}]*padding:\s*4px 0 4px/,
+    'the play screen does not subtract the app-shell bottom safe area a second time');
   assert.doesNotMatch(css, /(?:^|[},])\s*(?:html|body|\*)\s*\{[^}]*touch-action:\s*none/s);
   assert.match(html, /name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/);
   assert.doesNotMatch(html, /maximum-scale\s*=|user-scalable\s*=\s*no/i);
