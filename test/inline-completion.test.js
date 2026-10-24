@@ -27,7 +27,7 @@ test('completion is an inline play-screen state with a single accessible result 
   assert.match(game, /mazeCompleted = false;\s*delete document\.body\.dataset\.completed;\s*delete document\.body\.dataset\.completionLayoutStable;[\s\S]*?\$\('#completion-panel'\)\.hidden = true/);
   assert.match(game, /\$\('#restart-maze'\)\.addEventListener\('click', \(\) => makeMaze\(true\)\)/);
   assert.match(game, /\$\('#new-maze'\)\.addEventListener\('click', newMazeForCurrentFormat\)/);
-  assert.match(worker, /shell-v50/);
+  assert.match(worker, /shell-v51/);
 });
 
 test('the full maze stays visible while completion replaces only the steering pad', async () => {

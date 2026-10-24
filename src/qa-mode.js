@@ -1,4 +1,5 @@
 export const QA_STORAGE_KEY = 'mirpworks.mazeAdventure.qaMode';
+export const QA_SESSION_KEY = 'mirpworks.mazeAdventure.qaSession';
 const RETIRED_QA_INPUT_MODE_KEY = 'maze-adventure-qa-input-mode-v1';
 export const QA_LOGO_HOLD_MS = 3000;
 export const QA_LOGO_MOVE_LIMIT = 12;
@@ -24,15 +25,24 @@ function clearLegacyQaPreference(storage) {
   catch { /* Storage can be unavailable in private or embedded contexts. */ }
 }
 
-export function startQaSession(location, history, storage) {
+export function startQaSession(location, history, storage, sessionStorage = null) {
   clearLegacyQaPreference(storage);
-  const enabled = isQaRequested(location.search);
+  const requested = isQaRequested(location.search);
+  let enabled = requested;
+  try {
+    if (sessionStorage) {
+      enabled ||= sessionStorage.getItem(QA_SESSION_KEY) === 'enabled';
+      if (enabled) sessionStorage.setItem(QA_SESSION_KEY, 'enabled');
+    }
+  } catch { /* The explicit query remains sufficient when session storage is blocked. */ }
   if (enabled) removeQaQuery(location, history);
   return enabled;
 }
 
-export function closeQaSession(location, history, storage) {
+export function closeQaSession(location, history, storage, sessionStorage = null) {
   clearLegacyQaPreference(storage);
+  try { sessionStorage?.removeItem(QA_SESSION_KEY); }
+  catch { /* Session cleanup must not prevent QA from closing. */ }
   removeQaQuery(location, history);
 }
 

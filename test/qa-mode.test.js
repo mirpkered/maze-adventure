@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bindEmblemQaTrigger, closeQaSession, isQaRequested, QA_STORAGE_KEY, startQaSession } from '../src/qa-mode.js';
+import { bindEmblemQaTrigger, closeQaSession, isQaRequested, QA_SESSION_KEY, QA_STORAGE_KEY, startQaSession } from '../src/qa-mode.js';
 
 class FakeTarget {
   listeners = new Map();
@@ -24,7 +24,7 @@ function clock() {
   };
 }
 
-function session(href, values = new Map()) {
+function session(href, values = new Map(), sessionValues = new Map()) {
   const location = {};
   const setHref = value => {
     const url = new URL(value, 'https://maze.example');
@@ -34,13 +34,18 @@ function session(href, values = new Map()) {
   setHref(href);
   const history = { state: null, replaceState(_state, _title, value) { setHref(value); } };
   const storage = { removeItem: key => values.delete(key) };
-  return { location, history, storage, values };
+  const sessionStorage = {
+    getItem: key => sessionValues.get(key) ?? null,
+    setItem: (key, value) => sessionValues.set(key, String(value)),
+    removeItem: key => sessionValues.delete(key),
+  };
+  return { location, history, storage, sessionStorage, values, sessionValues };
 }
 
 test('normal launch starts with QA off and removes only retired QA preferences', () => {
   const values = new Map([[QA_STORAGE_KEY, 'enabled'], ['maze-adventure-qa-input-mode-v1', 'direct-touch'], ['game-progress', 'level-4'], ['preferences', 'sound-off']]);
   const app = session('/maze?theme=dark#play', values);
-  assert.equal(startQaSession(app.location, app.history, app.storage), false);
+  assert.equal(startQaSession(app.location, app.history, app.storage, app.sessionStorage), false);
   assert.equal(app.location.href, 'https://maze.example/maze?theme=dark#play');
   assert.equal(values.has(QA_STORAGE_KEY), false);
   assert.equal(values.has('maze-adventure-qa-input-mode-v1'), false);
@@ -51,20 +56,31 @@ test('normal launch starts with QA off and removes only retired QA preferences',
 test('explicit QA launch enables one session and consumes ?qa=1 from the PWA URL', () => {
   const app = session('/maze?qa=1&theme=dark#play');
   assert.equal(isQaRequested(app.location.search), true);
-  assert.equal(startQaSession(app.location, app.history, app.storage), true);
+  assert.equal(startQaSession(app.location, app.history, app.storage, app.sessionStorage), true);
   assert.equal(app.location.href, 'https://maze.example/maze?theme=dark#play');
+  assert.equal(app.sessionValues.get(QA_SESSION_KEY), 'enabled');
+});
+
+test('an active QA session survives a safe PWA reload after its launch query is consumed', () => {
+  const app = session('/maze?qa=1&theme=dark');
+  assert.equal(startQaSession(app.location, app.history, app.storage, app.sessionStorage), true);
+  const reloaded = session(app.location.href, new Map(), app.sessionValues);
+  assert.equal(startQaSession(reloaded.location, reloaded.history, reloaded.storage, reloaded.sessionStorage), true);
+  closeQaSession(reloaded.location, reloaded.history, reloaded.storage, reloaded.sessionStorage);
+  const nextLaunch = session(reloaded.location.href, new Map(), reloaded.sessionValues);
+  assert.equal(startQaSession(nextLaunch.location, nextLaunch.history, nextLaunch.storage, nextLaunch.sessionStorage), false);
 });
 
 test('closing QA clears legacy state and a restarted or restored PWA stays out of QA', () => {
   const values = new Map([[QA_STORAGE_KEY, 'enabled'], ['game-progress', 'level-4']]);
   const app = session('/maze?qa=1&theme=dark', values);
-  assert.equal(startQaSession(app.location, app.history, app.storage), true);
-  closeQaSession(app.location, app.history, app.storage);
+  assert.equal(startQaSession(app.location, app.history, app.storage, app.sessionStorage), true);
+  closeQaSession(app.location, app.history, app.storage, app.sessionStorage);
 
   // iOS restores the current, canonicalized launch URL after the explicit QA
   // query has been consumed, rather than replaying the original launch URL.
   const restored = session(app.location.href, values);
-  assert.equal(startQaSession(restored.location, restored.history, restored.storage), false);
+  assert.equal(startQaSession(restored.location, restored.history, restored.storage, restored.sessionStorage), false);
   assert.equal(restored.location.href, 'https://maze.example/maze?theme=dark');
   assert.equal(values.get('game-progress'), 'level-4');
 });
@@ -72,7 +88,7 @@ test('closing QA clears legacy state and a restarted or restored PWA stays out o
 test('closing a QA session removes a still-present QA query without touching progress', () => {
   const values = new Map([[QA_STORAGE_KEY, 'enabled'], ['game-progress', 'level-4']]);
   const app = session('/maze?qa=1&other=kept#play', values);
-  closeQaSession(app.location, app.history, app.storage);
+  closeQaSession(app.location, app.history, app.storage, app.sessionStorage);
   assert.equal(app.location.href, 'https://maze.example/maze?other=kept#play');
   assert.equal(values.has(QA_STORAGE_KEY), false);
   assert.equal(values.get('game-progress'), 'level-4');

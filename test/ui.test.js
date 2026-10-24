@@ -44,7 +44,7 @@ test('canonical Mirpworks launch splash covers startup, then reveals the title o
   assert.equal((html.match(/id="launch-splash"/g) || []).length, 1, 'the initial document must contain one splash layer');
   assert.ok(html.indexOf("querySelector('#launch-splash')") < html.indexOf('src="./src/game.js"'), 'splash startup must be initialized before the game module');
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.launch-splash \{ transition: opacity 100ms ease !important/);
-  assert.match(worker, /shell-v50/);
+  assert.match(worker, /shell-v51/);
   assert.match(worker, /\.\/branding\/mirpworks-logo\.jpg/);
   assert.match(styles, /body\[data-screen="home"\]/);
 });
@@ -59,7 +59,7 @@ test('QA diagnostics are opt-in and report raw touch, legal tip, route cell, col
   assert.match(html, /id="clear-qa-sessions"/);
   assert.match(html, /stored only on this device for up to 24 hours/);
   assert.match(html, /id="reset-trace-log"[^>]*>Reset current log/);
-  assert.match(game, /startQaSession\(location, history, deviceStorage\)/);
+  assert.match(game, /startQaSession\(location, history, deviceStorage, qaSessionStorage\)/);
   assert.match(html, /id="disable-qa-mode"[^>]*>Exit QA mode/);
   assert.match(game, /window\.mazeAdventureTraceDiagnostics = \(\) => traceSession\?\.diagnostics/);
   for (const item of ['controlSystem', 'activeController', 'pointerType', 'client:', 'maze:', 'mazeFormat: maze?.mazeFormat', 'difficulty: maze?.mazeFormat', 'shapeName: maze?.shapeName', 'selectionMode: maze?.selectionMode', 'acceptedInkEndpoint', 'pencilPosition', 'previousRouteCell', 'candidateReversal', 'failureCategory', 'traceHealth', 'gestureState', 'rejectedReason', 'pointerCaptured', 'pointerCanceled', 'layoutId']) assert.ok(game.includes(item), `QA event record should include ${item}`);
@@ -80,8 +80,9 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(qaMode, /QA_LOGO_MOVE_LIMIT = 12/);
   assert.match(qaMode, /startQaSession/);
   assert.match(qaMode, /closeQaSession/);
-  assert.doesNotMatch(qaMode, /setItem\(|getItem\(/);
-  assert.match(game, /startQaSession\(location, history, deviceStorage\)/);
+  assert.doesNotMatch(qaMode, /storage\.(?:setItem|getItem)\(/);
+  assert.match(qaMode, /QA_SESSION_KEY/);
+  assert.match(game, /startQaSession\(location, history, deviceStorage, qaSessionStorage\)/);
   assert.match(game, /setQaMode\(true\)/);
   assert.match(game, /function syncQaControls\(\)/);
   assert.match(game, /renderMaze\(\); activeScreen\(\$\('#play'\)\); syncQaControls\(\)/);
@@ -92,7 +93,7 @@ test('logo hold enables session-only QA, consumes explicit launch URLs, and supp
   assert.match(html, /id="trace-diagnostic-tools"[^>]*hidden/);
   assert.match(css, /\.title-branding[\s\S]*?\.qa-emblem-trigger[\s\S]*?touch-action:\s*manipulation/);
   assert.match(css, /\.title-logo[^}]*width:\s*100%/);
-  assert.match(worker, /shell-v50/);
+  assert.match(worker, /shell-v51/);
   assert.match(worker, /src\/qa-diagnostics-store\.js/);
   assert.match(worker, /\.\/branding\/maze-adventure-logo\.svg/);
   assert.match(worker, /\.\/branding\/maze-adventure-emblem\.svg/);

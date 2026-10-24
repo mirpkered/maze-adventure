@@ -4,7 +4,7 @@ import { DEFAULT_PREFERENCES, PREFERENCES_KEY, readPreferences, writePreferences
 import { getMazeGridGeometry, mazeToSvgPoint } from './coordinates.js';
 import { tracePathData } from './trace-rendering.js';
 import { createTraceRecorder, mazeLayoutId } from './trace-diagnostics.js';
-import { bindEmblemQaTrigger, closeQaSession, startQaSession } from './qa-mode.js';
+import { bindEmblemQaTrigger, closeQaSession, QA_SESSION_KEY, startQaSession } from './qa-mode.js';
 import { pointerMovementSamples } from './pointer-samples.js';
 import { APP_BUILD_ID } from './build-info.js';
 import { createQaDiagnosticsStore, createQuickSummary, createRecentIncident } from './qa-diagnostics-store.js';
@@ -61,7 +61,9 @@ for (const { value, label } of THEME_PREFERENCE_OPTIONS) {
   else $('#visual-theme').add(new Option(label, value));
 }
 let settingsReturnToPlay = false;
-let qaEnabled = startQaSession(location, history, deviceStorage);
+let qaSessionStorage = null;
+try { qaSessionStorage = window.sessionStorage; } catch { /* Some embedded contexts block session storage. */ }
+let qaEnabled = startQaSession(location, history, deviceStorage, qaSessionStorage);
 const steeringController = createSteeringController();
 let steeringPointerId = null, steeringFrameId = null, steeringHadBlock = false, lastSteeringBlockReason = null;
 let lastRawPointer = null, lastClientPointer = null;
@@ -87,6 +89,10 @@ function setQaMode(enabled) {
   }
   const nextEnabled = Boolean(enabled);
   if (!nextEnabled) { stopActiveInput(); organicPrototypeActive = false; }
+  try {
+    if (nextEnabled) qaSessionStorage?.setItem(QA_SESSION_KEY, 'enabled');
+    else qaSessionStorage?.removeItem(QA_SESSION_KEY);
+  } catch { /* QA activation remains session-local when storage is available. */ }
   qaEnabled = nextEnabled;
   if (qaEnabled) {
     traceRecorder ??= createTraceRecorder({ limit: 400 });
@@ -97,7 +103,7 @@ function setQaMode(enabled) {
     $('#trace-diagnostic-fallback').hidden = true;
     $('#trace-diagnostic-status').textContent = '';
     $('#qa-mode-status').textContent = '';
-    closeQaSession(location, history, deviceStorage);
+    closeQaSession(location, history, deviceStorage, qaSessionStorage);
     delete window.mazeAdventureTraceDiagnostics;
     traceRecorder = null;
     qaSessionId = null;
