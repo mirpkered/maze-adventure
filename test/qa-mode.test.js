@@ -24,7 +24,7 @@ function clock() {
   };
 }
 
-function session(href, values = new Map(), sessionValues = new Map()) {
+function session(href, values = new Map(), sessionValues = new Map(), historyState = null) {
   const location = {};
   const setHref = value => {
     const url = new URL(value, 'https://maze.example');
@@ -32,7 +32,7 @@ function session(href, values = new Map(), sessionValues = new Map()) {
     location.search = url.search;
   };
   setHref(href);
-  const history = { state: null, replaceState(_state, _title, value) { setHref(value); } };
+  const history = { state: historyState, replaceState(state, _title, value) { this.state = state; setHref(value); } };
   const storage = { removeItem: key => values.delete(key) };
   const sessionStorage = {
     getItem: key => sessionValues.get(key) ?? null,
@@ -63,11 +63,11 @@ test('explicit QA launch enables one session and consumes ?qa=1 from the PWA URL
 
 test('an active QA session survives a safe PWA reload after its launch query is consumed', () => {
   const app = session('/maze?qa=1&theme=dark');
-  assert.equal(startQaSession(app.location, app.history, app.storage, app.sessionStorage), true);
-  const reloaded = session(app.location.href, new Map(), app.sessionValues);
-  assert.equal(startQaSession(reloaded.location, reloaded.history, reloaded.storage, reloaded.sessionStorage), true);
+  assert.equal(startQaSession(app.location, app.history, app.storage), true);
+  const reloaded = session(app.location.href, new Map(), new Map(), app.history.state);
+  assert.equal(startQaSession(reloaded.location, reloaded.history, reloaded.storage), true);
   closeQaSession(reloaded.location, reloaded.history, reloaded.storage, reloaded.sessionStorage);
-  const nextLaunch = session(reloaded.location.href, new Map(), reloaded.sessionValues);
+  const nextLaunch = session(reloaded.location.href, new Map(), new Map(), reloaded.history.state);
   assert.equal(startQaSession(nextLaunch.location, nextLaunch.history, nextLaunch.storage, nextLaunch.sessionStorage), false);
 });
 

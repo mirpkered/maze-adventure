@@ -18,7 +18,7 @@ The organic trace adapter divides each proposed movement into bounded segments s
 
 ## Determinism and QA access
 
-The input seed controls point placement, graph topology, curve offsets, portal selection, and geometry fingerprint. Restart reuses the generated instance. New advances the seed and asynchronously yields between rejected candidates so the QA screen remains responsive. The QA configuration page exposes the seed field and launch action only while QA is enabled through `?qa=1` or the established activation gesture. The explicit QA session marker is stored in session storage so a safe service-worker refresh does not discard QA after the launch query is consumed; explicitly exiting QA clears that marker. Public shaped-maze selection is unchanged.
+The input seed controls point placement, graph topology, curve offsets, portal selection, and geometry fingerprint. Restart reuses the generated instance. New advances the seed and asynchronously yields between rejected candidates so the QA screen remains responsive. The QA configuration page exposes the seed field and launch action only while QA is enabled through `?qa=1` or the established activation gesture. A session marker in browser history state (and session storage when available) keeps QA active through a safe service-worker refresh after the launch query is consumed; explicitly exiting QA clears both markers. Public shaped-maze selection is unchanged.
 
 ## Current quality and limitations
 

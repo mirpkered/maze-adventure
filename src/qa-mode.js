@@ -8,12 +8,14 @@ export function isQaRequested(search = '') {
   return new URLSearchParams(search).get('qa') === '1';
 }
 
-function removeQaQuery(location, history) {
+function updateQaHistory(location, history, enabled) {
   try {
     const url = new URL(location.href);
-    if (!url.searchParams.has('qa')) return;
     url.searchParams.delete('qa');
-    history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    const state = history.state && typeof history.state === 'object' ? { ...history.state } : {};
+    if (enabled) state.mazeAdventureQaSession = true;
+    else delete state.mazeAdventureQaSession;
+    history.replaceState(state, '', `${url.pathname}${url.search}${url.hash}`);
   } catch { /* URL cleanup must not prevent the game from starting. */ }
 }
 
@@ -28,14 +30,14 @@ function clearLegacyQaPreference(storage) {
 export function startQaSession(location, history, storage, sessionStorage = null) {
   clearLegacyQaPreference(storage);
   const requested = isQaRequested(location.search);
-  let enabled = requested;
+  let enabled = requested || history?.state?.mazeAdventureQaSession === true;
   try {
     if (sessionStorage) {
       enabled ||= sessionStorage.getItem(QA_SESSION_KEY) === 'enabled';
       if (enabled) sessionStorage.setItem(QA_SESSION_KEY, 'enabled');
     }
   } catch { /* The explicit query remains sufficient when session storage is blocked. */ }
-  if (enabled) removeQaQuery(location, history);
+  if (enabled) updateQaHistory(location, history, true);
   return enabled;
 }
 
@@ -43,7 +45,7 @@ export function closeQaSession(location, history, storage, sessionStorage = null
   clearLegacyQaPreference(storage);
   try { sessionStorage?.removeItem(QA_SESSION_KEY); }
   catch { /* Session cleanup must not prevent QA from closing. */ }
-  removeQaQuery(location, history);
+  updateQaHistory(location, history, false);
 }
 
 export function bindEmblemQaTrigger(target, activate, {
