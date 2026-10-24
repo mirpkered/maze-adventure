@@ -67,7 +67,8 @@ test('QA remains opt-in and always reports the canonical Steering controller', a
   const game = await read('src/game.js'), css = await read('src/styles.css');
   assert.match(game, /\$\('#qa-open-game'\)\.addEventListener\('click', openQaConfiguration\)/);
   assert.match(game, /\$\('#qa-open-home'\)\.addEventListener\('click', openQaConfiguration\)/);
-  assert.match(game, /\$\('#disable-qa-mode'\)\.addEventListener\('click', \(\) => \{ setQaMode\(false\); returnFromQaConfiguration\(\); \}\)/);
+  assert.match(game, /\$\('#disable-qa-mode'\)\.addEventListener\('click', \(\) => \{/);
+  assert.match(game, /setQaMode\(false\); returnFromQaConfiguration\(\);/);
   assert.match(game, /traceSession\.beginSteering\(event\.pointerId\)/);
   assert.doesNotMatch(game, /qaInputModeState|selectQaInputMode|traceSession\.begin\(|traceSession\.move\(/,
     'no stale controller selector or Direct Touch dispatch is active');

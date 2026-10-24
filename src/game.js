@@ -14,6 +14,7 @@ import { captureQaReturnState, restoreQaReturnState } from './qa-view-state.js';
 import { captureGameplayLayout, compareMazeLayout } from './game-layout.js';
 import { chooseSurpriseShape, createShapeRoute, getPlayableShapes, getShape } from './shapes.js';
 import { getShapeMask } from './shape-masks.js';
+import { createOrganicCircleMaze, createOrganicCircleMazeAsync, organicPointToSvg, organicWallGeometry } from './organic-maze.js';
 
 const $ = selector => document.querySelector(selector);
 const screens = ['home', 'free-play-categories', 'difficulty', 'shaped-maze-options', 'shape-selection', 'play', 'qa-config', 'settings', 'help', 'about'].map(id => $(`#${id}`));
@@ -28,6 +29,10 @@ let selectedDifficulty = 'easy';
 let freePlayCategory = 'none';
 let selectedShapeId = null;
 let selectedShapeMode = null;
+let organicPrototypeActive = false;
+let organicSeed = 1;
+let organicGenerationToken = 0;
+let organicReturnState = null;
 let paused = false, activeOverlay = null, returnFocus = null, resumeAfterOverlay = false;
 let qaReturnState = null;
 let qaReturnFocus = null;
@@ -81,7 +86,7 @@ function setQaMode(enabled) {
     if (traceRecorder && traceSession && qaSessionId) qaStore.save(diagnosticReportObject(), { sessionId: qaSessionId, buildId: APP_BUILD_ID });
   }
   const nextEnabled = Boolean(enabled);
-  if (!nextEnabled) stopActiveInput();
+  if (!nextEnabled) { stopActiveInput(); organicPrototypeActive = false; }
   qaEnabled = nextEnabled;
   if (qaEnabled) {
     traceRecorder ??= createTraceRecorder({ limit: 400 });
@@ -105,6 +110,7 @@ function syncQaControls() {
   if (qaEnabled) document.body.dataset.qa = 'true';
   else delete document.body.dataset.qa;
   $('#trace-diagnostic-tools').hidden = !qaEnabled;
+  $('#qa-organic-tools').hidden = !qaEnabled;
   $('#trace-diagnostics').hidden = !qaEnabled || !traceSession;
   $('#qa-open-home').hidden = !qaEnabled || $('#home').hidden;
   $('#qa-open-game').hidden = !qaEnabled;
@@ -142,7 +148,7 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
   try { captured = event?.pointerId !== undefined && Boolean(steeringPad.hasPointerCapture?.(event.pointerId)); } catch { /* Capture state is unavailable in some embedded WebViews. */ }
   traceRecorder.record({
     eventType,
-    difficulty: maze?.mazeFormat === 'shaped' ? null : maze?.difficulty ?? selectedDifficulty,
+    difficulty: maze?.mazeFormat === 'shaped' || maze?.mazeFormat === 'organic' ? null : maze?.difficulty ?? selectedDifficulty,
     mazeFormat: maze?.mazeFormat ?? 'classic',
     freePlayCategory,
     shapeId: maze?.shapeId ?? selectedShapeId,
@@ -194,34 +200,42 @@ function recordTraceEvent(eventType, event, point, accepted, reason = null, canc
 
 function diagnosticReportObject() {
   const state = traceSession?.diagnostics;
+  const organic = maze?.mazeFormat === 'organic';
+  const mazeDefinition = !maze ? null : organic ? {
+    mazeFormat: 'organic', shapeId: maze.shapeId, shapeName: maze.shapeName, seed: maze.seed,
+    radius: maze.geometry.radius, corridorWidth: maze.geometry.corridorWidth,
+    entrance: { position: maze.entrance.position, angle: maze.entrance.angle },
+    exit: { position: maze.exit.position, outside: maze.exit.outside, angle: maze.exit.angle, direction: maze.exit.direction },
+    nodes: maze.nodes, edges: maze.edges, solutionNodePath: maze.solutionNodePath, quality: maze.quality,
+  } : {
+    start: { ...maze.start }, end: { ...maze.end },
+    mazeFormat: maze.mazeFormat ?? 'classic', shapeId: maze.shapeId ?? null, shapeName: maze.shapeName ?? null,
+    selectionMode: maze.selectionMode ?? null,
+    mask: maze.mask?.map(row => row.map(Boolean)) ?? null,
+    entrance: maze.entrance ? { cell: { ...maze.entrance.cell }, side: maze.entrance.side } : null,
+    exit: maze.exit ? { cell: { ...maze.exit.cell }, side: maze.exit.side } : null,
+    cells: maze.cells.map(row => row.map(cell => cell ? ({ x: cell.x, y: cell.y, walls: { ...cell.walls } }) : null)),
+  };
   return traceRecorder.report({
     layoutId: currentLayoutId,
-    freePlayRoute: { category: freePlayCategory, difficulty: maze?.mazeFormat === 'shaped' ? null : maze?.difficulty ?? selectedDifficulty, shapeId: maze?.shapeId ?? selectedShapeId, selectionMode: maze?.selectionMode ?? selectedShapeMode },
-    dimensions: maze ? { width: maze.width, height: maze.height } : null,
-    difficulty: maze?.mazeFormat === 'shaped' ? null : maze?.difficulty ?? selectedDifficulty,
+    freePlayRoute: { category: organic ? 'qa-organic-prototype' : freePlayCategory, difficulty: maze?.mazeFormat === 'shaped' || organic ? null : maze?.difficulty ?? selectedDifficulty, shapeId: maze?.shapeId ?? selectedShapeId, selectionMode: maze?.selectionMode ?? selectedShapeMode },
+    dimensions: maze ? organic ? { coordinateSpace: 'organic-world', radius: maze.geometry.radius } : { width: maze.width, height: maze.height } : null,
+    difficulty: maze?.mazeFormat === 'shaped' || organic ? null : maze?.difficulty ?? selectedDifficulty,
     mazeFormat: maze?.mazeFormat ?? 'classic',
     shapeId: maze?.shapeId ?? null,
     shapeName: maze?.shapeName ?? null,
-    activeCellCount: maze ? countActiveCells(maze) : null,
+    activeCellCount: maze && !organic ? countActiveCells(maze) : null,
     generationSeed: maze?.seed ?? null,
     mask: maze?.mask?.map(row => row.map(active => active ? '1' : '0').join('')) ?? null,
-    start: maze?.entrance ? { cell: { ...maze.start }, edge: maze.entrance.side } : null,
-    finish: maze?.exit ? { cell: { ...maze.end }, edge: maze.exit.side } : null,
-    shortestSolutionLength: maze ? (getShortestPath(maze)?.length ?? 0) - 1 : null,
-    exitInternalDegree: maze ? DIRECTIONS.reduce((count, direction) => count + Number(canMove(maze, maze.end, { x: maze.end.x + direction.dx, y: maze.end.y + direction.dy })), 0) : null,
-    exitGatedCells: maze?.generationQuality?.exitGatedCells ?? (maze ? 0 : null),
+    start: maze?.entrance ? organic ? { position: { ...maze.start }, edge: 'circular-boundary', angle: maze.entrance.angle } : { cell: { ...maze.start }, edge: maze.entrance.side } : null,
+    finish: maze?.exit ? organic ? { position: { ...maze.exit.position }, outside: { ...maze.exit.outside }, edge: 'circular-boundary', angle: maze.exit.angle } : { cell: { ...maze.end }, edge: maze.exit.side } : null,
+    shortestSolutionLength: maze ? organic ? maze.quality.solutionLength : (getShortestPath(maze)?.length ?? 0) - 1 : null,
+    exitInternalDegree: maze ? organic ? maze.quality.exitInternalDegree : DIRECTIONS.reduce((count, direction) => count + Number(canMove(maze, maze.end, { x: maze.end.x + direction.dx, y: maze.end.y + direction.dy })), 0) : null,
+    exitGatedCells: maze ? maze.quality?.exitGatedCells ?? maze.generationQuality?.exitGatedCells ?? 0 : null,
+    generationQuality: maze?.quality ?? maze?.generationQuality ?? null,
     generationAttempts: maze?.generationAttempts ?? null,
     generationDurationMs: maze?.generationDurationMs ?? null,
-    generationQuality: maze?.generationQuality ?? null,
-    mazeDefinition: maze ? {
-      start: { ...maze.start }, end: { ...maze.end },
-      mazeFormat: maze.mazeFormat ?? 'classic', shapeId: maze.shapeId ?? null, shapeName: maze.shapeName ?? null,
-      selectionMode: maze.selectionMode ?? null,
-      mask: maze.mask?.map(row => row.map(Boolean)) ?? null,
-      entrance: maze.entrance ? { cell: { ...maze.entrance.cell }, side: maze.entrance.side } : null,
-      exit: maze.exit ? { cell: { ...maze.exit.cell }, side: maze.exit.side } : null,
-      cells: maze.cells.map(row => row.map(cell => cell ? ({ x: cell.x, y: cell.y, walls: { ...cell.walls } }) : null)),
-    } : null,
+    mazeDefinition,
     route: traceSession?.path.map(cell => ({ ...cell })) ?? [],
     ink: traceSession?.stroke.map(point => ({ x: Math.round(point.x * 1000) / 1000, y: Math.round(point.y * 1000) / 1000 })) ?? [],
     state: state ? { ...state } : null,
@@ -253,12 +267,16 @@ function updateTraceDiagnostics(raw = lastRawPointer) {
   const state = traceSession.diagnostics;
   const point = value => value ? `${value.x.toFixed(3)}, ${value.y.toFixed(3)}` : '—';
   const reversal = state.candidateReversal ? `${state.candidateReversal.x},${state.candidateReversal.y} (${state.candidateReversalOpen ? 'open' : 'closed'})` : 'none';
+  const organic = maze?.mazeFormat === 'organic';
   const exitStatus = state.completionCommitted ? `completed through ${state.exitSide} exit at ${point(state.finishPosition)}`
-    : state.currentlyInExitCell ? `inside exit cell ${state.exitCell.x},${state.exitCell.y}; trace outward through ${state.exitSide}`
+    : organic && state.currentlyInExitCell ? `in exit corridor; cross the circular rim at ${point(maze.exit.position)}`
+      : !organic && state.currentlyInExitCell ? `inside exit cell ${state.exitCell.x},${state.exitCell.y}; trace outward through ${state.exitSide}`
       : state.exitCellEntered ? `exit cell was visited; current cell ${state.logicalCell.x},${state.logicalCell.y}; exit ${state.exitSide}`
       : `exit ${state.exitSide} not reached`;
-  const routeLabel = maze?.mazeFormat === 'shaped' ? `${maze.shapeName} (${maze.shapeId})` : (maze?.difficulty ?? selectedDifficulty);
-  output.textContent = `QA trace · build ${APP_BUILD_ID} · format ${maze?.mazeFormat ?? 'classic'} · category ${freePlayCategory} · ${routeLabel} · cap ${steeringController.settings.maxSpeedMazeUnitsPerSecond.toFixed(3)} cells/s · deflection ${(steeringController.snapshot.normalizedDeflection * 100).toFixed(0)}% · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · input surface steering-pad · client px ${point(lastClientPointer)} · raw pad px ${point(raw)} · pencil ${point(state.authoritativePosition)} · cell ${state.logicalCell.x},${state.logicalCell.y} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · ${exitStatus} · invalid perimeter attempts ${state.invalidPerimeterAttempts} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
+  const routeLabel = organic ? 'Organic Circle (QA only)' : maze?.mazeFormat === 'shaped' ? `${maze.shapeName} (${maze.shapeId})` : (maze?.difficulty ?? selectedDifficulty);
+  const speedUnits = organic ? 'world units/s' : 'cells/s';
+  const logicalPosition = organic ? `world ${state.logicalCell.x.toFixed(3)},${state.logicalCell.y.toFixed(3)}` : `cell ${state.logicalCell.x},${state.logicalCell.y}`;
+  output.textContent = `QA trace · build ${APP_BUILD_ID} · format ${maze?.mazeFormat ?? 'classic'} · category ${freePlayCategory} · ${routeLabel} · cap ${steeringController.settings.maxSpeedMazeUnitsPerSecond.toFixed(3)} ${speedUnits} · deflection ${(steeringController.snapshot.normalizedDeflection * 100).toFixed(0)}% · control system continuous-steering · active controller ${state.active ? 'continuous-steering' : 'idle'} · input surface steering-pad · client px ${point(lastClientPointer)} · raw pad px ${point(raw)} · pencil ${point(state.authoritativePosition)} · ${logicalPosition} · ${state.blocked ? `BLOCKED: ${state.reason ?? 'unspecified'} (${state.failureCategory ?? 'unknown'})` : 'clear'} · ${exitStatus} · invalid perimeter attempts ${state.invalidPerimeterAttempts} · health ${state.traceHealth} · reverse ${reversal} · gesture ${state.active ? 'active' : 'idle'} · events ${traceRecorder?.length ?? 0} · maze ${currentLayoutId ?? 'not started'}`;
 }
 
 function formatTime(milliseconds) {
@@ -301,6 +319,7 @@ function openQaConfiguration() {
 }
 
 function returnFromQaConfiguration() {
+  organicGenerationToken++;
   const snapshot = qaReturnState;
   qaReturnState = null;
   const restoreState = restoreQaReturnState(snapshot, { completed: mazeCompleted, documentHidden: document.hidden });
@@ -340,17 +359,49 @@ function svgPoint(point) { return mazeToSvgPoint(point, gridGeometry.x, gridGeom
 
 function renderTrace() {
   if (!traceSession) return;
-  const points = traceSession.stroke.map(svgPoint);
+  const mapPoint = maze?.mazeFormat === 'organic' ? point => organicPointToSvg(point, SIZE) : svgPoint;
+  const points = traceSession.stroke.map(mapPoint);
   const path = tracePathData(points, traceSession.strokeBreaks);
   $('#trail').setAttribute('d', path);
-  const endpoint = svgPoint(traceSession.position);
+  const endpoint = mapPoint(traceSession.position);
   $('#player').setAttribute('cx', endpoint.x);
   $('#player').setAttribute('cy', endpoint.y);
   svg.dataset.visited = String(new Set(traceSession.path.map(point => `${point.x},${point.y}`)).size);
   svg.setAttribute('viewBox', `0 0 ${SIZE} ${SIZE}`);
 }
 
+function renderOrganicMaze() {
+  const ns = 'http://www.w3.org/2000/svg';
+  const create = (tag, attributes, text) => {
+    const element = document.createElementNS(ns, tag);
+    for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
+    if (text) element.textContent = text;
+    return element;
+  };
+  const geometry = organicWallGeometry(maze);
+  svg.replaceChildren();
+  svg.append(create('path', { id: 'trail', class: 'trail', fill: 'none', d: '' }));
+  const walls = create('g', { class: 'walls organic-walls', 'aria-hidden': 'true' });
+  // These are open wall strokes. SVG paths default to a black fill, which
+  // implicitly closes each sampled curve and obscures the maze interior.
+  for (const d of geometry.boundaries) walls.append(create('path', { d, fill: 'none', class: 'wall organic-boundary' }));
+  for (const d of geometry.walls) walls.append(create('path', { d, fill: 'none', class: 'wall organic-corridor-wall' }));
+  svg.append(walls);
+  const radialLabel = (portal, distancePx) => ({
+    x: portal.x + Math.cos(portal.angle) * distancePx,
+    y: portal.y + Math.sin(portal.angle) * distancePx,
+  });
+  const startLabel = radialLabel({ ...geometry.entrance, angle: maze.entrance.angle }, 13);
+  const exitLabel = radialLabel({ ...geometry.exit, angle: maze.exit.angle }, 13);
+  svg.append(create('text', { x: startLabel.x, y: startLabel.y, 'text-anchor': 'middle', class: 'marker marker-start organic-marker' }, 'START'));
+  svg.append(create('circle', { id: 'player', cx: geometry.start.x, cy: geometry.start.y, r: 4.1, class: 'player' }));
+  svg.append(create('text', { x: exitLabel.x, y: exitLabel.y, 'text-anchor': 'middle', class: 'marker marker-end organic-marker' }, '✿'));
+  svg.setAttribute('viewBox', `0 0 ${SIZE} ${SIZE}`);
+  renderTrace();
+}
+
 function renderMaze() {
+  if (maze.mazeFormat === 'organic') { renderOrganicMaze(); return; }
   gridGeometry = getMazeGridGeometry(maze.width, maze.height, SIZE, PAD);
   const ns = 'http://www.w3.org/2000/svg';
   const create = (tag, attributes, text) => {
@@ -495,16 +546,19 @@ function playCompletionSound() {
   } catch { /* Audio is optional; puzzle completion never depends on it. */ }
 }
 
-function makeMaze(reuse = false) {
+function makeMaze(reuse = false, generatedMaze = null) {
   if (activePointerId !== null) clearPointer();
   if (!reuse || !maze) {
-    if (freePlayCategory === 'shaped' && selectedShapeId) {
+    if (organicPrototypeActive) {
+      maze = generatedMaze ?? createOrganicCircleMaze({ seed: organicSeed });
+    } else if (freePlayCategory === 'shaped' && selectedShapeId) {
       const shape = getShape(selectedShapeId);
       if (!shape || !selectedShapeMode) throw new Error('The selected shaped maze is no longer available.');
       maze = shape.generator(Math.random, null, selectedShapeMode);
       if (!shape.gameplayAdapter(maze)) throw new Error(`The ${shape.name} maze does not support the shared gameplay adapter.`);
     } else maze = createMazeForDifficulty(selectedDifficulty);
   }
+  if (maze.mazeFormat !== 'organic') organicReturnState = null;
   mazeCompleted = false;
   delete document.body.dataset.completed;
   delete document.body.dataset.completionLayoutStable;
@@ -515,7 +569,12 @@ function makeMaze(reuse = false) {
   selectedDifficulty = maze.difficulty ?? selectedDifficulty;
   // Keep the steering cap synchronized with the maze instance itself so
   // restart, new-maze, and difficulty selection cannot retain a stale value.
-  if (maze.mazeFormat === 'shaped') {
+  if (maze.mazeFormat === 'organic') {
+    steeringController.setSpeedProfile('organic-circle-qa', maze.unitsPerSecond);
+    $('#play-category').textContent = 'QA PROTOTYPE';
+    $('#play-difficulty').textContent = 'ORGANIC CIRCLE';
+    $('#play-title').textContent = 'Organic Circle';
+  } else if (maze.mazeFormat === 'shaped') {
     steeringController.setSpeedProfile(`shape:${maze.shapeId}`, getShapedMazeSpeedCap(countActiveCells(maze)));
     $('#play-category').textContent = 'SHAPED';
     $('#play-difficulty').textContent = maze.shapeName.toUpperCase();
@@ -526,7 +585,7 @@ function makeMaze(reuse = false) {
     $('#play-difficulty').textContent = FREE_PLAY_DIFFICULTIES[selectedDifficulty].label.toUpperCase();
     $('#play-title').textContent = 'A little winding way';
   }
-  $('#back-home').setAttribute('aria-label', maze.mazeFormat === 'shaped' ? 'Back to shaped maze selection' : 'Back to difficulty selection');
+  $('#back-home').setAttribute('aria-label', maze.mazeFormat === 'organic' ? 'Back to QA configuration' : maze.mazeFormat === 'shaped' ? 'Back to shaped maze selection' : 'Back to difficulty selection');
   currentLayoutId = mazeLayoutId(maze);
   traceSession = createTraceSession(maze);
   activePointerId = null; elapsed = 0; paused = false; displayTime();
@@ -722,18 +781,22 @@ function openOverlay(overlay, { pause = false, resumeOnClose = false } = {}) {
 }
 function showHome() {
   closeOverlay({ restore: false }); paused = false;
+  organicPrototypeActive = false;
   freePlayCategory = 'none'; selectedShapeId = null; selectedShapeMode = null;
   activeScreen($('#home')); $('#quick-play').focus({ preventScroll: true });
 }
 function showFreePlayCategories() {
+  organicPrototypeActive = false;
   freePlayCategory = 'categories'; selectedShapeId = null; selectedShapeMode = null;
   activeScreen($('#free-play-categories')); $('#free-play-category-title').focus({ preventScroll: true });
 }
 function showDifficultySelection() {
+  organicPrototypeActive = false;
   freePlayCategory = 'classic'; selectedShapeId = null; selectedShapeMode = null;
   activeScreen($('#difficulty')); $('#difficulty-title').focus({ preventScroll: true });
 }
 function showShapedOptions() {
+  organicPrototypeActive = false;
   freePlayCategory = 'shaped'; selectedShapeId = null; selectedShapeMode = null;
   activeScreen($('#shaped-maze-options')); $('#shaped-maze-title').focus({ preventScroll: true });
 }
@@ -744,6 +807,7 @@ function showShapeSelection() {
 function launchShapedMaze(shapeId, selectionMode) {
   const route = createShapeRoute(shapeId, undefined, selectionMode);
   if (!route) return false;
+  organicPrototypeActive = false;
   freePlayCategory = route.category; selectedShapeId = route.shapeId; selectedShapeMode = route.selectionMode;
   try { makeMaze(); return true; }
   catch (error) {
@@ -754,7 +818,12 @@ function launchShapedMaze(shapeId, selectionMode) {
   }
 }
 function newMazeForCurrentFormat() {
-  if (maze?.mazeFormat === 'shaped' && maze.selectionMode === 'surprise') {
+  if (maze?.mazeFormat === 'organic') {
+    organicSeed = (organicSeed + 1) >>> 0;
+    $('#qa-organic-seed').value = String(organicSeed);
+    void generateOrganicQaMaze(organicSeed, { replaceCurrent: true });
+    return;
+  } else if (maze?.mazeFormat === 'shaped' && maze.selectionMode === 'surprise') {
     const next = chooseSurpriseShape();
     if (next) selectedShapeId = next.id;
   }
@@ -762,7 +831,10 @@ function newMazeForCurrentFormat() {
 }
 function backFromGameplay() {
   clearPointer();
-  if (maze?.mazeFormat === 'shaped') {
+  if (maze?.mazeFormat === 'organic') {
+    organicGenerationToken++;
+    paused = true; pauseTimer(); activeScreen($('#qa-config')); updateTraceDiagnostics();
+  } else if (maze?.mazeFormat === 'shaped') {
     if (maze.selectionMode === 'chosen') showShapeSelection();
     else showShapedOptions();
   } else showDifficultySelection();
@@ -867,6 +939,44 @@ $('#pause-game').addEventListener('click', () => openOverlay($('#pause-dialog'),
 $('#qa-open-home').addEventListener('click', openQaConfiguration);
 $('#qa-open-game').addEventListener('click', openQaConfiguration);
 $('#qa-config-return').addEventListener('click', returnFromQaConfiguration);
+async function generateOrganicQaMaze(seed, { replaceCurrent = false } = {}) {
+  if (!qaEnabled) return false;
+  if (replaceCurrent) clearPointer();
+  else if (activePointerId !== null) return false;
+  const token = ++organicGenerationToken;
+  const button = $('#qa-launch-organic'), newButton = $('#new-maze');
+  button.disabled = true; newButton.disabled = true;
+  if (replaceCurrent) { paused = true; pauseTimer(); }
+  $('#qa-organic-status').textContent = `Preparing deterministic Organic Circle seed ${seed}…`;
+  try {
+    const generated = await createOrganicCircleMazeAsync({ seed });
+    if (token !== organicGenerationToken || !qaEnabled) return false;
+    if (!organicReturnState) organicReturnState = {
+      maze, traceSession, currentLayoutId, selectedDifficulty, freePlayCategory, selectedShapeId, selectedShapeMode,
+      mazeCompleted, elapsed, resumeTimer: Boolean(qaReturnState?.timerWasRunning),
+    };
+    organicPrototypeActive = true;
+    organicSeed = Number(seed) >>> 0;
+    freePlayCategory = 'qa-organic-prototype';
+    selectedShapeId = null; selectedShapeMode = null;
+    makeMaze(false, generated);
+    $('#qa-organic-seed').value = String(organicSeed);
+    $('#qa-organic-status').textContent = `Organic Circle seed ${organicSeed} is running in QA. New advances the seed; Restart replays this layout.`;
+    return true;
+  } catch (error) {
+    $('#qa-organic-status').textContent = `Prototype generation failed safely: ${error.message}`;
+    if (replaceCurrent && token === organicGenerationToken) { paused = false; startTimer(); }
+    return false;
+  } finally {
+    if (token === organicGenerationToken) { button.disabled = false; newButton.disabled = false; }
+  }
+}
+$('#qa-launch-organic').addEventListener('click', () => {
+  if (!qaEnabled || $('#qa-config').hidden) return;
+  const requestedSeed = Number($('#qa-organic-seed').value);
+  if (!Number.isSafeInteger(requestedSeed)) { $('#qa-organic-status').textContent = 'Enter a whole-number seed.'; return; }
+  void generateOrganicQaMaze(requestedSeed);
+});
 $('#pause-settings').addEventListener('click', openSettingsFromPause);
 function resumeFromPause() { paused = false; closeOverlay(); startTimer(); }
 $('#resume-game').addEventListener('click', resumeFromPause);
@@ -949,7 +1059,24 @@ window.addEventListener('pagehide', () => {
   if (!qaEnabled || !traceRecorder || !traceSession || !qaSessionId) return;
   clearTimeout(persistTimer); qaStore.save(diagnosticReportObject(), { sessionId: qaSessionId, buildId: APP_BUILD_ID });
 });
-$('#disable-qa-mode').addEventListener('click', () => { setQaMode(false); returnFromQaConfiguration(); });
+$('#disable-qa-mode').addEventListener('click', () => {
+  if (maze?.mazeFormat === 'organic' && organicReturnState) {
+    const previous = organicReturnState; organicReturnState = null;
+    maze = previous.maze; traceSession = previous.traceSession; currentLayoutId = previous.currentLayoutId;
+    selectedDifficulty = previous.selectedDifficulty; freePlayCategory = previous.freePlayCategory;
+    selectedShapeId = previous.selectedShapeId; selectedShapeMode = previous.selectedShapeMode;
+    mazeCompleted = previous.mazeCompleted; elapsed = previous.elapsed; paused = previous.mazeCompleted || !previous.resumeTimer;
+    if (maze) {
+      if (maze.mazeFormat === 'organic') steeringController.setSpeedProfile('organic-circle-qa', maze.unitsPerSecond);
+      else if (maze.mazeFormat === 'shaped') steeringController.setSpeedProfile(`shape:${maze.shapeId}`, getShapedMazeSpeedCap(countActiveCells(maze)));
+      else steeringController.setDifficulty(maze.difficulty ?? selectedDifficulty);
+      steeringPad.hidden = mazeCompleted; $('#completion-panel').hidden = !mazeCompleted;
+      if (mazeCompleted) document.body.dataset.completed = 'true'; else delete document.body.dataset.completed;
+      displayTime();
+    }
+  }
+  setQaMode(false); returnFromQaConfiguration();
+});
 bindEmblemQaTrigger($('#qa-logo-trigger'), () => {
   setQaMode(true);
   openQaConfiguration();

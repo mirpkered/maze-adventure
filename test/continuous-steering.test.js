@@ -462,7 +462,7 @@ test('Steering is the only gameplay controller and QA diagnostics identify it wi
   assert.match(game, /traceSession\.steer\(id, delta\)/);
   assert.match(game, /if \(!event\.isPrimary\)/, 'a second simultaneous pointer cannot start another steering gesture');
   assert.match(game, /activePointerId !== null\) \{ recordTraceEvent\('pointerdown', event, lastRawPointer, false, 'another-pointer-owns-gesture'/);
-  assert.match(game, /function makeMaze\(reuse = false\) \{\s*if \(activePointerId !== null\) clearPointer\(\)/,
+  assert.match(game, /function makeMaze\(reuse = false, generatedMaze = null\) \{\s*if \(activePointerId !== null\) clearPointer\(\)/,
     'restart and new maze cancel the active controller');
   assert.match(game, /if \(pause\) \{ paused = true; pauseTimer\(\); clearPointer\(\); \}/,
     'pause and its Settings transition stop the controller');

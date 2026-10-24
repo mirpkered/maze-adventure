@@ -1,4 +1,5 @@
 import { advancePath, canMove, inBounds } from './maze.js';
+import { createOrganicTraceSession } from './organic-tracing.js';
 
 const MAX_SAMPLE_DISTANCE = 0.055;
 const CORRIDOR_MARGIN = 0.46;
@@ -201,6 +202,7 @@ export function traceSegment(maze, path, from, to, currentStroke = path.map(copy
 
 /** Shared authoritative maze route, pencil endpoint, and append-only ink session. */
 export function createTraceSession(maze) {
+  if (maze?.mazeFormat === 'organic') return createOrganicTraceSession(maze);
   let path = [{ ...maze.start }];
   let stroke = [{ ...maze.start }];
   let strokeCells = [{ ...maze.start }];

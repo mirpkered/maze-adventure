@@ -110,6 +110,7 @@ export function createTraceRecorder({ limit = DEFAULT_EVENT_LIMIT, now = () => p
 
 /** Stable layout fingerprint so a report can be rebuilt without recording a random seed. */
 export function mazeLayoutId(maze) {
+  if (maze?.mazeFormat === 'organic') return `organic-circle-${maze.seed}-${maze.layoutFingerprint ?? 'unfingerprinted'}`;
   let hash = 2166136261;
   const bits = `${maze.mazeFormat ?? 'classic'}|${maze.shapeId ?? ''}|${maze.width}x${maze.height}|${maze.start.x},${maze.start.y},${maze.entrance?.side ?? '?'}|${maze.end.x},${maze.end.y},${maze.exit?.side ?? '?'}|` +
     maze.cells.flatMap(row => row.map(cell => cell ? ['N', 'E', 'S', 'W'].map(direction => cell.walls[direction] ? '1' : '0').join('') : '----')).join('');

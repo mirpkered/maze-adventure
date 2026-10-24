@@ -161,6 +161,14 @@
         <header class="view-header qa-config-header"><button class="back-button" id="qa-config-return">← Return to Game</button><div><p class="eyebrow">INTERNAL TESTING</p><h1 id="qa-config-title" tabindex="-1">QA configuration</h1></div></header>
         <p class="qa-config-notice" id="qa-config-notice">Gameplay is suspended while these controls are open. Your maze and pencil marks are preserved.</p>
         <output id="trace-diagnostics" class="trace-diagnostics" hidden aria-live="off"></output>
+        <section id="qa-organic-tools" class="qa-organic-tools settings-panel" hidden aria-labelledby="qa-organic-title">
+          <p class="eyebrow">DEVELOPMENT PROTOTYPE</p>
+          <h2 id="qa-organic-title">Organic Circle · QA only</h2>
+          <p>Free-flowing curved corridors. This prototype is separate from the released grid Circle and is not in the public shape list.</p>
+          <label for="qa-organic-seed">Reproducible seed</label>
+          <div class="qa-organic-actions"><input id="qa-organic-seed" type="number" inputmode="numeric" step="1" value="1" /><button class="button button-primary" id="qa-launch-organic" type="button">Launch prototype</button></div>
+          <output id="qa-organic-status" aria-live="polite"></output>
+        </section>
         <section id="trace-diagnostic-tools" class="trace-diagnostic-tools" hidden aria-label="QA tracing diagnostics">
           <div class="diagnostic-actions"><button id="copy-qa-summary" class="small-button">Copy quick summary</button><button id="copy-qa-incident" class="small-button">Copy recent incident</button><button id="copy-trace-report" class="small-button">Share / export full report</button><button id="reset-trace-log" class="small-button">Reset current log</button><button id="clear-qa-sessions" class="small-button">Clear saved QA sessions</button><button id="disable-qa-mode" class="small-button">Exit QA mode</button></div>
           <output id="qa-active-input-mode" class="qa-active-input-mode" aria-live="polite">Control system: Continuous Steering</output>
